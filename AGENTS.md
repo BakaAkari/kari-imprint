@@ -1,21 +1,26 @@
-# aka-semi-utils Web Agent 指南
+---
+name: kari-imprint
+description: "Kari Imprint - photography watermark tools: web, app, mini-program."
+version: 1.0.0
+---
+
+# kari-imprint Agent 指南
 
 ## 项目定位
 
-当前主线是公开 Web 摄影水印工具 V3：React/Vite 前端、FastAPI API、Python 图片处理核心、Region-Based Layout。
+公开摄影水印工具，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **V3 Region-Based Layout**：React/Vite 前端、FastAPI API、Python 图片处理核心。
 
-桌面版冻结在 `v2.1.9` 与 `archive/desktop-v2`，禁止在当前主线恢复 PyQt、PyInstaller 或桌面发布流程。V1/V2 Web 已清理，不要恢复四角配置模型或 `/v2` fallback。
+旧桌面版本已当作历史资亦保留。
 
 ## 当前结构
 
-- `web_frontend/`：V3 React/Vite UI。
-- `web_frontend/src/v3_layout/`：前端布局引擎。
-- `web_api/`：HTTP API、安全校验、上传和输出生命周期。
-- `shared/v3_layout/`：后端布局引擎。
-- `processor/v3_watermark.py`：V3 PIL 渲染处理器。
-- `core/`、`processor/`：图片、EXIF 与处理管线。
-- `deploy/`：腾讯云部署配置和 V1 占位页。
-- `tests/`：单元、集成和 Web API 测试。
+- `web_frontend/`：V3 React/Vite UI（将来移入 `apps/web`）。
+- `shared/v3_layout/`：后端布局引擎（将来移入 `packages/core-layout`）。
+- `processor/`：图片、EXIF 与渲染管线（将来移入 `packages/core-render`）。
+- `web_api/`：HTTP API、安全校验、上传和输出生命周期（将来移入 `apps/api`）。
+- `core/`：通用 EXIF、字体、图片 I/O（将来移入 `packages/core-*`）。
+- `deploy/`：部署配置。
+- `tests/`：测试。
 
 ## 强制约束
 
@@ -24,18 +29,10 @@
 - 所有公开参数必须严格校验类型、枚举、长度、范围和非有限数值。
 - 图片处理必须限制上传大小、解码像素、并发和文件保留时间。
 - 不向客户端返回内部路径、异常堆栈或敏感 EXIF 日志。
-- 前端不得提交 `node_modules`、`dist`、`*.tsbuildinfo` 或编译后的 Vite 配置。
-- 不恢复 `web_api/schemas.py`、`shared/watermark_schema.py`、`shared/processor_assembler.py`。
 
 ## 工作流
 
 较大改动遵循：设计文档 → 用户确认 → 小步实现 → 自动验证 → 部署验证 → 提交/推送。
-
-开始修改前执行：
-
-```bash
-git status --short
-```
 
 提交前执行：
 
@@ -45,6 +42,23 @@ uv run pytest
 cd web_frontend && VITE_API_BASE=/tools/watermark-v3 npm run build
 ```
 
-部署后验证线上 V3、V1 占位页、V1 API 410、V2 404、V3 `/v2` 404，并用浏览器截图检查 UI。
+提交信息使用 Conventional Commits。
 
-提交信息使用 Conventional Commits。正式 Web 发布使用独立 `v0.x` 版本线；桌面 `v2.x` tag 不得移动或覆盖。
+## 迁移中
+
+项目目前处于单一仓库状态，正在向 monorepo 重构：
+
+```text
+packages/
+  core-schema/
+  core-layout/        # TS + Python 双实现
+  core-render/        # Python PIL 渲染管线
+  core-exif/
+apps/
+  web/
+  api/
+  app-mobile/
+  wechat-mini/
+```
+
+重构完成后，本文件会更新为新结构。
