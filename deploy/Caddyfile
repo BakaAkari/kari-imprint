@@ -18,7 +18,7 @@ photo.baka-akari.icu {
     }
 
     handle {
-        root * /var/www/aka-semi-utils-web
+        root * /var/www/kari-imprint
         try_files {path} /index.html
         file_server
     }

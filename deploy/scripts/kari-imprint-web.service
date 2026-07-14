@@ -1,0 +1,30 @@
+[Unit]
+Description=AKA Semi-Utils Web API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/kari-imprint
+Environment="PYTHONUNBUFFERED=1"
+Environment="KARI_IMPRINT_DATA_DIR=/var/lib/kari-imprint"
+Environment="KARI_IMPRINT_UPLOAD_DIR=/var/lib/kari-imprint/uploads"
+Environment="KARI_IMPRINT_OUTPUT_DIR=/var/lib/kari-imprint/outputs"
+Environment="KARI_IMPRINT_RESOURCES_DIR=/var/lib/kari-imprint/resources"
+Environment="KARI_IMPRINT_TMP_DIR=/var/lib/kari-imprint/tmp"
+Environment="KARI_IMPRINT_MAX_IMAGE_PIXELS=50000000"
+Environment="KARI_IMPRINT_PREVIEW_MAX_IMAGE_PIXELS=100000000"
+ExecStart=/opt/kari-imprint/.venv/bin/python -m uvicorn apps.api.src.api.main:app --host 127.0.0.1 --port 2189 --workers 1
+Restart=always
+RestartSec=5
+
+# 安全限制
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kari-imprint
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

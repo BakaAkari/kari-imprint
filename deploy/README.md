@@ -9,11 +9,11 @@ https://baka-akari.zone/tools/watermark-v3/
 ## 路径与服务
 
 - 前端静态文件：`/var/www/personal-home/tools/watermark-v3/`
-- 后端代码：`/opt/aka-semi-utils-web-v2/`（历史目录名，当前运行 V3）
+- 后端代码：`/opt/kari-imprint-v2/`（历史目录名，当前运行 V3）
 - systemd：`watermark-v3.service`
 - 端口：`127.0.0.1:2190`
 - API prefix：`/tools/watermark-v3/api`
-- 数据目录：`/var/lib/aka-semi-utils-web-v3/`
+- 数据目录：`/var/lib/kari-imprint-v3/`
 
 旧入口：
 
@@ -25,7 +25,7 @@ https://baka-akari.zone/tools/watermark-v3/
 ## 前端部署
 
 ```bash
-cd web_frontend
+cd apps/web
 VITE_API_BASE=/tools/watermark-v3 npm run build
 cd dist
 tar czf - . | ssh tencent-ubuntu "sudo tar xzf - -C /var/www/personal-home/tools/watermark-v3/ && sudo chown -R www-data:www-data /var/www/personal-home/tools/watermark-v3/"
@@ -35,21 +35,21 @@ tar czf - . | ssh tencent-ubuntu "sudo tar xzf - -C /var/www/personal-home/tools
 
 ```bash
 rsync -avz --delete \
-  --exclude='web_frontend/node_modules' --exclude='web_frontend/dist' \
+  --exclude='apps/web/node_modules' --exclude='apps/web/dist' \
   --exclude='.venv' --exclude='__pycache__' --exclude='.git' \
   --exclude='*.pyc' --exclude='.DS_Store' \
   --exclude='archive' --exclude='design' --exclude='docs' \
   --exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='.mypy_cache' \
   --exclude='build' --exclude='static' --exclude='gui' \
-  --exclude='aka-semi-utils-web-v2.env' \
+  --exclude='kari-imprint-v2.env' \
   --rsync-path='sudo rsync' \
-  ./ tencent-ubuntu:/opt/aka-semi-utils-web-v2/
+  ./ tencent-ubuntu:/opt/kari-imprint-v2/
 ```
 
 注意：`config/logos/` 是 V3 自动 Logo 资源目录，保留在源码中并同步到线上，不要排除。如需排除 `config/` 中其他内容，请显式列出子目录。
 
 ```bash
-ssh tencent-ubuntu "sudo chown -R www-data:www-data /opt/aka-semi-utils-web-v2/ && sudo chmod 755 /opt/aka-semi-utils-web-v2 && sudo systemctl restart watermark-v3.service"
+ssh tencent-ubuntu "sudo chown -R www-data:www-data /opt/kari-imprint-v2/ && sudo chmod 755 /opt/kari-imprint-v2 && sudo systemctl restart watermark-v3.service"
 ```
 
 重启后验证：
@@ -93,11 +93,11 @@ v3_api:200
 
 ```bash
 ssh tencent-ubuntu '
-  systemctl list-units --type=service --all "*watermark*" "*aka-semi*" --no-pager
+  systemctl list-units --type=service --all "*watermark*" "*kari-imprint*" --no-pager
   sudo ss -ltnp | grep -E ":2189|:2190" || true
-  sudo test ! -e /opt/aka-semi-utils-web-v2/web_api/schemas.py && echo no_old_schema
-  sudo test ! -e /opt/aka-semi-utils-web-v2/shared/watermark_schema.py && echo no_old_watermark_schema
-  sudo test ! -e /opt/aka-semi-utils-web-v2/shared/processor_assembler.py && echo no_old_assembler
+  sudo test ! -e /opt/kari-imprint-v2/apps/api/src/api/schemas.py && echo no_old_schema
+  sudo test ! -e /opt/kari-imprint-v2/shared/watermark_schema.py && echo no_old_watermark_schema
+  sudo test ! -e /opt/kari-imprint-v2/shared/processor_assembler.py && echo no_old_assembler
   sudo test ! -d /var/www/personal-home/tools/watermark-v2 && echo no_v2_static
 '
 ```

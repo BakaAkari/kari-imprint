@@ -22,12 +22,12 @@ dist/
 *.app/
 
 # ===== Web 前端 =====
-web_frontend/node_modules/
-web_frontend/dist/
-web_frontend/*.tsbuildinfo
-web_frontend/vite.config.js
-web_frontend/vite.config.d.ts
-web_frontend/public/fonts/
+apps/web/node_modules/
+apps/web/dist/
+apps/web/*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts
+apps/web/public/fonts/
 
 # ===== 虚拟环境 =====
 .venv/
@@ -55,16 +55,16 @@ exiftool.exe
 
 # ===== 隐私内容（用户私有数据，不入库） =====
 # 用户签名图（个人手写签名，敏感）
-config/signatures/*
-!config/signatures/.gitkeep
+packages/kari-core/config/signatures/*
+!packages/kari-core/config/signatures/.gitkeep
 # 用户自定义 logo（个人版权 / 商标内容）
-config/logos/custom/*
-!config/logos/custom/.gitkeep
+packages/kari-core/config/logos/custom/*
+!packages/kari-core/config/logos/custom/.gitkeep
 # 用户自定义模板与预设
-config/presets/*
-!config/presets/.gitkeep
-config/templates/*.json
-!config/templates/.gitkeep
+packages/kari-core/config/presets/*
+!packages/kari-core/config/presets/.gitkeep
+packages/kari-core/config/templates/*.json
+!packages/kari-core/config/templates/.gitkeep
 
 # ===== 旧路径兜底（历史遗留） =====
 logos/logo_psds

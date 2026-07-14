@@ -8,19 +8,20 @@ version: 1.0.0
 
 ## 项目定位
 
-公开摄影水印工具，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **V3 Region-Based Layout**：React/Vite 前端、FastAPI API、Python 图片处理核心。
+公开摄影水印工具集，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **V3 Region-Based Layout**。
 
-旧桌面版本已当作历史资亦保留。
+## Monorepo 结构
 
-## 当前结构
-
-- `web_frontend/`：V3 React/Vite UI（将来移入 `apps/web`）。
-- `shared/v3_layout/`：后端布局引擎（将来移入 `packages/core-layout`）。
-- `processor/`：图片、EXIF 与渲染管线（将来移入 `packages/core-render`）。
-- `web_api/`：HTTP API、安全校验、上传和输出生命周期（将来移入 `apps/api`）。
-- `core/`：通用 EXIF、字体、图片 I/O（将来移入 `packages/core-*`）。
-- `deploy/`：部署配置。
-- `tests/`：测试。
+```text
+packages/
+  kari-core/            # Python 共享核心：core + shared + processor
+apps/
+  api/                  # FastAPI 后端
+  web/                  # React/Vite Web 前端
+  app-mobile/           # 移动 APP（占位）
+  wechat-mini/          # 微信小程序（占位）
+deploy/                 # 部署配置
+```
 
 ## 强制约束
 
@@ -38,27 +39,21 @@ version: 1.0.0
 
 ```bash
 uv run ruff check .
-uv run pytest
-cd web_frontend && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd packages/kari-core && uv run pytest
+cd apps/api && uv run pytest
+cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
 ```
 
 提交信息使用 Conventional Commits。
 
-## 迁移中
+## 轨迹
 
-项目目前处于单一仓库状态，正在向 monorepo 重构：
+长期方向是把 `kari-core` 进一步拆分为：
 
 ```text
 packages/
   core-schema/
-  core-layout/        # TS + Python 双实现
-  core-render/        # Python PIL 渲染管线
+  core-layout/          # TS + Python 双实现
+  core-render/          # Python PIL 渲染管线
   core-exif/
-apps/
-  web/
-  api/
-  app-mobile/
-  wechat-mini/
 ```
-
-重构完成后，本文件会更新为新结构。

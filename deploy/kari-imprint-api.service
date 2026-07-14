@@ -1,0 +1,24 @@
+[Unit]
+Description=kari-imprint Web API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/kari-imprint
+EnvironmentFile=/etc/kari-imprint.env
+ExecStart=/opt/kari-imprint/.venv/bin/uvicorn apps.api.src.api.main:app --host 127.0.0.1 --port 2189 --workers 1 --limit-concurrency 8 --timeout-keep-alive 5 --no-server-header
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kari-imprint
+MemoryMax=1200M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
