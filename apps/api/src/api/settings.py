@@ -17,7 +17,7 @@ class WebApiSettings:
     output_dir: Path
     resources_dir: Path
     tmp_dir: Path
-    api_prefix: str = "/tools/watermark/api"
+    api_prefix: str = "/tools/watermark-v3/api"
     # ~80MB for GFX100S2 RAW files
     max_upload_bytes: int = 80 * 1024 * 1024
     max_resource_bytes: int = 5 * 1024 * 1024

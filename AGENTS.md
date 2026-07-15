@@ -46,6 +46,13 @@ cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
 
 提交信息使用 Conventional Commits。
 
+## 部署禁忌（深刻教训）
+
+- 豀函数不在服务器直接 `git clone` GitHub。正常使用本地 Mac scp/rsync 传代码，或在服务器上从内网镜像拉取。
+- 豀函数不在服务器上运行 `uv sync --all-packages --dev`。部署只需要运行时依赖；开发依赖（pytest/ruff/mypy）留给本地开发环境。
+- 豀函数不让 `www-data` 运行 `/opt` 下的程序。腾讯云轻量服务器对该用户有额外限制，直接使用 `ubuntu` 用户运行服务。
+- 豀函数部署后不立即验证 `/api/health` 和端到端水印生成。
+
 ## 轨迹
 
 长期方向是把 `kari-core` 进一步拆分为：

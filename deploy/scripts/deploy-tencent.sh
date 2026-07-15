@@ -1,126 +1,172 @@
 #!/usr/bin/env bash
-# deploy-tencent.sh - 一键部署 kari-imprint Web 到腾讯云香港服务器
-# 用法: ./scripts/deploy-tencent.sh [remote_host]
-# 默认远程主机: tencent-hk (依赖 ~/.ssh/config 中的 Host 别名)
-
 set -euo pipefail
 
-PROJECT_NAME="kari-imprint"
-REMOTE_HOST="${1:-tencent-hk}"
-LOCAL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REMOTE_DIR="/opt/${PROJECT_NAME}"
-REMOTE_DATA_DIR="/var/lib/${PROJECT_NAME}"
-REMOTE_WWW_DIR="/var/www/${PROJECT_NAME}"
-REMOTE_ENV="/etc/${PROJECT_NAME}.env"
+# deploy-tencent.sh
+# 腾讯云轻量服务器部署脚本（一键打包+上传）
+# 由于腾讯云 SSH 需要二次验证（微信扫码），远程部署部分需要用户手动 ssh 登录后执行。
+#
+# 使用方式：
+#   1. 在 Mac 上运行 deploy/scripts/deploy-tencent.sh
+#   2. 等待上传完成
+#   3. 按提示 ssh 登录服务器，执行 /tmp/kari-imprint-deploy-remote.sh
+#
+# 要求本地 Mac 环境：
+#   - 已安装 uv (https://astral.sh/uv)
+#   - 已安装 npm/node
+#   - 配置好 SSH config 中的 tencent-ubuntu Host
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+DEPLOY_HOST="${DEPLOY_HOST:-tencent-ubuntu}"
+REMOTE_DIR="${REMOTE_DIR:-/opt/kari-imprint}"
+REMOTE_WEB_DIR="${REMOTE_WEB_DIR:-/var/www/personal-home/tools/watermark-v3}"
+REMOTE_DATA_DIR="${REMOTE_DATA_DIR:-/var/lib/kari-imprint}"
+REMOTE_PORT="${REMOTE_PORT:-2192}"
+API_PREFIX="${API_PREFIX:-/tools/watermark-v3/api}"
 
-log()  { echo -e "${GREEN}[deploy]${NC} $*"; }
-warn() { echo -e "${YELLOW}[warn]${NC} $*"; }
-info() { echo -e "${BLUE}[info]${NC} $*"; }
-err()  { echo -e "${RED}[err]${NC} $*"; exit 1; }
+DEPLOY_TAG="$(date +%Y%m%d-%H%M%S)"
+TMP_TARBALL="/tmp/kari-imprint-${DEPLOY_TAG}.tgz"
+REMOTE_TARBALL="/tmp/kari-imprint-latest.tgz"
 
-# ---------- 本地构建与验证 ----------
-log "Step 1: 本地后端静态检查..."
-cd "${LOCAL_DIR}"
-uv run ruff check . || err "ruff 检查失败"
+echo "==> 清理并重新构建前端"
+cd "${PROJECT_ROOT}/apps/web"
+npm install
+VITE_API_BASE="${API_PREFIX%/api}" npm run build
 
-log "Step 2: 本地后端测试..."
-uv run pytest -q || err "pytest 未通过"
+echo "==> 本地验证 Python 测试"
+cd "${PROJECT_ROOT}"
+uv run ruff check .
+cd packages/kari-core && uv run pytest
+cd ../../apps/api && uv run pytest
 
-log "Step 3: 本地前端构建..."
-cd "${LOCAL_DIR}/apps/web"
-npm ci
-npm run build
+echo "==> 打包源码（不含 .git/node_modules/.venv）"
+cd "${PROJECT_ROOT}"
+tar -czf "${TMP_TARBALL}" \
+  --exclude='node_modules' \
+  --exclude='.venv' \
+  --exclude='venv' \
+  --exclude='dist' \
+  --exclude='__pycache__' \
+  --exclude='.pytest_cache' \
+  --exclude='.mypy_cache' \
+  --exclude='*.pyc' \
+  --exclude='.DS_Store' \
+  --exclude='.vite' \
+  --exclude='*.tsbuildinfo' \
+  --exclude='.git' \
+  .
 
-# ---------- 远程部署 ----------
-log "Step 4: 停止远程服务..."
-ssh "${REMOTE_HOST}" "sudo systemctl stop ${PROJECT_NAME} || true"
+echo "==> 上传代码包和远程部署脚本"
+cat > /tmp/kari-imprint-deploy-remote.sh <<'REMOTE_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
 
-log "Step 5: 同步源码到远程..."
-rsync -avz --delete \
-    --exclude='.git' \
-    --exclude='.venv' \
-    --exclude='__pycache__' \
-    --exclude='.pytest_cache' \
-    --exclude='.mypy_cache' \
-    --exclude='.ruff_cache' \
-    --exclude='node_modules' \
-    --exclude='apps/web/node_modules' \
-    --exclude='apps/web/dist' \
-    --exclude='dist' \
-    --exclude='*.pyc' \
-    --exclude='.DS_Store' \
-    --exclude='kari-imprint.app' \
-    --exclude='build' \
-    --exclude='.tox' \
-    --exclude='htmlcov' \
-    --exclude='.coverage' \
-    --exclude='input' \
-    --exclude='output' \
-    --exclude='logs' \
-    --exclude='tmp' \
-    "${LOCAL_DIR}/" "${REMOTE_HOST}:${REMOTE_DIR}/"
+REMOTE_DIR="/opt/kari-imprint"
+REMOTE_WEB_DIR="/var/www/personal-home/tools/watermark-v3"
+REMOTE_DATA_DIR="/var/lib/kari-imprint"
+REMOTE_PORT="2192"
+API_PREFIX="/tools/watermark-v3/api"
 
-log "Step 6: 同步前端构建产物到远程..."
-rsync -avz --delete \
-    "${LOCAL_DIR}/apps/web/dist/" "${REMOTE_HOST}:${REMOTE_WWW_DIR}/"
+echo "    -> 清理旧版并解压代码"
+sudo systemctl stop kari-imprint.service 2>/dev/null || true
+sudo rm -rf \
+  /opt/aka-semi-utils-web \
+  /opt/aka-semi-utils-web-v2 \
+  "${REMOTE_DIR}" \
+  /var/www/personal-home/tools/watermark \
+  /var/www/personal-home/tools/watermark-v3
 
-log "Step 7: 远程安装依赖、修复权限并重启服务..."
-ssh "${REMOTE_HOST}" "
-set -e
+sudo mkdir -p "${REMOTE_DIR}"
+sudo chown -R "$(whoami)":"$(whoami)" "${REMOTE_DIR}"
+tar -xzf /tmp/kari-imprint-latest.tgz -C "${REMOTE_DIR}"
+find "${REMOTE_DIR}" -name '._*' -delete
 
-cd ${REMOTE_DIR}
+echo "    -> 创建运行时目录"
+sudo mkdir -p "${REMOTE_DATA_DIR}"{"/uploads","/outputs","/resources","/tmp"}
+sudo chown -R "$(whoami)":"$(whoami)" "${REMOTE_DATA_DIR}"
 
-# 确保 uv Python 安装目录可读写
-UV_PYTHON_INSTALL_DIR=/opt/uv-python
-export UV_PYTHON_INSTALL_DIR
-uv sync --frozen --no-dev --python 3.13
+echo "    -> 配置 Python 解释器和依赖"
+mkdir -p "$HOME/.config/uv"
+cat > "$HOME/.config/uv/uv.toml" <<'UVCONF'
+[pip]
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+UVCONF
 
-# 修复源码与依赖权限，确保 www-data 可读
-find ${REMOTE_DIR} -type d -exec chmod 755 {} \\;
-find ${REMOTE_DIR} -type f -exec chmod 644 {} \\;
-chmod -R 755 ${REMOTE_DIR}/.venv/bin
+export PATH="$HOME/.local/bin:$PATH"
+UV_PYTHON="/opt/uv-python/cpython-3.13/bin/python3.13"
 
-# 修复 uv Python 目录权限
-find \${UV_PYTHON_INSTALL_DIR} -type d -exec chmod 755 {} \\; 2>/dev/null || true
-find \${UV_PYTHON_INSTALL_DIR} -type f -exec chmod 644 {} \\; 2>/dev/null || true
-chmod -R 755 \${UV_PYTHON_INSTALL_DIR}/*/bin 2>/dev/null || true
+cd "${REMOTE_DIR}"
+rm -rf .venv
+uv venv --python "$UV_PYTHON"
+uv pip install -e ./packages/kari-core -e ./apps/api
+chmod -R 755 .venv/bin
 
-# 确保运行时目录存在且对服务可写
-sudo mkdir -p ${REMOTE_DATA_DIR}/uploads ${REMOTE_DATA_DIR}/outputs ${REMOTE_DATA_DIR}/tmp ${REMOTE_DATA_DIR}/resources/logo ${REMOTE_DATA_DIR}/resources/signature
-sudo chown -R www-data:www-data ${REMOTE_DATA_DIR}
+echo "    -> 部署编译前端静态文件"
+sudo mkdir -p "${REMOTE_WEB_DIR}"
+sudo cp -r "${REMOTE_DIR}/apps/web/dist/"* "${REMOTE_WEB_DIR}/"
+sudo chown -R www-data:www-data "${REMOTE_WEB_DIR}"
 
-# 如果环境文件不存在，使用示例创建并提示
-if [ ! -f ${REMOTE_ENV} ]; then
-    sudo cp ${REMOTE_DIR}/deploy/kari-imprint.env.example ${REMOTE_ENV}
-    echo '已创建 ${REMOTE_ENV}，请检查并调整配置后重新部署'
-fi
+echo "    -> 配置环境变量"
+sudo tee /etc/kari-imprint.env > /dev/null <<ENV
+KARI_IMPRINT_DATA_DIR=${REMOTE_DATA_DIR}
+KARI_IMPRINT_RESOURCE_DIR=${REMOTE_DATA_DIR}/resources
+KARI_IMPRINT_UPLOAD_DIR=${REMOTE_DATA_DIR}/uploads
+KARI_IMPRINT_OUTPUT_DIR=${REMOTE_DATA_DIR}/outputs
+KARI_IMPRINT_TMP_DIR=${REMOTE_DATA_DIR}/tmp
+KARI_IMPRINT_API_PREFIX=${API_PREFIX}
+KARI_IMPRINT_MAX_UPLOAD_SIZE=33554432
+KARI_IMPRINT_OUTPUT_TTL=3600
+KARI_IMPRINT_CLEANUP_INTERVAL=300
+KARI_IMPRINT_LOG_LEVEL=info
+ENV
+sudo chmod 600 /etc/kari-imprint.env
 
-# 安装/更新 systemd unit 与 Caddyfile
-sudo cp ${REMOTE_DIR}/deploy/kari-imprint-api.service /etc/systemd/system/${PROJECT_NAME}.service
-sudo cp ${REMOTE_DIR}/deploy/Caddyfile /etc/caddy/Caddyfile
+echo "    -> 配置 systemd 服务"
+sudo tee /etc/systemd/system/kari-imprint.service > /dev/null <<SERVICE
+[Unit]
+Description=Kari Imprint Web API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$(whoami)
+Group=$(whoami)
+WorkingDirectory=${REMOTE_DIR}
+EnvironmentFile=/etc/kari-imprint.env
+Environment=PATH=${REMOTE_DIR}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=${REMOTE_DIR}/.venv/bin/uvicorn apps.api.src.api.main:app --host 127.0.0.1 --port ${REMOTE_PORT} --workers 1 --limit-concurrency 8 --timeout-keep-alive 5 --no-server-header
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=yes
+ReadWritePaths=${REMOTE_DATA_DIR} ${REMOTE_DIR}/packages/kari-core/config/logos/custom
+MemoryMax=1200M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
 
 sudo systemctl daemon-reload
-sudo systemctl enable ${PROJECT_NAME}
-sudo systemctl restart ${PROJECT_NAME}
-sudo systemctl reload-or-restart caddy
-"
+sudo systemctl enable kari-imprint.service
+sudo systemctl start kari-imprint.service
 
-log "Step 8: 健康检查..."
-sleep 2
-ssh "${REMOTE_HOST}" "
-set -e
-curl -s http://127.0.0.1:2189/api/health
-echo
-curl -s https://photo.baka-akari.icu/api/health
-echo
-JS_URL=\$(curl -s https://photo.baka-akari.icu/ | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' | head -1)
-curl -sI \"https://photo.baka-akari.icu\${JS_URL}\" | grep -i 'content-type: text/javascript'
-"
+echo "    -> 检查服务状态"
+sleep 3
+systemctl is-active kari-imprint.service
+REMOTE_SCRIPT
 
-log "✅ 部署完成: https://photo.baka-akari.icu/"
+chmod +x /tmp/kari-imprint-deploy-remote.sh
+scp "${TMP_TARBALL}" "${DEPLOY_HOST}:${REMOTE_TARBALL}"
+scp /tmp/kari-imprint-deploy-remote.sh "${DEPLOY_HOST}:/tmp/kari-imprint-deploy-remote.sh"
+
+echo ""
+echo "==> 代码包已上传，请手动登录服务器完成部署："
+echo "    ssh ${DEPLOY_HOST}"
+echo "    bash /tmp/kari-imprint-deploy-remote.sh"
+echo ""
+echo "==> 部署完成后访问: https://baka-akari.zone/tools/watermark-v3/"
+
+rm -f "${TMP_TARBALL}" /tmp/kari-imprint-deploy-remote.sh
