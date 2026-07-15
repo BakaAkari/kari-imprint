@@ -40,8 +40,8 @@ app = FastAPI(title="aka-semi-utils Web API", version="0.1.0")
 _job_slots = asyncio.Semaphore(max(1, settings.max_concurrent_jobs))
 _MAX_CONFIG_JSON_BYTES = 64 * 1024
 
-# Serve fonts and logos as static files from the source config directories
-_project_root = Path(__file__).parent.parent
+# Serve fonts and logos as static files from the shared core config directories
+_project_root = Path(__file__).parent.parent.parent.parent.parent / "packages" / "kari-core"
 _fonts_dir = _project_root / "config" / "fonts"
 if _fonts_dir.exists():
     app.mount(f"{_api}/fonts", StaticFiles(directory=str(_fonts_dir)), name="fonts")
