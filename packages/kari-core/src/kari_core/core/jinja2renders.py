@@ -26,9 +26,11 @@ def auto_logo(context, brand: str | None = None):
 def resolve_auto_logo(exif: dict, brand: str | None = None) -> str | None:
     """Resolve an installed logo from trusted EXIF values without Jinja evaluation."""
 
-    brand = (brand or exif.get('Make', 'default')).lower()
+    brand = (brand or exif.get('Make', 'fujifilm')).lower()
+    if brand in ('', 'default'):
+        brand = 'fujifilm'
 
-    # Split the brand name into tokens (e.g. "NIKON CORPORATION" → ["nikon", "corporation"])
+    # Split the brand name into tokens (e.g. "NIKON CORPORATION" -> ["nikon", "corporation"])
     # and filter to tokens long enough to be meaningful brand identifiers.
     tokens = [t for t in brand.replace("-", " ").split() if len(t) > 2]
 
@@ -50,8 +52,13 @@ def resolve_auto_logo(exif: dict, brand: str | None = None) -> str | None:
             if _is_valid_logo(f) and _matches_stem(f.stem):
                 return str(f.absolute()).replace('\\', '/')
 
-    # 2. 回退到内置默认 Logo
+    # 2. 回退到内置品牌 Logo
     for f in logos_dir.iterdir():
         if f.is_file() and _is_valid_logo(f) and _matches_stem(f.stem):
             return str(f.absolute()).replace('\\', '/')
+
+    # 3. 最终回退：如果什么都没匹配上，使用 fujifilm 作为默认 logo
+    fallback = logos_dir / 'fujifilm.png'
+    if fallback.exists():
+        return str(fallback.absolute()).replace('\\', '/')
     return None

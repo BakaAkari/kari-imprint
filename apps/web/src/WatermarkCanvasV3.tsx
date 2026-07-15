@@ -131,7 +131,7 @@ function drawElement(
 
     case 'logo': {
       if (!('path' in content)) return;
-      const logoPath = content.path || `${API_BASE}/api/logos/default.png`;
+      const logoPath = content.path || `${API_BASE}/api/logos/fujifilm.png`;
       const img = logos.get(logoPath);
       if (img) {
         const origin = anchorOrigin(rect, anchor);
@@ -304,7 +304,7 @@ export function WatermarkCanvasV3({
     const logoPaths: string[] = [];
     for (const el of layout.elements) {
       if (el.type === 'logo' && 'path' in el.content) {
-        const path = el.content.path || `${API_BASE}/api/logos/default.png`;
+        const path = el.content.path || `${API_BASE}/api/logos/fujifilm.png`;
         if (!logoImages.has(path)) {
           logoPaths.push(path);
         }

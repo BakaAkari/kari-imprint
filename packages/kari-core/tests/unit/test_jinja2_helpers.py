@@ -26,10 +26,10 @@ class TestVwVh:
 
 
 class TestAutoLogo:
-    def test_returns_none_for_unknown_brand(self) -> None:
-        # 用 Jinja 的 default 过滤来测 None 行为
+    def test_returns_default_fujifilm_for_unknown_brand(self) -> None:
+        # 未知品牌现在回退到默认 fujifilm logo
         out = _render("{{ auto_logo()|default('NONE', true) }}", {"Make": "PHOTON-9000-NOT-A-BRAND"})
-        assert out == "NONE"
+        assert "fujifilm" in out.lower()
 
     def test_matches_known_brand(self) -> None:
         # config/logos/nikon.png 仓库自带；smoke 测试匹配是否走通
