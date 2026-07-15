@@ -29,8 +29,12 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 CONFIG_INI_PATH = CONFIG_DIR / "config.ini"
 USER_TEMPLATE_PATH = CONFIG_DIR / "user.json"
 DEFAULT_TEMPLATE_PATH = CONFIG_DIR / "templates" / "标准水印.json"
-FONTS_DIR = CONFIG_DIR / "fonts"
-LOGOS_DIR = CONFIG_DIR / "logos"
+# 资源目录可通过环境变量指向独立 assets 目录，以便将大文件（字体、logo）与代码仓库分离。
+ASSETS_DIR = Path(
+    os.environ.get("KARI_IMPRINT_ASSETS_DIR", str(PROJECT_ROOT.parent.parent / "assets"))
+).resolve()
+FONTS_DIR = ASSETS_DIR / "fonts"
+LOGOS_DIR = ASSETS_DIR / "logos"
 TEMPLATES_DIR = CONFIG_DIR / "templates"
 # 这里不能用 PROJECT_ROOT / "pyproject.toml"，因为现在包结构下 pyproject.toml 在上层 workspace 目录。
 # 使用给定根目录环境变量或回退到当前文件的父父父目录（workspace root）。

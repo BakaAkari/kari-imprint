@@ -17,6 +17,7 @@ class WebApiSettings:
     output_dir: Path
     resources_dir: Path
     tmp_dir: Path
+    assets_dir: Path
     api_prefix: str = "/tools/watermark-v3/api"
     # ~80MB for GFX100S2 RAW files
     max_upload_bytes: int = 80 * 1024 * 1024
@@ -41,13 +42,20 @@ class WebApiSettings:
                 str(Path(tempfile.gettempdir()) / "kari-imprint"),
             )
         ).expanduser()
+        assets_dir = Path(
+            os.environ.get(
+                "KARI_IMPRINT_ASSETS_DIR",
+                str(Path(__file__).parent.parent.parent.parent / "assets"),
+            )
+        ).expanduser()
         return cls(
             data_dir=root,
             upload_dir=root / "uploads",
             output_dir=root / "outputs",
             resources_dir=root / "resources",
             tmp_dir=root / "tmp",
-            api_prefix=os.environ.get("KARI_IMPRINT_API_PREFIX", "/tools/watermark/api"),
+            assets_dir=assets_dir,
+            api_prefix=os.environ.get("KARI_IMPRINT_API_PREFIX", "/tools/watermark-v3/api"),
             max_upload_bytes=int(os.environ.get("KARI_IMPRINT_MAX_UPLOAD_BYTES", 80 * 1024 * 1024)),
             max_resource_bytes=int(os.environ.get("KARI_IMPRINT_MAX_RESOURCE_BYTES", 5 * 1024 * 1024)),
             max_image_pixels=int(os.environ.get("KARI_IMPRINT_MAX_IMAGE_PIXELS", 100_000_000)),

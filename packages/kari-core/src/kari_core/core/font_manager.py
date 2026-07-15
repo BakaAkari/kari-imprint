@@ -5,11 +5,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from kari_core.core.config_loader import FONTS_DIR
+
 logger = logging.getLogger(__name__)
 
-# 使用基于项目根目录的绝对路径
-_PROJECT_ROOT = Path(__file__).parent.parent
-FONTS_DIR = _PROJECT_ROOT / "config" / "fonts"
 PREVIEW_TEXT = "字体预览"
 PREVIEW_SIZE = (80, 30)
 FALLBACK_FONT = "NotoSansCJKsc-Regular.otf"

@@ -11,6 +11,7 @@ import api.processing as web_processing
 from api.main import app
 from api.settings import WebApiSettings, settings
 
+API_PREFIX = "/tools/watermark-v3/api"
 client = TestClient(app)
 
 
@@ -79,7 +80,7 @@ def _post_image(endpoint: str, image_path: Path, config: dict | None = None):
 
 
 def test_health() -> None:
-    response = client.get("/tools/watermark/api/health")
+    response = client.get(f"{API_PREFIX}/health")
     assert response.status_code == 200
     assert response.json() == {"ok": True, "status": "ok"}
 
@@ -87,7 +88,7 @@ def test_health() -> None:
 def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "input-v3.jpg")
 
-    response = _post_image("/tools/watermark/api/process", image_path)
+    response = _post_image(f"{API_PREFIX}/process", image_path)
 
     assert response.status_code == 200, response.json()
     payload = response.json()
@@ -104,7 +105,7 @@ def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
 def test_v3_preview_image_generates_downloadable_file(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "input-v3.jpg", size=(900, 600))
 
-    response = _post_image("/tools/watermark/api/preview", image_path)
+    response = _post_image(f"{API_PREFIX}/preview", image_path)
 
     assert response.status_code == 200, response.json()
     payload = response.json()
@@ -117,7 +118,7 @@ def test_v3_preview_image_generates_downloadable_file(tmp_path: Path) -> None:
 def test_legacy_config_is_removed(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "legacy.jpg")
 
-    response = _post_image("/tools/watermark/api/process", image_path, _legacy_config())
+    response = _post_image(f"{API_PREFIX}/process", image_path, _legacy_config())
 
     assert response.status_code == 410
     assert response.json()["error"]["code"] == "legacy_config_removed"
@@ -131,12 +132,13 @@ def test_process_pixel_limit_message_is_actionable(tmp_path: Path, monkeypatch) 
         output_dir=settings.output_dir,
         resources_dir=settings.resources_dir,
         tmp_dir=settings.tmp_dir,
+        assets_dir=tmp_path / "assets",
         max_image_pixels=10_000,
         preview_max_image_pixels=settings.preview_max_image_pixels,
     )
     monkeypatch.setattr(web_main, "settings", test_settings)
 
-    response = _post_image("/tools/watermark/api/process", image_path)
+    response = _post_image(f"{API_PREFIX}/process", image_path)
 
     assert response.status_code == 413
     payload = response.json()
@@ -154,12 +156,13 @@ def test_preview_uses_separate_larger_pixel_limit(tmp_path: Path, monkeypatch) -
         output_dir=settings.output_dir,
         resources_dir=settings.resources_dir,
         tmp_dir=settings.tmp_dir,
+        assets_dir=tmp_path / "assets",
         max_image_pixels=10_000,
         preview_max_image_pixels=20_000,
     )
     monkeypatch.setattr(web_main, "settings", test_settings)
 
-    response = _post_image("/tools/watermark/api/preview", image_path)
+    response = _post_image(f"{API_PREFIX}/preview", image_path)
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
@@ -172,6 +175,7 @@ def test_settings_expose_separate_preview_pixel_limit(tmp_path: Path) -> None:
         output_dir=tmp_path / "outputs",
         resources_dir=tmp_path / "resources",
         tmp_dir=tmp_path / "tmp",
+        assets_dir=tmp_path / "assets",
         max_image_pixels=1,
         preview_max_image_pixels=2,
     )
@@ -184,7 +188,7 @@ def test_rejects_invalid_config_json(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "input.jpg")
     with image_path.open("rb") as file:
         response = client.post(
-            "/tools/watermark/api/process",
+            f"{API_PREFIX}/process",
             files={"file": ("input.jpg", file, "image/jpeg")},
             data={"config": "{"},
         )
@@ -198,7 +202,7 @@ def test_rejects_unsupported_extension(tmp_path: Path) -> None:
     file_path.write_text("not an image", encoding="utf-8")
     with file_path.open("rb") as file:
         response = client.post(
-            "/tools/watermark/api/process",
+            f"{API_PREFIX}/process",
             files={"file": ("input.txt", file, "text/plain")},
             data={"config": json.dumps(_minimal_v3_config())},
         )
@@ -217,7 +221,7 @@ def test_v3_custom_text_is_never_evaluated_as_jinja(tmp_path: Path, monkeypatch)
 
     monkeypatch.setattr(web_processing, "start_process", fake_start_process)
     response = _post_image(
-        "/tools/watermark/api/process",
+        f"{API_PREFIX}/process",
         image_path,
         _minimal_v3_config(custom_text="probe={{ 7 * 7 }}"),
     )
@@ -232,7 +236,7 @@ def test_rejects_non_finite_and_oversized_config(tmp_path: Path) -> None:
 
     with image_path.open("rb") as file:
         non_finite = client.post(
-            "/tools/watermark/api/process",
+            f"{API_PREFIX}/process",
             files={"file": (image_path.name, file, "image/jpeg")},
             data={"config": '{"regions": [], "custom_text": NaN}'},
         )
@@ -241,7 +245,7 @@ def test_rejects_non_finite_and_oversized_config(tmp_path: Path) -> None:
 
     with image_path.open("rb") as file:
         oversized = client.post(
-            "/tools/watermark/api/process",
+            f"{API_PREFIX}/process",
             files={"file": (image_path.name, file, "image/jpeg")},
             data={"config": json.dumps({"regions": [], "padding": "x" * (64 * 1024)})},
         )
@@ -255,7 +259,7 @@ def test_rejects_arbitrary_server_resource_path(tmp_path: Path) -> None:
     slot = config["regions"][0]["slots"]["left-top"]
     slot["content"] = {"path": "/etc/passwd", "color": "#D8D8D6"}
 
-    response = _post_image("/tools/watermark/api/process", image_path, config)
+    response = _post_image(f"{API_PREFIX}/process", image_path, config)
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_config"
@@ -264,11 +268,11 @@ def test_rejects_arbitrary_server_resource_path(tmp_path: Path) -> None:
 def test_upload_once_then_process_by_image_id(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "reused.jpg")
     with image_path.open("rb") as file:
-        upload = client.post("/tools/watermark/api/uploads", files={"file": (image_path.name, file, "image/jpeg")})
+        upload = client.post(f"{API_PREFIX}/uploads", files={"file": (image_path.name, file, "image/jpeg")})
     assert upload.status_code == 200
 
     response = client.post(
-        "/tools/watermark/api/preview",
+        f"{API_PREFIX}/preview",
         data={"image_id": upload.json()["image_id"], "config": json.dumps(_minimal_v3_config())},
     )
 

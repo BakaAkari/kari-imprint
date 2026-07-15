@@ -21,6 +21,12 @@ dist/
 *.spec.bak
 *.app/
 
+# ===== 独立资源（大文件不进 Git，通过网盘/手动同步） =====
+assets/fonts/
+assets/logos/
+!assets/README.md
+!assets/.gitkeep
+
 # ===== Web 前端 =====
 apps/web/node_modules/
 apps/web/dist/

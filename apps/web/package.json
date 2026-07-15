@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "rm -rf public/fonts && mkdir -p public/fonts && cp -r ../../assets/fonts/* public/fonts/",
     "dev": "vite --host 127.0.0.1 --port 5173",
+    "prebuild": "rm -rf public/fonts && mkdir -p public/fonts && cp -r ../../assets/fonts/* public/fonts/",
     "build": "tsc -b && vite build",
+    "postbuild": "rm -rf public/fonts",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {

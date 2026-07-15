@@ -217,6 +217,7 @@ class TestV3ResourceResolution:
             output_dir=tmp_path / "outputs",
             resources_dir=tmp_path / "resources",
             tmp_dir=tmp_path / "tmp",
+            assets_dir=tmp_path / "assets",
         )
         config = deepcopy(SAMPLE_V3_CONFIG)
         config["regions"][0]["slots"]["right-logo"]["content"]["path"] = resource_id
