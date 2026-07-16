@@ -4,9 +4,17 @@ import {
   presetMinimalBaseV3,
   presetSidesBaseV3,
   presetSoftCardBaseV3,
-  type WatermarkPresetV3,
+  type MainControlConfig,
   type WatermarkConfigV3,
 } from './v3Types';
+import { defaultMainControls } from './v3Types';
+
+export interface PresetMeta {
+  id: string;
+  name: string;
+  description: string;
+  mainControls: MainControlConfig;
+}
 
 export const watermarkPresetsV3: RailPreset<WatermarkConfigV3>[] = [
   {
@@ -35,15 +43,15 @@ export const watermarkPresetsV3: RailPreset<WatermarkConfigV3>[] = [
   },
 ];
 
-// 主界面预设配置（模板默认的底部栏位、Logo 位置等主界面状态）
-export const watermarkPresetMetaV3: Record<string, { mainControls: WatermarkPresetV3['mainControls'] }> = {
+export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlConfig }> = {
   default: {
     mainControls: {
-      size: 'medium',
       color: 'black',
-      density: 'standard',
       footer_mode: 'dual-row',
       logo_position: 'right',
+      text_sizes: { top_left: 'medium', bottom_left: 'small', top_right: 'medium', bottom_right: 'small', left_row: 'medium', right_row: 'medium' },
+      logo_size: 'medium',
+      signature_size: 'medium',
       top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
       bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
       top_right: [],
@@ -57,11 +65,12 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: WatermarkPres
   },
   minimal: {
     mainControls: {
-      size: 'medium',
       color: 'black',
-      density: 'standard',
       footer_mode: 'dual-row',
       logo_position: 'right',
+      text_sizes: { top_left: 'medium', bottom_left: 'small', top_right: 'medium', bottom_right: 'small', left_row: 'medium', right_row: 'medium' },
+      logo_size: 'medium',
+      signature_size: 'medium',
       top_left: [],
       bottom_left: [],
       top_right: [],
@@ -75,11 +84,12 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: WatermarkPres
   },
   'soft-card': {
     mainControls: {
-      size: 'medium',
       color: 'black',
-      density: 'loose',
       footer_mode: 'dual-row',
       logo_position: 'right',
+      text_sizes: { top_left: 'medium', bottom_left: 'small', top_right: 'medium', bottom_right: 'small', left_row: 'medium', right_row: 'medium' },
+      logo_size: 'medium',
+      signature_size: 'medium',
       top_left: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
       bottom_left: [{ field_id: 'datetime' }],
       top_right: [{ field_id: 'camera_model' }],
@@ -93,11 +103,12 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: WatermarkPres
   },
   sides: {
     mainControls: {
-      size: 'medium',
       color: 'black',
-      density: 'standard',
       footer_mode: 'dual-row',
       logo_position: 'left',
+      text_sizes: { top_left: 'medium', bottom_left: 'small', top_right: 'medium', bottom_right: 'small', left_row: 'medium', right_row: 'medium' },
+      logo_size: 'medium',
+      signature_size: 'medium',
       top_left: [],
       bottom_left: [],
       top_right: [],
@@ -112,3 +123,18 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: WatermarkPres
 };
 
 export const defaultPresetMetaV3 = watermarkPresetMetaV3['default'];
+
+/**
+ * 根据预设 base config 对象引用查找对应的 mainControls。
+ */
+export function getPresetMainControls(template: WatermarkConfigV3): MainControlConfig {
+  for (const preset of watermarkPresetsV3) {
+    if (preset.config === template) {
+      const meta = watermarkPresetMetaV3[preset.id];
+      if (meta) {
+        return { ...defaultMainControls, ...meta.mainControls };
+      }
+    }
+  }
+  return defaultMainControls;
+}

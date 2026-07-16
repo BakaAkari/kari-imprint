@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { V3AppContext } from '../V3HomePage';
 import {
   type FieldChip,
   type FieldId,
@@ -6,17 +7,13 @@ import {
   type LogoPosition,
   type MainControlConfig,
   type PresetColor,
-  type PresetDensity,
-  type PresetSize,
+  type SizeLevel,
   type WatermarkConfigV3,
   FOOTER_MODE_LABELS,
   LOGO_POSITION_LABELS,
-  applyMainControls,
   fieldOptionsV3,
   getFieldLabel,
-  inferMainControls,
 } from '../v3Types';
-import type { DiagnosticItem } from '../v3_layout/layoutEngine';
 
 interface V3MainControlsProps {
   config: WatermarkConfigV3;
@@ -24,31 +21,39 @@ interface V3MainControlsProps {
   diagnostics?: DiagnosticItem[];
 }
 
-export default function V3MainControls({ config, onChange, diagnostics }: V3MainControlsProps) {
-  const controls = useMemo(() => inferMainControls(config), [config]);
+export type DiagnosticItem = {
+  id: string;
+  type: string;
+  severity: 'error' | 'warning';
+  message: string;
+  elementIds?: string[];
+};
+
+export default function V3MainControls({ config: _config }: V3MainControlsProps) {
+  const ctx = useContext(V3AppContext);
+  const controls = ctx?.controls;
+  const onControlsChange = ctx?.onControlsChange;
+
+  if (!controls || !onControlsChange) {
+    // Fallback for backward compat: infer from config
+    return null;
+  }
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [addingFor, setAddingFor] = useState<string | null>(null);
-
-  const updateControls = useCallback(
-    (patch: Partial<MainControlConfig>) => {
-      const next = { ...controls, ...patch };
-      onChange(applyMainControls(config, next));
-    },
-    [config, controls, onChange],
-  );
 
   const rows = useMemo(() => {
     const isDual = controls.footer_mode === 'dual-row';
     return isDual
       ? [
-          { id: 'top_left', label: '左上', chips: controls.top_left },
-          { id: 'bottom_left', label: '左下', chips: controls.bottom_left },
-          { id: 'top_right', label: '右上', chips: controls.top_right },
-          { id: 'bottom_right', label: '右下', chips: controls.bottom_right },
+          { id: 'top_left', label: '左上', chips: controls.top_left, position: 'top-left' },
+          { id: 'top_right', label: '右上', chips: controls.top_right, position: 'top-right' },
+          { id: 'bottom_left', label: '左下', chips: controls.bottom_left, position: 'bottom-left' },
+          { id: 'bottom_right', label: '右下', chips: controls.bottom_right, position: 'bottom-right' },
         ]
       : [
-          { id: 'left_row', label: '左排', chips: controls.left_row },
-          { id: 'right_row', label: '右排', chips: controls.right_row },
+          { id: 'left_row', label: '左排', chips: controls.left_row, position: 'left' },
+          { id: 'right_row', label: '右排', chips: controls.right_row, position: 'right' },
         ];
   }, [controls]);
 
@@ -56,9 +61,9 @@ export default function V3MainControls({ config, onChange, diagnostics }: V3Main
     (rowId: string, chips: FieldChip[]) => {
       const patch: Partial<MainControlConfig> = {};
       patch[rowId as keyof MainControlConfig] = chips as any;
-      updateControls(patch);
+      onControlsChange(patch);
     },
-    [updateControls],
+    [onControlsChange],
   );
 
   const handleAddChip = useCallback(
@@ -90,12 +95,12 @@ export default function V3MainControls({ config, onChange, diagnostics }: V3Main
       const reader = new FileReader();
       reader.onload = () => {
         const path = String(reader.result ?? '');
-        updateControls({ logo_path: path });
+        onControlsChange({ logo_path: path });
       };
       reader.readAsDataURL(file);
       e.target.value = '';
     },
-    [updateControls],
+    [onControlsChange],
   );
 
   return (
@@ -107,7 +112,7 @@ export default function V3MainControls({ config, onChange, diagnostics }: V3Main
             <button
               className="v3-btn v3-btn-sm"
               onClick={() =>
-                updateControls({
+                onControlsChange({
                   footer_mode: controls.footer_mode === 'dual-row' ? 'single-row' : 'dual-row',
                 })
               }
@@ -117,10 +122,22 @@ export default function V3MainControls({ config, onChange, diagnostics }: V3Main
             </button>
           </div>
         </div>
-        <div className="v3-footer-bar-rows">
+        <div className={`v3-footer-bar-rows v3-footer-bar-rows-${controls.footer_mode}`}>
           {rows.map(row => (
-            <div key={row.id} className="v3-footer-row">
+            <div key={row.id} className={`v3-footer-row v3-footer-row-${row.position}`}>
               <div className="v3-footer-row-label">{row.label}</div>
+              <select
+                className="v3-footer-row-size"
+                aria-label={`${row.label}字号`}
+                value={controls.text_sizes[row.id as keyof typeof controls.text_sizes]}
+                onChange={(e) => onControlsChange({
+                  text_sizes: { ...controls.text_sizes, [row.id]: e.target.value as SizeLevel },
+                })}
+              >
+                <option value="small">小</option>
+                <option value="medium">中</option>
+                <option value="large">大</option>
+              </select>
               <div className="v3-footer-row-chips">
                 {row.chips.map((chip: FieldChip, idx: number) => (
                   <div key={`${row.id}-${idx}`} className="v3-field-chip">
@@ -186,18 +203,28 @@ export function V3StyleControls({
       <div className="v3-right-section-title">样式</div>
       <div className="v3-right-section-body">
         <div className="v3-form-row">
-          <label>大小</label>
+          <label>Logo 大小</label>
           <select
-            value={controls.size}
-            onChange={(e) => onChange({ size: e.target.value as PresetSize })}
+            value={controls.logo_size}
+            onChange={(e) => onChange({ logo_size: e.target.value as SizeLevel })}
           >
-            {(['small', 'medium', 'large'] as PresetSize[]).map(s => (
+            {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
               <option key={s} value={s}>
                 {s === 'small' ? '小' : s === 'medium' ? '中' : '大'}
               </option>
             ))}
           </select>
         </div>
+        {controls.signature_path && (
+          <div className="v3-form-row">
+            <label>签名大小</label>
+            <select value={controls.signature_size} onChange={(e) => onChange({ signature_size: e.target.value as SizeLevel })}>
+              {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
+                <option key={s} value={s}>{s === 'small' ? '小' : s === 'medium' ? '中' : '大'}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="v3-form-row">
           <label>颜色</label>
           <select
@@ -211,19 +238,7 @@ export function V3StyleControls({
             ))}
           </select>
         </div>
-        <div className="v3-form-row">
-          <label>密度</label>
-          <select
-            value={controls.density}
-            onChange={(e) => onChange({ density: e.target.value as PresetDensity })}
-          >
-            {(['compact', 'standard', 'loose'] as PresetDensity[]).map(d => (
-              <option key={d} value={d}>
-                {d === 'compact' ? '紧凑' : d === 'standard' ? '标准' : '松散'}
-              </option>
-            ))}
-          </select>
-        </div>
+
       </div>
     </div>
   );
@@ -327,4 +342,4 @@ export function V3LogoPositionControls({
   );
 }
 
-export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, PresetColor, PresetDensity, PresetSize };
+export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, PresetColor, SizeLevel };

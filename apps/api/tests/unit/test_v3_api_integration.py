@@ -66,7 +66,7 @@ SAMPLE_V3_CONFIG = {
                 },
                 "right-logo": {
                     "enabled": True,
-                    "content": {"path": "", "color": "#D8D8D6"},
+                    "content": {"path": "", "color": "#D8D8D6", "size_ratio": 0.6},
                     "style": None,
                 },
             },
@@ -82,6 +82,8 @@ SAMPLE_V3_CONFIG = {
         "line_height": 1.2,
     },
     "custom_text": "",
+    "footer_mode": "dual-row",
+    "logo_position": "right",
 }
 
 
@@ -93,6 +95,20 @@ class TestV3PayloadValidation:
         assert result["canvas"]["background"] == "#FFFFFF"
         assert len(result["regions"]) == 1
         assert result["regions"][0]["id"] == "footer"
+        assert result["footer_mode"] == "dual-row"
+        assert result["logo_position"] == "right"
+
+    def test_logo_with_size_ratio_remains_logo(self):
+        from kari_core.processor.v3_watermark import _dict_to_watermark_config
+        from kari_core.shared.v3_layout.layout_engine import LogoContent
+
+        config = validate_v3_payload(SAMPLE_V3_CONFIG)
+        parsed = _dict_to_watermark_config(config)
+        logo = parsed.regions[0].slots["right-logo"].content
+        assert isinstance(logo, LogoContent)
+        # v2 migration: size_ratio=0.6 is token "medium" → size_level="medium", size_ratio=None
+        assert logo.size_level == "medium"
+        assert logo.size_ratio is None
 
     def test_empty_dict_defaults(self):
         result = validate_v3_payload({})

@@ -127,7 +127,16 @@ class WatermarkV3Filter(FilterProcessor):
         except (FileNotFoundError, OSError):
             return
 
-        logo = logo.resize((el.rect.w, el.rect.h), Image.Resampling.LANCZOS)
+        # Contain: fit within rect preserving aspect ratio
+        max_w = max(1, el.rect.w)
+        max_h = max(1, el.rect.h)
+        logo = logo.convert("RGBA")
+        lw, lh = logo.size
+        scale = min(max_w / lw, max_h / lh)
+        new_w = max(1, round(lw * scale))
+        new_h = max(1, round(lh * scale))
+        if logo.size != (new_w, new_h):
+            logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
         x, y = _apply_anchor_for_paste(el.rect, el.anchor, logo.width, logo.height)
         canvas.paste(logo, (x, y), mask=logo if logo.mode == "RGBA" else None)
 
@@ -234,6 +243,7 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
         return StyleConfig(
             font_size=d.get("font_size"),
             font_size_ratio=d.get("font_size_ratio"),
+            font_size_level=d.get("font_size_level"),
             size_reference=d.get("size_reference", "region_height"),
             color=d.get("color", "#222222"),
             font_family=d.get("font_family", "NotoSansCJKsc-Bold.otf"),
@@ -256,17 +266,19 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
                 ],
                 separator=d.get("separator", " "),
             )
-        if "path" in d and "size_ratio" in d:
+        if 'path' in d and 'invert_mono' in d:
             return SignatureContent(
-                path=d.get("path", ""),
-                invert_mono=d.get("invert_mono", False),
-                size_ratio=d.get("size_ratio", 0.20),
+                path=d.get('path', ''),
+                invert_mono=d.get('invert_mono', False),
+                size_ratio=d.get('size_ratio'),
+                size_level=d.get('size_level'),
             )
-        if "path" in d and "color" in d:
+        if 'path' in d and 'color' in d:
             return LogoContent(
-                path=d.get("path", ""),
-                color=d.get("color", "#D8D8D6"),
-                size_ratio=d.get("size_ratio", 0.6),
+                path=d.get('path', ''),
+                color=d.get('color', '#D8D8D6'),
+                size_ratio=d.get('size_ratio'),
+                size_level=d.get('size_level'),
             )
         return None
 
@@ -312,4 +324,5 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
         regions=[_region(r) for r in data.get("regions", [])],
         defaults=_style(data.get("defaults")) or StyleConfig(),
         custom_text=data.get("custom_text", ""),
+        footer_mode=data.get("footer_mode", "dual-row"),
     )

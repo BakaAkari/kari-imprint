@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import secrets
 import time
 import zipfile
 from pathlib import Path
 from typing import Any
 
-# Allow large file uploads (100MB) for GFX100S2 RAW files
-os.environ.setdefault("MULTIPART_MAX_FILE_SIZE", "100000000")
-
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
@@ -36,7 +33,14 @@ from api.storage import (
 
 _api = settings.api_prefix
 
-app = FastAPI(title="aka-semi-utils Web API", version="0.1.0")
+app = FastAPI(title="Kari Imprint Web API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 _job_slots = asyncio.Semaphore(max(1, settings.max_concurrent_jobs))
 _MAX_CONFIG_JSON_BYTES = 64 * 1024
 
@@ -65,6 +69,13 @@ def health() -> dict[str, Any]:
     """Health check for local, Caddy, and systemd probes."""
 
     return success_response(status="ok")
+
+
+@app.get(f"{_api}/capabilities")
+def capabilities() -> dict[str, Any]:
+    """Return runtime limits safe to expose to the frontend."""
+
+    return success_response(capabilities=settings.capabilities())
 
 
 @app.post(f"{_api}/_visit")

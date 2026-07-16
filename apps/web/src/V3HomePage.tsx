@@ -1,11 +1,25 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { processImageV3, type ApiFile } from './apiV3';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { fetchRuntimeCapabilitiesV3, processImageV3, type ApiFile, type RuntimeCapabilities } from './apiV3';
 import { TopBar } from './components/TopBar';
 import { V3LeftRail } from './components/V3LeftRail';
 import V3MainControls from './components/V3MainControls';
 import { V3RightRail } from './components/V3RightRail';
 import { WatermarkCanvasV3 } from './WatermarkCanvasV3';
-import { createDefaultWatermarkConfigV3, type WatermarkConfigV3, type PreviewAspectRatio } from './v3Types';
+import { createLocalPreview } from './localPreview';
+import {
+  createDefaultWatermarkConfigV3,
+  resolveConfig,
+  presetDefaultBaseV3,
+  defaultMainControls,
+  type MainControlConfig,
+  type RegionConfig,
+  type RegionOverrides,
+  type RootOverrides,
+  type SlotOverride,
+  type SlotOverrides,
+  type WatermarkConfigV3,
+  type PreviewAspectRatio,
+} from './v3Types';
 import './styles.css';
 
 type ActionState = 'idle' | 'running' | 'success' | 'error';
@@ -16,7 +30,6 @@ export type V3AppContextType = {
   files: File[];
   activeFileIndex: number;
   config: WatermarkConfigV3;
-  setConfig: React.Dispatch<React.SetStateAction<WatermarkConfigV3>>;
   preview: ApiFile | null;
   result: ApiFile | null;
   batchResults: ApiFile[];
@@ -36,6 +49,12 @@ export type V3AppContextType = {
   clearOutputs: () => void;
   clearBatchResults: () => void;
   loadPreview: () => void;
+  // 新的状态管理 API
+  controls: MainControlConfig;
+  onControlsChange: (patch: Partial<MainControlConfig>) => void;
+  slotOverrides: SlotOverrides;
+  onSlotOverridesChange: (overrides: SlotOverrides) => void;
+  onPresetChange: (template: WatermarkConfigV3, controls: MainControlConfig) => void;
 };
 
 export const V3AppContext = createContext<V3AppContextType | null>(null);
@@ -45,7 +64,49 @@ let toastIdCounter = 0;
 export function V3HomePage() {
   const [files, setFiles] = useState<File[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
-  const [config, setConfig] = useState<WatermarkConfigV3>(() => createDefaultWatermarkConfigV3());
+
+  // ── 新三层状态 ──────────────────────────────────────────
+  const [template, setTemplate] = useState<WatermarkConfigV3>(presetDefaultBaseV3);
+  const [controls, setControls] = useState<MainControlConfig>(defaultMainControls);
+  const [slotOverrides, setSlotOverrides] = useState<SlotOverrides>({});
+  const [regionOverrides, setRegionOverrides] = useState<RegionOverrides>({});
+  const [rootOverrides, setRootOverrides] = useState<RootOverrides>({});
+  const config = useMemo(
+    () => resolveConfig(template, controls, slotOverrides, regionOverrides, rootOverrides),
+    [template, controls, slotOverrides, regionOverrides, rootOverrides],
+  );
+
+  const onControlsChange = useCallback((patch: Partial<MainControlConfig>) => {
+    setControls(prev => ({ ...prev, ...patch }));
+  }, []);
+
+  const onSlotOverridesChange = useCallback((overrides: SlotOverrides) => {
+    setSlotOverrides(overrides);
+  }, []);
+
+  const onRegionOverride = useCallback((regionId: string, patch: Partial<RegionConfig>) => {
+    setRegionOverrides(prev => ({ ...prev, [regionId]: { ...prev[regionId], ...patch } }));
+  }, []);
+
+  const onRootOverride = useCallback((patch: Partial<RootOverrides>) => {
+    setRootOverrides(prev => ({ ...prev, ...patch }));
+  }, []);
+
+  const onSlotOverride = useCallback((key: string, override: SlotOverride) => {
+    setSlotOverrides(prev => ({ ...prev, [key]: override }));
+  }, []);
+
+  const onPresetChange = useCallback(
+    (newTemplate: WatermarkConfigV3, newControls: MainControlConfig) => {
+      setTemplate(structuredClone(newTemplate));
+      setControls(newControls);
+      setSlotOverrides({});
+      clearOutputs();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const [result, setResult] = useState<ApiFile | null>(null);
   const [batchResults, setBatchResults] = useState<ApiFile[]>([]);
   const [preview, setPreview] = useState<ApiFile | null>(null);
@@ -53,62 +114,87 @@ export function V3HomePage() {
   const [message, setMessage] = useState('V3 Region 水印编辑器');
   const [progress, setProgress] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [runtimeCaps, setRuntimeCaps] = useState<RuntimeCapabilities | null>(null);
   const previewRequestId = useRef(0);
-  const previewAbort = useRef<AbortController | null>(null);
   const processingAbort = useRef<AbortController | null>(null);
-  const [canvasImage, setCanvasImage] = useState<HTMLImageElement | null>(null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [canvasImage, setCanvasImage] = useState<ImageBitmap | null>(null);
+  const [previewRevision, setPreviewRevision] = useState(0);
   const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>('3:2');
-  const previewImageUrl = useRef<string | null>(null);
-
-  // On file change: extract dimensions only
-  useEffect(() => {
-    const file = files[activeFileIndex];
-    if (!file) {
-      setCanvasImage(null);
-      setImageSize(null);
-      if (previewImageUrl.current) {
-        URL.revokeObjectURL(previewImageUrl.current);
-        previewImageUrl.current = null;
-      }
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
-      setCanvasImage(null);
-      if (previewImageUrl.current) {
-        URL.revokeObjectURL(previewImageUrl.current);
-        previewImageUrl.current = null;
-      }
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-    return () => {
-      try { URL.revokeObjectURL(url); } catch { /* already revoked */ }
-    };
-  }, [files, activeFileIndex]);
-
-  /** Load full image into canvas on explicit user request. */
-  const loadPreview = useCallback(() => {
-    const file = files[activeFileIndex];
-    if (!file) return;
-    if (previewImageUrl.current) {
-      URL.revokeObjectURL(previewImageUrl.current);
-    }
-    const url = URL.createObjectURL(file);
-    previewImageUrl.current = url;
-    const img = new Image();
-    img.onload = () => setCanvasImage(img);
-    img.src = url;
-  }, [files, activeFileIndex]);
 
   const showToast = useCallback((message: string, type: ToastItem['type']) => {
     const id = ++toastIdCounter;
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   }, []);
+
+  // Decode once into a bounded local proxy. The original File remains untouched
+  // and is uploaded only when Process is invoked.
+  useEffect(() => {
+    const file = files[activeFileIndex];
+    if (!file || !runtimeCaps) {
+      setCanvasImage((previous) => {
+        previous?.close();
+        return null;
+      });
+      return;
+    }
+    let disposed = false;
+    let bitmap: ImageBitmap | null = null;
+    setCanvasImage((previous) => {
+      previous?.close();
+      return null;
+    });
+    void createLocalPreview(file, runtimeCaps.preview.max_edge)
+      .then((previewSource) => {
+        bitmap = previewSource.bitmap;
+        if (disposed) {
+          bitmap.close();
+          return;
+        }
+        setCanvasImage(bitmap);
+        setStatus('success');
+        setMessage('本地预览已就绪');
+      })
+      .catch((error) => {
+        if (disposed) return;
+        setCanvasImage(null);
+
+        const text = error instanceof Error ? error.message : '浏览器无法生成预览';
+        setStatus('error');
+        setMessage(text);
+        showToast(`${text}，当前格式仍可尝试直接 Process`, 'error');
+      });
+    return () => {
+      disposed = true;
+      bitmap?.close();
+    };
+  }, [files, activeFileIndex, runtimeCaps, showToast, previewRevision]);
+
+  /** Refresh local preview state on explicit user request. */
+  const loadPreview = useCallback(() => {
+    const file = files[activeFileIndex];
+    if (!file) return;
+    setPreview(null);
+    setPreviewRevision((value) => value + 1);
+    setStatus('running');
+    setMessage('正在刷新本地预览...');
+  }, [files, activeFileIndex]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const caps = await fetchRuntimeCapabilitiesV3();
+        if (!cancelled) setRuntimeCaps(caps);
+      } catch (error) {
+        if (cancelled) return;
+        setStatus('error');
+        setMessage('运行配置加载失败');
+        showToast(error instanceof Error ? error.message : '运行配置加载失败', 'error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showToast]);
 
   const removeToast = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -135,22 +221,11 @@ export function V3HomePage() {
   const runPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     const file = files[activeFileIndex];
     if (!file) { setPreview(null); return; }
-    const requestId = ++previewRequestId.current;
-    previewAbort.current?.abort();
-    const abortController = new AbortController();
-    previewAbort.current = abortController;
-    if (!silent) { setStatus('running'); setMessage('正在生成预览...'); }
-    try {
-      const response = await processImageV3('preview', file, config, abortController.signal);
-      if (requestId !== previewRequestId.current || abortController.signal.aborted) return;
-      setPreview(response.file);
-      setStatus('success');
-    } catch (error) {
-      if (requestId !== previewRequestId.current) return;
-      setStatus('error');
-      showToast(error instanceof Error ? error.message : '预览生成失败', 'error');
-    }
-  }, [files, activeFileIndex, config, showToast]);
+    if (!silent) { setStatus('running'); setMessage('正在刷新本地预览...'); }
+    setPreview(null);
+    setStatus('success');
+    setMessage('本地预览已就绪');
+  }, [files, activeFileIndex]);
 
   const runPreviewRef = useRef(runPreview);
   runPreviewRef.current = runPreview;
@@ -197,26 +272,48 @@ export function V3HomePage() {
   const cancelProcessAll = useCallback(() => { processingAbort.current?.abort(); processingAbort.current = null; setStatus('idle'); setMessage('已取消'); }, []);
 
   const contextValue = useMemo<V3AppContextType>(() => ({
-    files, activeFileIndex, config, setConfig,
-    preview, result, batchResults, status, message, progress, toasts,
+    files, activeFileIndex, config, preview, result, batchResults,
+    status, message, progress, toasts,
     showToast, removeToast,
     runPreview, runProcess, runProcessAll, cancelProcessAll,
     setFiles, setActiveFileIndex, removeFile, clearOutputs, clearBatchResults, loadPreview,
-  }), [files, activeFileIndex, config, preview, result, batchResults, status, message, progress, toasts, showToast, removeToast, runPreview, runProcess, runProcessAll, cancelProcessAll, clearOutputs, removeFile, clearBatchResults, loadPreview]);
+    // 新 API
+    controls,
+    onControlsChange,
+    slotOverrides,
+    onSlotOverridesChange,
+    onPresetChange,
+  }), [
+    files, activeFileIndex, config, preview, result, batchResults,
+    status, message, progress, toasts,
+    showToast, removeToast,
+    runPreview, runProcess, runProcessAll, cancelProcessAll,
+    setFiles, setActiveFileIndex, removeFile, clearOutputs, clearBatchResults, loadPreview,
+    controls, onControlsChange, slotOverrides, onSlotOverridesChange, onPresetChange,
+  ]);
 
   return (
     <V3AppContext.Provider value={contextValue}>
       <div className="app-shell">
         <TopBar controller={contextValue} />
         <div className="workspace-v3">
-          <V3LeftRail aspectRatio={previewAspectRatio} onAspectRatioChange={setPreviewAspectRatio} />
+          <V3LeftRail aspectRatio={previewAspectRatio} onAspectRatioChange={setPreviewAspectRatio} runtimeCaps={runtimeCaps} />
           <main className="v3-main-workspace">
             <div className="canvas-area">
-              <WatermarkCanvasV3 config={config} image={canvasImage} imageSize={imageSize} placeholderAspectRatio={previewAspectRatio} />
+              <WatermarkCanvasV3
+                config={config}
+                image={canvasImage}
+                placeholderAspectRatio={previewAspectRatio}
+                runtimeCaps={runtimeCaps}
+              />
             </div>
-            <V3MainControls config={config} onChange={setConfig} />
+            <V3MainControls config={config} onChange={onControlsChange} />
           </main>
-          <V3RightRail config={config} setConfig={setConfig} />
+          <V3RightRail config={config} runtimeCaps={runtimeCaps}
+            onRegionOverride={onRegionOverride}
+            onRootOverride={onRootOverride}
+            onSlotOverride={onSlotOverride}
+          />
         </div>
         <div className="toast-container">
           {toasts.map(t => (

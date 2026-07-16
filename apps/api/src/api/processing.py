@@ -42,6 +42,10 @@ def process_image_v3(
             message="当前 V3 配置没有生成可执行的水印处理管线",
             status_code=400,
         )
+    # The core output node reads encoding options from its processor config.
+    # Inject the deployment-specific quality here so the API remains the single
+    # owner of runtime limits while kari-core stays reusable.
+    processors[-1]["quality"] = settings.output_quality
 
     try:
         exif = get_exif(str(input_path))
@@ -128,7 +132,7 @@ def _validate_image(path: Path, settings: WebApiSettings, *, max_pixels: int, mo
                     hint = (
                         "预览模式会先缩小图片，但原图仍超过当前预览保护上限。"
                         if mode == "preview"
-                        else "正式处理会按原图分辨率运行，请降低原图尺寸或提高 AKA_SEMI_MAX_IMAGE_PIXELS。"
+                        else "正式处理会按原图分辨率运行，请降低原图尺寸或调整 process.max_pixels。"
                     )
                     raise ApiError(
                         code="image_too_large",

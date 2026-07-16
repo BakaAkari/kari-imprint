@@ -83,20 +83,23 @@ class TextContent:
 class LogoContent:
     path: str = ""           # 空表示 auto
     color: str = "#D8D8D6"
-    size_ratio: float = 0.6  # logo 高度占所在区域高度的比例
+    size_ratio: float | None = 0.6  # logo 高度占所在区域高度的比例
+    size_level: str | None = None   # 'small' | 'medium' | 'large'
 
 
 @dataclass(slots=True)
 class SignatureContent:
     path: str = ""
     invert_mono: bool = False
-    size_ratio: float = 0.20
+    size_ratio: float | None = 0.20
+    size_level: str | None = None
 
 
 @dataclass(slots=True)
 class StyleConfig:
     font_size: int | None = None
     font_size_ratio: float | None = None
+    font_size_level: str | None = None
     size_reference: Literal["region_height", "short_edge", "long_edge"] = "region_height"
     color: str = "#222222"
     font_family: str = "NotoSansCJKsc-Bold.otf"
@@ -136,6 +139,7 @@ class WatermarkConfig:
     regions: list[RegionConfig] = field(default_factory=list)
     defaults: StyleConfig = field(default_factory=StyleConfig)
     custom_text: str = ""
+    footer_mode: Literal["dual-row", "single-row"] = "dual-row"
 
 
 # ── 布局结果 ─────────────────────────────────
@@ -201,7 +205,15 @@ def compute_layout(config: WatermarkConfig, image_w: int, image_h: int) -> Layou
             continue
 
         if region.type == "footer-bar":
-            elements.extend(_compute_footer_bar(region, image_rect, canvas, config.defaults, short_edge, long_edge))
+            elements.extend(_compute_footer_bar(
+                region,
+                image_rect,
+                canvas,
+                config.defaults,
+                short_edge,
+                long_edge,
+                config.footer_mode,
+            ))
         elif region.type == "side-edge":
             elements.extend(_compute_side_edge(region, image_rect, config.defaults, short_edge, long_edge))
         elif region.type == "free":
@@ -307,8 +319,9 @@ def _compute_footer_bar(
     defaults: StyleConfig,
     short_edge: int,
     long_edge: int,
+    footer_mode: Literal["dual-row", "single-row"],
 ) -> list[ComputedElement]:
-    """底部水印条：7 个槽位（left-logo, left-top, left-bottom, center, right-top, right-bottom, right-logo）。"""
+    """底部水印条：四角文本、左右/居中 Logo，单排模式左右垂直居中。"""
 
     region_bounds = Rect(
         x=0,
@@ -318,7 +331,7 @@ def _compute_footer_bar(
     )
 
     elements: list[ComputedElement] = []
-    slot_layouts = _compute_footer_slots(region_bounds, region.slots)
+    slot_layouts = _compute_footer_slots(region_bounds, region.slots, footer_mode)
 
     for slot_id, slot_bounds in slot_layouts.items():
         slot = region.slots.get(slot_id)
@@ -326,10 +339,10 @@ def _compute_footer_bar(
             continue
 
         style = _merge_style(defaults, slot.style)
-        font_size = _resolve_font_size(style, slot_bounds.h, short_edge, long_edge)
+        font_size = _resolve_font_size(style, region_bounds.h, short_edge, long_edge)
 
         if isinstance(slot.content, TextContent) and slot.content.chips:
-            anchor = _footer_slot_anchor(slot_id)
+            anchor = _footer_slot_anchor(slot_id, footer_mode)
             pos = _apply_anchor(slot_bounds, anchor)
 
             elements.append(ComputedElement(
@@ -343,12 +356,14 @@ def _compute_footer_bar(
 
         elif isinstance(slot.content, LogoContent):
             logo_h = _resolve_logo_size(slot.content, region_bounds.h)
-            pos = _apply_anchor(slot_bounds, "middle-center")
+            logo_w = min(slot_bounds.w, round(logo_h * 3))  # preserve 3:1 max aspect via contain
+            anchor = _footer_logo_anchor(slot_id)
+            pos = _apply_anchor(slot_bounds, anchor)
             elements.append(ComputedElement(
                 id=f"{region.id}-{slot_id}",
                 type="logo",
-                rect=Rect(x=pos.x, y=pos.y, w=logo_h * 3, h=logo_h),
-                anchor="middle-center",
+                rect=Rect(x=pos.x, y=pos.y, w=logo_w, h=logo_h),
+                anchor=anchor,
                 content=slot.content,
                 style=defaults,
             ))
@@ -452,7 +467,13 @@ def _compute_free(
         style = _merge_style(defaults, slot.style)
 
         if isinstance(slot.content, SignatureContent):
-            sig_h = round(short_edge * slot.content.size_ratio)
+            if slot.content.size_level is not None:
+                sig_ratio = _SIGNATURE_SIZE_LEVEL_RATIOS.get(slot.content.size_level, 0.20)
+            elif slot.content.size_ratio is not None:
+                sig_ratio = slot.content.size_ratio
+            else:
+                sig_ratio = 0.20
+            sig_h = round(short_edge * sig_ratio)
             elements.append(ComputedElement(
                 id=f"{region.id}-{slot_id}",
                 type="signature",
@@ -467,31 +488,67 @@ def _compute_free(
 
 # ── 辅助函数 ─────────────────────────────────
 
+_FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.125,
+    "medium": 0.16,
+    "large": 0.20,
+}
+_LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.50,
+    "medium": 0.60,
+    "large": 0.72,
+}
+_SIGNATURE_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.15,
+    "medium": 0.20,
+    "large": 0.25,
+}
+
+
 def _resolve_font_size(
     style: StyleConfig,
-    region_height: int,
+    full_region_height: int,
     short_edge: int,
     long_edge: int,
 ) -> int:
-    """解析字号。"""
+    """解析字号。
+
+    font_size_level 映射到 token 比例（small=0.125, medium=0.16, large=0.20），
+    按 size_reference 基准计算绝对字号。
+    优先顺序：font_size > font_size_ratio > font_size_level。
+    """
     if style.font_size is not None and style.font_size > 0:
         return style.font_size
 
-    ratio = style.font_size_ratio or 0.3
+    if style.font_size_ratio is not None:
+        ratio = style.font_size_ratio
+    elif style.font_size_level is not None:
+        ratio = _FONT_SIZE_LEVEL_RATIOS.get(style.font_size_level, 0.16)
+    else:
+        ratio = 0.16
 
     if style.size_reference == "short_edge":
         ref = short_edge
     elif style.size_reference == "long_edge":
         ref = long_edge
     else:
-        ref = region_height
+        ref = full_region_height
 
     return max(8, round(ref * ratio))
 
 
 def _resolve_logo_size(content: LogoContent, region_height: int) -> int:
-    """Logo 高度 = 所在区域高度 * size_ratio，随底栏/水印条高度缩放。"""
-    return max(16, round(region_height * content.size_ratio))
+    """Logo 高度 = 所在区域高度 * size_ratio，随底栏/水印条高度缩放。
+
+    支持 size_level 映射（small=0.50, medium=0.60, large=0.72）。
+    """
+    if content.size_level is not None:
+        ratio = _LOGO_SIZE_LEVEL_RATIOS.get(content.size_level, 0.60)
+    elif content.size_ratio is not None:
+        ratio = content.size_ratio
+    else:
+        ratio = 0.6
+    return max(16, round(region_height * ratio))
 
 
 def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleConfig:
@@ -500,6 +557,7 @@ def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleCo
         return StyleConfig(
             font_size=defaults.font_size,
             font_size_ratio=defaults.font_size_ratio,
+            font_size_level=defaults.font_size_level,
             size_reference=defaults.size_reference,
             color=defaults.color,
             font_family=defaults.font_family,
@@ -509,6 +567,7 @@ def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleCo
     return StyleConfig(
         font_size=override.font_size if override.font_size is not None else defaults.font_size,
         font_size_ratio=override.font_size_ratio if override.font_size_ratio is not None else defaults.font_size_ratio,
+        font_size_level=override.font_size_level if override.font_size_level is not None else defaults.font_size_level,
         size_reference=override.size_reference or defaults.size_reference,
         color=override.color or defaults.color,
         font_family=override.font_family or defaults.font_family,
@@ -522,6 +581,7 @@ def _with_font_size(style: StyleConfig, font_size: int) -> StyleConfig:
     return StyleConfig(
         font_size=font_size,
         font_size_ratio=None,
+        font_size_level=None,
         size_reference=style.size_reference,
         color=style.color,
         font_family=style.font_family,
@@ -569,8 +629,13 @@ def _apply_anchor(bounds: Rect, anchor: str) -> Point:
     return Point(x=ax, y=ay)
 
 
-def _footer_slot_anchor(slot_id: str) -> str:
-    """footer-bar 各槽位的默认 anchor。"""
+def _footer_slot_anchor(slot_id: str, footer_mode: Literal["dual-row", "single-row"]) -> str:
+    """footer-bar 各文本槽位的锚点。"""
+    if footer_mode == "single-row":
+        if slot_id == "left-top":
+            return "middle-left"
+        if slot_id == "right-top":
+            return "middle-right"
     mapping = {
         "left-logo": "middle-left",
         "left-top": "top-left",
@@ -583,67 +648,58 @@ def _footer_slot_anchor(slot_id: str) -> str:
     return mapping.get(slot_id, "middle-center")
 
 
-def _compute_footer_slots(region_bounds: Rect, slots: dict[str, SlotConfig]) -> dict[str, Rect]:
-    """计算 footer-bar 各槽位的 bounds（简化版）。
+def _footer_logo_anchor(slot_id: str) -> str:
+    if slot_id == "left-logo":
+        return "middle-left"
+    if slot_id == "right-logo":
+        return "middle-right"
+    return "middle-center"
 
-    当前策略：
-    - 左 logo 区：左侧，宽 15%
-    - 右 logo 区：右侧，宽 15%
-    - 中间文本区：剩余 70%，左右各半
-    """
+
+def _compute_footer_slots(
+    region_bounds: Rect,
+    slots: dict[str, SlotConfig],
+    footer_mode: Literal["dual-row", "single-row"],
+) -> dict[str, Rect]:
+    """以底栏边界为基准计算四角文本和 Logo 的稳定槽位。"""
     results: dict[str, Rect] = {}
 
-    total_w = region_bounds.w
-    logo_w = max(40, int(total_w * 0.15))
-    text_w = (total_w - logo_w * 2) // 2
-
-    results["left-logo"] = Rect(
-        x=region_bounds.x,
-        y=region_bounds.y,
-        w=logo_w,
-        h=region_bounds.h,
+    pad_x = max(12, round(region_bounds.h * 0.28))
+    pad_y = max(6, round(region_bounds.h * 0.14))
+    center_gap = max(12, round(region_bounds.h * 0.22))
+    logo_reserve = max(48, round(region_bounds.h * 2.05))
+    left_logo_enabled = bool(
+        slots.get("left-logo")
+        and slots["left-logo"].enabled
+        and slots["left-logo"].content is not None
+    )
+    right_logo_enabled = bool(
+        slots.get("right-logo")
+        and slots["right-logo"].enabled
+        and slots["right-logo"].content is not None
     )
 
-    left_text_x = region_bounds.x + logo_w
-    results["left-top"] = Rect(
-        x=left_text_x,
-        y=region_bounds.y,
-        w=text_w,
-        h=region_bounds.h // 2,
-    )
-    results["left-bottom"] = Rect(
-        x=left_text_x,
-        y=region_bounds.y + region_bounds.h // 2,
-        w=text_w,
-        h=region_bounds.h // 2,
-    )
+    inner_left = region_bounds.x + pad_x
+    inner_right = region_bounds.right - pad_x
+    text_left = inner_left + (logo_reserve if left_logo_enabled else 0)
+    text_right = inner_right - (logo_reserve if right_logo_enabled else 0)
+    middle = (text_left + text_right) // 2
+    row_h = max(1, (region_bounds.h - pad_y * 2) // 2)
+    left_w = max(0, middle - center_gap - text_left)
+    right_x = middle + center_gap
+    right_w = max(0, text_right - right_x)
 
-    results["center"] = Rect(
-        x=left_text_x + text_w,
-        y=region_bounds.y,
-        w=0,
-        h=region_bounds.h,
-    )
+    results["left-logo"] = Rect(inner_left, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
+    results["right-logo"] = Rect(inner_right, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
+    results["center"] = Rect((inner_left + inner_right) // 2, region_bounds.y + pad_y, 0, region_bounds.h - pad_y * 2)
+    results["left-top"] = Rect(text_left, region_bounds.y + pad_y, left_w, row_h)
+    results["left-bottom"] = Rect(text_left, region_bounds.bottom - pad_y - row_h, left_w, row_h)
+    results["right-top"] = Rect(right_x, region_bounds.y + pad_y, right_w, row_h)
+    results["right-bottom"] = Rect(right_x, region_bounds.bottom - pad_y - row_h, right_w, row_h)
 
-    right_text_x = left_text_x + text_w
-    results["right-top"] = Rect(
-        x=right_text_x,
-        y=region_bounds.y,
-        w=text_w,
-        h=region_bounds.h // 2,
-    )
-    results["right-bottom"] = Rect(
-        x=right_text_x,
-        y=region_bounds.y + region_bounds.h // 2,
-        w=text_w,
-        h=region_bounds.h // 2,
-    )
-
-    results["right-logo"] = Rect(
-        x=region_bounds.right - logo_w,
-        y=region_bounds.y,
-        w=logo_w,
-        h=region_bounds.h,
-    )
+    if footer_mode == "single-row":
+        full_h = region_bounds.h - pad_y * 2
+        results["left-top"] = Rect(text_left, region_bounds.y + pad_y, left_w, full_h)
+        results["right-top"] = Rect(right_x, region_bounds.y + pad_y, right_w, full_h)
 
     return results

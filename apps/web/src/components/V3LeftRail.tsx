@@ -1,15 +1,17 @@
 import { useCallback, useContext } from 'react';
 import { V3AppContext } from '../V3HomePage';
-import { createDefaultWatermarkConfigV3, type WatermarkConfigV3, type PreviewAspectRatio } from '../v3Types';
-import { watermarkPresetsV3 } from '../v3Presets';
+import { defaultMainControls, type WatermarkConfigV3, type PreviewAspectRatio } from '../v3Types';
+import { watermarkPresetsV3, getPresetMainControls } from '../v3Presets';
 import { ImagePresetRail } from './ImagePresetRail';
+import type { RuntimeCapabilities } from '../apiV3';
 
 interface V3LeftRailProps {
   aspectRatio?: PreviewAspectRatio;
   onAspectRatioChange?: (ratio: PreviewAspectRatio) => void;
+  runtimeCaps?: RuntimeCapabilities | null;
 }
 
-export function V3LeftRail({ aspectRatio, onAspectRatioChange }: V3LeftRailProps) {
+export function V3LeftRail({ aspectRatio, onAspectRatioChange, runtimeCaps }: V3LeftRailProps) {
   const context = useContext(V3AppContext);
   if (!context) return null;
 
@@ -19,20 +21,22 @@ export function V3LeftRail({ aspectRatio, onAspectRatioChange }: V3LeftRailProps
     setFiles,
     setActiveFileIndex,
     removeFile,
-    setConfig,
     clearOutputs,
     showToast,
+    onPresetChange,
   } = context;
 
-  const applyPreset = useCallback((presetConfig: WatermarkConfigV3) => {
-    setConfig(structuredClone(presetConfig));
-    clearOutputs();
-  }, [clearOutputs, setConfig]);
+  const applyPreset = useCallback((template: WatermarkConfigV3) => {
+    const controls = getPresetMainControls(template);
+    onPresetChange(structuredClone(template), controls);
+  }, [onPresetChange]);
 
   const resetConfig = useCallback(() => {
-    setConfig(createDefaultWatermarkConfigV3());
+    const defaultPreset = watermarkPresetsV3.find(p => p.id === 'default');
+    if (!defaultPreset) return;
+    applyPreset(defaultPreset.config);
     clearOutputs();
-  }, [clearOutputs, setConfig]);
+  }, [applyPreset, clearOutputs]);
 
   return (
     <ImagePresetRail
@@ -47,6 +51,7 @@ export function V3LeftRail({ aspectRatio, onAspectRatioChange }: V3LeftRailProps
       showToast={showToast}
       aspectRatio={aspectRatio}
       onAspectRatioChange={onAspectRatioChange}
+      runtimeCaps={runtimeCaps}
     />
   );
 }

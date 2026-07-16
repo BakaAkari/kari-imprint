@@ -85,6 +85,18 @@ def test_health() -> None:
     assert response.json() == {"ok": True, "status": "ok"}
 
 
+def test_capabilities_expose_active_frontend_limits() -> None:
+    response = client.get(f"{API_PREFIX}/capabilities")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["capabilities"]["upload"]["max_file_bytes"] == settings.max_upload_bytes
+    assert payload["capabilities"]["preview"]["max_edge"] == settings.preview_max_edge
+    assert payload["capabilities"]["preview"]["device_pixel_ratio_limit"] == settings.preview_device_pixel_ratio_limit
+    assert payload["capabilities"]["process"]["max_image_pixels"] == settings.max_image_pixels
+
+
 def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "input-v3.jpg")
 
@@ -144,7 +156,7 @@ def test_process_pixel_limit_message_is_actionable(tmp_path: Path, monkeypatch) 
     payload = response.json()
     assert payload["error"]["code"] == "image_too_large"
     assert "120×120" in payload["error"]["message"]
-    assert "AKA_SEMI_MAX_IMAGE_PIXELS" in payload["error"]["detail"]
+    assert "process.max_pixels" in payload["error"]["detail"]
     assert payload["error"]["context"]["mode"] == "process"
 
 
@@ -229,6 +241,21 @@ def test_v3_custom_text_is_never_evaluated_as_jinja(tmp_path: Path, monkeypatch)
     assert response.status_code == 200
     chips = captured["data"][0]["v3_config"]["regions"][0]["slots"]["left-top"]["content"]["chips"]
     assert chips[0]["custom_text"] == "probe={{ 7 * 7 }}"
+
+
+def test_process_injects_configured_output_quality(tmp_path: Path, monkeypatch) -> None:
+    image_path = _make_image(tmp_path / "quality.jpg")
+    captured: dict = {}
+
+    def fake_start_process(**kwargs):
+        captured.update(kwargs)
+        Image.new("RGB", (16, 16)).save(kwargs["output_path"])
+
+    monkeypatch.setattr(web_processing, "start_process", fake_start_process)
+    response = _post_image(f"{API_PREFIX}/process", image_path)
+
+    assert response.status_code == 200
+    assert captured["data"][-1]["quality"] == settings.output_quality
 
 
 def test_rejects_non_finite_and_oversized_config(tmp_path: Path) -> None:

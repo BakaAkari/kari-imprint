@@ -18,6 +18,7 @@ import { PLACEHOLDER_EXIF, PREVIEW_ASPECT_RATIOS } from './v3Types';
 import { computeLayout } from './v3_layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './v3_layout/layoutEngine';
 import { API_BASE } from './env';
+import type { RuntimeCapabilities } from './apiV3';
 
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
 
@@ -37,6 +38,15 @@ function buildText(content: TextContent, customText: string): string {
 // ── Logo 缓存 ─────────────────────────────────────────────────────────
 
 const logoCache = new Map<string, HTMLImageElement>();
+
+export function fitPreviewDimensions(width: number, height: number, maxEdge: number) {
+  if (width <= 0 || height <= 0 || maxEdge <= 0) throw new Error('Invalid preview dimensions');
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
 
 function loadLogo(path: string): Promise<HTMLImageElement> {
   const cached = logoCache.get(path);
@@ -59,7 +69,7 @@ function loadLogo(path: string): Promise<HTMLImageElement> {
 function renderCanvas(
   ctx: CanvasRenderingContext2D,
   layout: LayoutResult,
-  image: HTMLImageElement | null,
+  image: CanvasImageSource | null,
   logos: Map<string, HTMLImageElement>,
   _config: WatermarkConfigV3,
 ) {
@@ -214,13 +224,13 @@ function anchorOrigin(rect: ComputedElement['rect'], anchor: string): { x: numbe
 export function WatermarkCanvasV3({
   config,
   image,
-  imageSize,
   placeholderAspectRatio = '3:2',
+  runtimeCaps,
 }: {
   config: WatermarkConfigV3;
-  image: HTMLImageElement | null;
-  imageSize?: { width: number; height: number } | null;
+  image: ImageBitmap | null;
   placeholderAspectRatio?: PreviewAspectRatio;
+  runtimeCaps?: RuntimeCapabilities | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -234,18 +244,23 @@ export function WatermarkCanvasV3({
     if (!ctx) return;
 
     // 确定图片尺寸（无图时使用所选预览比例）
-    let imgW: number, imgH: number;
+    let sourceW: number, sourceH: number;
     if (image) {
-      imgW = image.naturalWidth;
-      imgH = image.naturalHeight;
-    } else if (imageSize) {
-      imgW = imageSize.width;
-      imgH = imageSize.height;
+      sourceW = image.width;
+      sourceH = image.height;
     } else {
       const ratio = PREVIEW_ASPECT_RATIOS.find(r => r.id === placeholderAspectRatio) ?? PREVIEW_ASPECT_RATIOS[0];
-      imgW = ratio.width;
-      imgH = ratio.height;
+      sourceW = ratio.width;
+      sourceH = ratio.height;
     }
+
+    // Never allocate a browser canvas at full camera resolution. Large photos
+    // multiplied by DPR can exceed the browser's backing-store limit and make
+    // the entire canvas (photo and watermark) silently disappear.
+    if (!runtimeCaps) return;
+    const previewSize = fitPreviewDimensions(sourceW, sourceH, runtimeCaps.preview.max_edge);
+    const imgW = previewSize.width;
+    const imgH = previewSize.height;
 
     // 计算布局
     const layout = computeLayout(config, imgW, imgH);
@@ -275,7 +290,9 @@ export function WatermarkCanvasV3({
     canvas.style.height = `${displayH}px`;
 
     // DPR 处理：逻辑分辨率固定为布局尺寸，保证绘制质量
-    const dpr = window.devicePixelRatio || 1;
+    // A 1600px preview at DPR 2 is already sharp on Retina screens. Capping
+    // DPR avoids recreating another oversized backing store on DPR 3+ devices.
+    const dpr = Math.min(window.devicePixelRatio || 1, runtimeCaps.preview.device_pixel_ratio_limit);
     canvas.width = layout.canvas.w * dpr;
     canvas.height = layout.canvas.h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -311,8 +328,18 @@ export function WatermarkCanvasV3({
       }
     }
 
-    // 绘制（可能尚未加载 logo，先占位）
-    renderCanvas(ctx, layout, image, logoImages, config);
+    // 绘制（可能尚未加载 logo，先占位）。Closed ImageBitmap should
+    // never reach this point, but a defensive fallback keeps the workspace
+    // usable if a stale async render races with file removal.
+    try {
+      renderCanvas(ctx, layout, image, logoImages, config);
+    } catch (error) {
+      if (image && error instanceof DOMException) {
+        renderCanvas(ctx, layout, null, logoImages, config);
+      } else {
+        throw error;
+      }
+    }
 
     // 恢复 clip
     if (config.canvas.border_radius > 0) {
@@ -335,7 +362,7 @@ export function WatermarkCanvasV3({
           // 失败时保持占位状态
         });
     }
-  }, [config, image, imageSize, placeholderAspectRatio, logoImages]);
+  }, [config, image, placeholderAspectRatio, logoImages, runtimeCaps]);
 
   return (
     <div ref={containerRef} className="canvas-scaler">

@@ -14,7 +14,23 @@ export type ResourceUploadResponse = {
   resource_id: string;
 };
 
+export type RuntimeCapabilities = {
+  upload: {
+    max_file_bytes: number;
+    allowed_extensions: string[];
+  };
+  preview: {
+    max_edge: number;
+    device_pixel_ratio_limit: number;
+  };
+  process: {
+    max_image_pixels: number;
+    concurrency: number;
+  };
+};
+
 type UploadResponse = { ok: true; image_id: string; expires_in: number; original_filename: string };
+type CapabilitiesResponse = { ok: true; capabilities: RuntimeCapabilities };
 
 const uploadedImages = new WeakMap<File, Promise<{ image_id: string; original_filename: string }>>();
 const originalNames = new WeakMap<File, string>();
@@ -62,6 +78,15 @@ export async function processImageV3(
     throw new Error((payload as ApiErrorResponse).error?.message || `请求失败：${response.status}`);
   }
   return payload;
+}
+
+export async function fetchRuntimeCapabilitiesV3(): Promise<RuntimeCapabilities> {
+  const response = await fetch(`${API_BASE}/api/capabilities`);
+  const payload = (await response.json()) as CapabilitiesResponse | ApiErrorResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error((payload as ApiErrorResponse).error?.message || `请求失败：${response.status}`);
+  }
+  return payload.capabilities;
 }
 
 export async function uploadResourceV3(

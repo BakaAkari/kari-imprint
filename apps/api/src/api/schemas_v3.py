@@ -53,23 +53,67 @@ class TextContentPayload(StrictModel):
 class LogoContentPayload(StrictModel):
     path: ResourceId = Field(default="", max_length=128, pattern=_RESOURCE_ID_PATTERN)
     color: Color = "#D8D8D6"
-    size_ratio: float = Field(default=0.6, ge=0.0, le=1.0)
+    size_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+    size_level: Literal["small", "medium", "large"] | None = None
 
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
         return _validate_color(value)
 
+    @model_validator(mode="after")
+    def size_conflict(self) -> LogoContentPayload:
+        sources = sum(
+            1 for s in [self.size_ratio, self.size_level]
+            if s is not None
+        )
+        if sources > 1:
+            raise ValueError(
+                "size_ratio 和 size_level 最多只能设置一个"
+            )
+        return self
+
 
 class SignatureContentPayload(StrictModel):
     path: ResourceId = Field(default="", max_length=128, pattern=_RESOURCE_ID_PATTERN)
     invert_mono: bool = False
-    size_ratio: float = Field(default=0.20, ge=0.01, le=1.0)
+    size_ratio: float | None = Field(default=None, ge=0.01, le=1.0)
+    size_level: Literal["small", "medium", "large"] | None = None
+
+    @model_validator(mode="after")
+    def size_conflict(self) -> SignatureContentPayload:
+        sources = sum(
+            1 for s in [self.size_ratio, self.size_level]
+            if s is not None
+        )
+        if sources > 1:
+            raise ValueError(
+                "size_ratio 和 size_level 最多只能设置一个"
+            )
+        return self
+
+
+_FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.125,
+    "medium": 0.16,
+    "large": 0.20,
+}
+_LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.50,
+    "medium": 0.60,
+    "large": 0.72,
+}
+_SIGNATURE_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.15,
+    "medium": 0.20,
+    "large": 0.25,
+}
 
 
 class StyleConfigPayload(StrictModel):
     font_size: int | None = Field(default=None, ge=4, le=200)
     font_size_ratio: float | None = Field(default=None, ge=0.0, le=0.5)
+    font_size_level: Literal["small", "medium", "large"] | None = None
     size_reference: Literal["region_height", "short_edge", "long_edge"] = "region_height"
     color: Color = "#222222"
     font_family: Literal[
@@ -82,6 +126,18 @@ class StyleConfigPayload(StrictModel):
     @classmethod
     def valid_color(cls, value: str) -> str:
         return _validate_color(value)
+
+    @model_validator(mode="after")
+    def font_size_conflict(self) -> StyleConfigPayload:
+        sources = sum(
+            1 for s in [self.font_size, self.font_size_ratio, self.font_size_level]
+            if s is not None
+        )
+        if sources > 1:
+            raise ValueError(
+                "font_size、font_size_ratio、font_size_level 最多只能设置一个"
+            )
+        return self
 
 
 class SlotConfigPayload(StrictModel):
@@ -159,10 +215,76 @@ class CanvasConfigPayload(StrictModel):
 
 
 class WatermarkPayloadV3(StrictModel):
+    schema_version: int = Field(default=2, ge=1, le=2)
     canvas: CanvasConfigPayload = Field(default_factory=CanvasConfigPayload)
     regions: list[RegionConfigPayload] = Field(default_factory=list, max_length=10)
     defaults: StyleConfigPayload = Field(default_factory=StyleConfigPayload)
     custom_text: str = Field(default="", max_length=160)
+    footer_mode: Literal["dual-row", "single-row"] = "dual-row"
+    logo_position: Literal["left", "center", "right"] = "right"
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_v1_schema(cls, data: Any) -> Any:
+        """Migrate missing or schema_version=1 payloads to v2."""
+        if not isinstance(data, dict):
+            return data
+        sv = data.get("schema_version", 1)
+        if isinstance(sv, str):
+            try:
+                sv = int(sv)
+            except (ValueError, TypeError):
+                sv = 1
+        if sv >= 2:
+            return data
+        # schema_version=1 or missing: upgrade to v2
+        data["schema_version"] = 2
+        # Migrate defaults.font_size_level from ratio if only ratio is set
+        defaults = data.get("defaults") or {}
+        if (
+            isinstance(defaults, dict)
+            and defaults.get("font_size_ratio") is not None
+            and defaults.get("font_size_level") is None
+        ):
+            for level, ratio in _FONT_SIZE_LEVEL_RATIOS.items():
+                if abs(defaults["font_size_ratio"] - ratio) < 0.001:
+                    defaults["font_size_level"] = level
+                    defaults["font_size_ratio"] = None
+                    break
+        # Migrate slot-level style font_size_level
+        for region in data.get("regions") or []:
+            if not isinstance(region, dict):
+                continue
+            for slot in (region.get("slots") or {}).values():
+                if not isinstance(slot, dict):
+                    continue
+                style = slot.get("style") or {}
+                if (
+                    isinstance(style, dict)
+                    and style.get("font_size_ratio") is not None
+                    and style.get("font_size_level") is None
+                ):
+                    for level, ratio in _FONT_SIZE_LEVEL_RATIOS.items():
+                        if abs(style["font_size_ratio"] - ratio) < 0.001:
+                            style["font_size_level"] = level
+                            style["font_size_ratio"] = None
+                            break
+                content = slot.get("content") or {}
+                if isinstance(content, dict):
+                    ratio_value = content.get("size_ratio")
+                    level_value = content.get("size_level")
+                    ratios = _LOGO_SIZE_LEVEL_RATIOS if "color" in content else _SIGNATURE_SIZE_LEVEL_RATIOS
+                    if ratio_value is not None and level_value is None:
+                        for level, ratio in ratios.items():
+                            if abs(ratio_value - ratio) < 0.001:
+                                content["size_level"] = level
+                                content["size_ratio"] = None
+                                break
+                    elif ratio_value is not None and level_value is not None:
+                        expected = ratios.get(level_value)
+                        if expected is not None and abs(ratio_value - expected) < 0.001:
+                            content["size_ratio"] = None
+        return data
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────

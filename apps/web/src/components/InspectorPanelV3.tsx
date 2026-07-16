@@ -12,7 +12,9 @@ import { uploadResourceV3 } from '../apiV3';
 import type {
   WatermarkConfigV3,
   RegionConfig,
+  RootOverrides,
   SlotConfig,
+  SlotOverride,
   TextContent,
   LogoContent,
   SignatureContent,
@@ -31,7 +33,7 @@ function isTextContent(c: Content): c is TextContent {
 }
 
 function isLogoContent(c: Content): c is LogoContent {
-  return 'path' in c && 'color' in c && !('size_ratio' in c) && !('chips' in c);
+  return 'path' in c && 'color' in c && !('chips' in c);
 }
 
 function isSignatureContent(c: Content): c is SignatureContent {
@@ -45,19 +47,11 @@ function defaultTextContent(): TextContent {
 }
 
 function defaultLogoContent(): LogoContent {
-  return { path: '', color: '#D8D8D6' };
+  return { path: '', color: '#D8D8D6', size_level: 'medium', size_ratio: null };
 }
 
 function defaultSignatureContent(): SignatureContent {
-  return { path: '', invert_mono: false, size_ratio: 0.20 };
-}
-
-function createDefaultSlot(type: 'text' | 'logo' | 'signature'): SlotConfig {
-  return {
-    enabled: false,
-    content: type === 'text' ? defaultTextContent() : type === 'logo' ? defaultLogoContent() : defaultSignatureContent(),
-    style: null,
-  };
+  return { path: '', invert_mono: false, size_level: 'medium', size_ratio: null };
 }
 
 // ── Slot 标签 ──────────────────────────────────────────────
@@ -88,7 +82,9 @@ const ANCHOR_LABELS: Record<string, string> = {
 
 interface InspectorPanelV3Props {
   config: WatermarkConfigV3;
-  setConfig: React.Dispatch<React.SetStateAction<WatermarkConfigV3>>;
+  onRegionOverride: (regionId: string, patch: Partial<RegionConfig>) => void;
+  onRootOverride: (patch: Partial<RootOverrides>) => void;
+  onSlotOverride: (key: string, override: SlotOverride) => void;
   diagnostics?: DiagnosticItem[];
 }
 
@@ -106,7 +102,7 @@ export interface DiagnosticItem {
 
 // ── 主组件 ────────────────────────────────────────────
 
-export function InspectorPanelV3({ config, setConfig, diagnostics = [] }: InspectorPanelV3Props) {
+export function InspectorPanelV3({ config, onRegionOverride, onRootOverride, onSlotOverride, diagnostics = [] }: InspectorPanelV3Props) {
   const errors = diagnostics.filter((d) => d.severity === 'error');
   const warnings = diagnostics.filter((d) => d.severity === 'warning');
 
@@ -141,7 +137,11 @@ export function InspectorPanelV3({ config, setConfig, diagnostics = [] }: Inspec
               </div>
             )}
 
-            <AdvancedStructureEditor config={config} setConfig={setConfig} diagnostics={diagnostics} />
+            <AdvancedStructureEditor config={config}
+              onRegionOverride={onRegionOverride}
+              onRootOverride={onRootOverride}
+              onSlotOverride={onSlotOverride}
+              diagnostics={diagnostics} />
           </div>
         </div>
       </div>
@@ -153,32 +153,24 @@ export function InspectorPanelV3({ config, setConfig, diagnostics = [] }: Inspec
 
 function AdvancedStructureEditor({
   config,
-  setConfig,
+  onRegionOverride,
+  onRootOverride,
+  onSlotOverride,
   diagnostics,
 }: {
   config: WatermarkConfigV3;
-  setConfig: React.Dispatch<React.SetStateAction<WatermarkConfigV3>>;
+  onRegionOverride: (regionId: string, patch: Partial<RegionConfig>) => void;
+  onRootOverride: (patch: Partial<RootOverrides>) => void;
+  onSlotOverride: (key: string, override: SlotOverride) => void;
   diagnostics: DiagnosticItem[];
 }) {
   const updateRegion = useCallback((regionId: string, patch: Partial<RegionConfig>) => {
-    setConfig((prev) => ({
-      ...prev,
-      regions: prev.regions.map((r) => (r.id === regionId ? { ...r, ...patch } : r)),
-    }));
-  }, [setConfig]);
+    onRegionOverride(regionId, patch);
+  }, [onRegionOverride]);
 
   const updateSlot = useCallback((regionId: string, slotId: string, patch: Partial<SlotConfig>) => {
-    setConfig((prev) => ({
-      ...prev,
-      regions: prev.regions.map((r) => {
-        if (r.id !== regionId) return r;
-        const slots = { ...r.slots };
-        const slot = slots[slotId] ?? createDefaultSlot('text');
-        slots[slotId] = { ...slot, ...patch };
-        return { ...r, slots };
-      }),
-    }));
-  }, [setConfig]);
+    onSlotOverride(`${regionId}:${slotId}`, patch as SlotOverride);
+  }, [onSlotOverride]);
 
   return (
     <div className="anim-fade-in v3-advanced-editor">
@@ -199,7 +191,7 @@ function AdvancedStructureEditor({
         />
       ))}
 
-      <AdvancedTab config={config} setConfig={setConfig} />
+      <AdvancedTab config={config} onRootOverride={onRootOverride} />
     </div>
   );
 }
@@ -580,6 +572,25 @@ function ContentEditor({
             style={{ width: 60, height: 32, padding: 2 }}
           />
         </label>
+        <label className="inline" style={{ flexDirection: 'row', gap: 8 }}>
+          <span className="text-sm" style={{ minWidth: 60 }}>
+            大小比例
+          </span>
+          <input
+            type="number"
+            min={0.01}
+            max={1}
+            step={0.01}
+            value={content.size_ratio ?? ''}
+            placeholder={content.size_level ?? 'medium'}
+            onChange={(e) => onUpdateContent({
+              ...content,
+              size_level: null,
+              size_ratio: parseFloat(e.target.value) || 0.6,
+            })}
+            style={{ width: 100 }}
+          />
+        </label>
         <div className="resource-upload-row">
           <input
             ref={logoInputRef}
@@ -648,8 +659,8 @@ function ContentEditor({
             min={0.01}
             max={1}
             step={0.01}
-            value={content.size_ratio}
-            onChange={(e) => onUpdateContent({ ...content, size_ratio: parseFloat(e.target.value) || 0.2 })}
+            value={content.size_ratio ?? ''}
+            onChange={(e) => onUpdateContent({ ...content, size_level: null, size_ratio: parseFloat(e.target.value) || 0.2 })}
             style={{ width: 100 }}
           />
         </label>
@@ -750,8 +761,13 @@ function StyleEditor({
           min={0}
           max={0.5}
           step={0.005}
-          value={style.font_size_ratio ?? 0}
-          onChange={(e) => onUpdate({ ...style, font_size_ratio: parseFloat(e.target.value) || 0 })}
+          value={style.font_size_ratio ?? ''}
+          onChange={(e) => onUpdate({
+            ...style,
+            font_size: null,
+            font_size_level: null,
+            font_size_ratio: parseFloat(e.target.value) || 0,
+          })}
           style={{ width: 90 }}
         />
       </label>
@@ -796,23 +812,23 @@ function StyleEditor({
 
 function AdvancedTab({
   config,
-  setConfig,
+  onRootOverride,
 }: {
   config: WatermarkConfigV3;
-  setConfig: React.Dispatch<React.SetStateAction<WatermarkConfigV3>>;
+  onRootOverride: (patch: Partial<RootOverrides>) => void;
 }) {
   const updateCanvas = useCallback(
     (patch: Partial<WatermarkConfigV3['canvas']>) => {
-      setConfig((prev) => ({ ...prev, canvas: { ...prev.canvas, ...patch } }));
+      onRootOverride({ canvas: patch });
     },
-    [setConfig],
+    [onRootOverride],
   );
 
   const updateDefaults = useCallback(
     (patch: Partial<StyleConfig>) => {
-      setConfig((prev) => ({ ...prev, defaults: { ...prev.defaults, ...patch } }));
+      onRootOverride({ defaults: patch });
     },
-    [setConfig],
+    [onRootOverride],
   );
 
   const margins = config.canvas.margins;
@@ -899,8 +915,12 @@ function AdvancedTab({
               min={0}
               max={0.5}
               step={0.005}
-              value={config.defaults.font_size_ratio ?? 0}
-              onChange={(e) => updateDefaults({ font_size_ratio: parseFloat(e.target.value) || 0 })}
+              value={config.defaults.font_size_ratio ?? ''}
+              onChange={(e) => updateDefaults({
+                font_size: null,
+                font_size_level: null,
+                font_size_ratio: parseFloat(e.target.value) || 0,
+              })}
             />
           </label>
           <label className="small-label">

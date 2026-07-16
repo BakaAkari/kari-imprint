@@ -83,7 +83,7 @@ export function TopBar({ controller: ctx }: { controller: TopBarController }) {
           disabled={!hasFiles || isRunning}
           onClick={loadPreview}
         >
-          预览
+          刷新预览
         </button>
         <button
           className="primary"

@@ -64,14 +64,21 @@ export interface TextContent {
 export interface LogoContent {
   path: string;
   color: string;
-  size_ratio?: number;
+  size_level: SizeLevel | null;
+  size_ratio: number | null;
 }
 
 export interface SignatureContent {
   path: string;
   invert_mono: boolean;
-  size_ratio: number;
+  size_level: SizeLevel | null;
+  size_ratio: number | null;
 }
+
+export type SizeLevel = 'small' | 'medium' | 'large';
+const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.125, medium: 0.16, large: 0.20 };
+const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
+const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
 
 export type Content = TextContent | LogoContent | SignatureContent;
 
@@ -79,6 +86,7 @@ export type SizeReference = 'region_height' | 'short_edge' | 'long_edge';
 
 export interface StyleConfig {
   font_size: number | null;
+  font_size_level: SizeLevel | null;
   font_size_ratio: number | null;
   size_reference: SizeReference;
   color: string;
@@ -112,9 +120,11 @@ export interface RegionConfig {
 }
 
 export interface WatermarkConfig {
+  schema_version: 2;
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;
+  footer_mode?: 'dual-row' | 'single-row';
 }
 
 // ── 布局结果 ────────────────────────────────────────────
@@ -182,7 +192,15 @@ export function computeLayout(config: WatermarkConfig, imageW: number, imageH: n
 
     switch (region.type) {
       case 'footer-bar':
-        elements.push(...computeFooterBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge));
+        elements.push(...computeFooterBar(
+          region,
+          imageRect,
+          canvas,
+          config.defaults,
+          shortEdge,
+          longEdge,
+          config.footer_mode ?? 'dual-row',
+        ));
         break;
       case 'side-edge':
         elements.push(...computeSideEdge(region, imageRect, config.defaults, shortEdge, longEdge));
@@ -215,6 +233,7 @@ function computeFooterBar(
   defaults: StyleConfig,
   shortEdge: number,
   longEdge: number,
+  footerMode: 'dual-row' | 'single-row',
 ): ComputedElement[] {
   const regionBounds = rect(
     0,
@@ -224,17 +243,17 @@ function computeFooterBar(
   );
 
   const elements: ComputedElement[] = [];
-  const slotLayouts = computeFooterSlots(regionBounds, region.slots ?? {});
+  const slotLayouts = computeFooterSlots(regionBounds, region.slots ?? {}, footerMode);
 
   for (const [slotId, slotBounds] of Object.entries(slotLayouts)) {
     const slot = region.slots?.[slotId];
     if (!slot || !slot.enabled || !slot.content) continue;
 
     const style = mergeStyle(defaults, slot.style);
-    const fontSize = resolveFontSize(style, slotBounds.h, shortEdge, longEdge);
+    const fontSize = resolveFontSize(style, regionBounds.h, shortEdge, longEdge);
 
     if (isTextContent(slot.content) && slot.content.chips.length > 0) {
-      const anchor = footerSlotAnchor(slotId);
+      const anchor = footerSlotAnchor(slotId, footerMode);
       const pos = applyAnchor(slotBounds, anchor);
 
       elements.push({
@@ -247,12 +266,13 @@ function computeFooterBar(
       });
     } else if (isLogoContent(slot.content)) {
       const logoH = resolveLogoSize(slot.content, regionBounds.h);
-      const pos = applyAnchor(slotBounds, 'middle-center');
+      const anchor = footerLogoAnchor(slotId);
+      const pos = applyAnchor(slotBounds, anchor);
       elements.push({
         id: `${region.id}-${slotId}`,
         type: 'logo',
-        rect: rect(pos.x, pos.y, logoH * 3, logoH),
-        anchor: 'middle-center',
+        rect: rect(pos.x, pos.y, Math.min(slotBounds.w, logoH * 3), logoH),
+        anchor,
         content: slot.content,
         style: defaults,
       });
@@ -352,7 +372,8 @@ function computeFree(
       const style = mergeStyle(defaults, slot.style);
 
       if (isSignatureContent(slot.content)) {
-        const sigH = Math.round(shortEdge * slot.content.size_ratio);
+        const sigRatio = slot.content.size_ratio ?? SIGNATURE_SIZE_RATIOS[slot.content.size_level ?? 'medium'];
+        const sigH = Math.round(shortEdge * sigRatio);
         elements.push({
           id: `${region.id}-${slotId}`,
           type: 'signature',
@@ -478,7 +499,7 @@ function resolveFontSize(
     return style.font_size;
   }
 
-  const ratio = style.font_size_ratio ?? 0.3;
+  const ratio = style.font_size_ratio ?? FONT_SIZE_RATIOS[style.font_size_level ?? 'medium'];
 
   let ref: number;
   switch (style.size_reference) {
@@ -497,7 +518,7 @@ function resolveFontSize(
 
 function resolveLogoSize(content: LogoContent, regionHeight: number): number {
   // Logo 高度按所在区域高度的 size_ratio 缩放，默认占 60%，随底栏/水印条高度变化
-  const ratio = content.size_ratio ?? 0.6;
+  const ratio = content.size_ratio ?? LOGO_SIZE_RATIOS[content.size_level ?? 'medium'];
   return Math.max(16, Math.round(regionHeight * ratio));
 }
 
@@ -505,6 +526,7 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
   if (!override) {
     return {
       font_size: defaults.font_size,
+      font_size_level: defaults.font_size_level,
       font_size_ratio: defaults.font_size_ratio,
       size_reference: defaults.size_reference,
       color: defaults.color,
@@ -515,6 +537,7 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
   }
   return {
     font_size: override.font_size !== null ? override.font_size : defaults.font_size,
+    font_size_level: override.font_size_level !== null ? override.font_size_level : defaults.font_size_level,
     font_size_ratio: override.font_size_ratio !== null ? override.font_size_ratio : defaults.font_size_ratio,
     size_reference: override.size_reference || defaults.size_reference,
     color: override.color || defaults.color,
@@ -527,6 +550,7 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
 function withFontSize(style: StyleConfig, fontSize: number): StyleConfig {
   return {
     font_size: fontSize,
+    font_size_level: null,
     font_size_ratio: null,
     size_reference: style.size_reference,
     color: style.color,
@@ -562,7 +586,11 @@ function applyAnchor(bounds: Rect, anchor: string): Point {
   return { x: ax, y: ay };
 }
 
-function footerSlotAnchor(slotId: string): string {
+function footerSlotAnchor(slotId: string, footerMode: 'dual-row' | 'single-row'): string {
+  if (footerMode === 'single-row') {
+    if (slotId === 'left-top') return 'middle-left';
+    if (slotId === 'right-top') return 'middle-right';
+  }
   const mapping: Record<string, string> = {
     'left-logo': 'middle-left',
     'left-top': 'top-left',
@@ -575,26 +603,51 @@ function footerSlotAnchor(slotId: string): string {
   return mapping[slotId] ?? 'middle-center';
 }
 
-function computeFooterSlots(regionBounds: Rect, _slots: Record<string, SlotConfig>): Record<string, Rect> {
+function footerLogoAnchor(slotId: string): string {
+  if (slotId === 'left-logo') return 'middle-left';
+  if (slotId === 'right-logo') return 'middle-right';
+  return 'middle-center';
+}
+
+function computeFooterSlots(
+  regionBounds: Rect,
+  slots: Record<string, SlotConfig>,
+  footerMode: 'dual-row' | 'single-row',
+): Record<string, Rect> {
   const results: Record<string, Rect> = {};
 
-  const totalW = regionBounds.w;
-  const logoW = Math.max(40, Math.floor(totalW * 0.15));
-  const textW = Math.floor((totalW - logoW * 2) / 2);
+  // 所有位置以底栏真实边界为基准。Logo 只在启用的一侧预留安全区，
+  // 不再永久侵占左右各 15% 的文本空间。
+  const padX = Math.max(12, Math.round(regionBounds.h * 0.28));
+  const padY = Math.max(6, Math.round(regionBounds.h * 0.14));
+  const centerGap = Math.max(12, Math.round(regionBounds.h * 0.22));
+  const logoReserve = Math.max(48, Math.round(regionBounds.h * 2.05));
+  const leftLogoEnabled = Boolean(slots['left-logo']?.enabled && slots['left-logo']?.content);
+  const rightLogoEnabled = Boolean(slots['right-logo']?.enabled && slots['right-logo']?.content);
 
-  results['left-logo'] = rect(regionBounds.x, regionBounds.y, logoW, regionBounds.h);
+  const innerLeft = regionBounds.x + padX;
+  const innerRight = rectRight(regionBounds) - padX;
+  const textLeft = innerLeft + (leftLogoEnabled ? logoReserve : 0);
+  const textRight = innerRight - (rightLogoEnabled ? logoReserve : 0);
+  const middle = Math.floor((textLeft + textRight) / 2);
+  const rowH = Math.max(1, Math.floor((regionBounds.h - padY * 2) / 2));
+  const leftW = Math.max(0, middle - centerGap - textLeft);
+  const rightX = middle + centerGap;
+  const rightW = Math.max(0, textRight - rightX);
 
-  const leftTextX = regionBounds.x + logoW;
-  results['left-top'] = rect(leftTextX, regionBounds.y, textW, Math.floor(regionBounds.h / 2));
-  results['left-bottom'] = rect(leftTextX, regionBounds.y + Math.floor(regionBounds.h / 2), textW, Math.floor(regionBounds.h / 2));
+  results['left-logo'] = rect(innerLeft, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
+  results['right-logo'] = rect(innerRight, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
+  results['center'] = rect(Math.floor((innerLeft + innerRight) / 2), regionBounds.y + padY, 0, regionBounds.h - padY * 2);
+  results['left-top'] = rect(textLeft, regionBounds.y + padY, leftW, rowH);
+  results['left-bottom'] = rect(textLeft, rectBottom(regionBounds) - padY - rowH, leftW, rowH);
+  results['right-top'] = rect(rightX, regionBounds.y + padY, rightW, rowH);
+  results['right-bottom'] = rect(rightX, rectBottom(regionBounds) - padY - rowH, rightW, rowH);
 
-  results['center'] = rect(leftTextX + textW, regionBounds.y, 0, regionBounds.h);
-
-  const rightTextX = leftTextX + textW;
-  results['right-top'] = rect(rightTextX, regionBounds.y, textW, Math.floor(regionBounds.h / 2));
-  results['right-bottom'] = rect(rightTextX, regionBounds.y + Math.floor(regionBounds.h / 2), textW, Math.floor(regionBounds.h / 2));
-
-  results['right-logo'] = rect(rectRight(regionBounds) - logoW, regionBounds.y, logoW, regionBounds.h);
+  if (footerMode === 'single-row') {
+    const fullH = regionBounds.h - padY * 2;
+    results['left-top'] = rect(textLeft, regionBounds.y + padY, leftW, fullH);
+    results['right-top'] = rect(rightX, regionBounds.y + padY, rightW, fullH);
+  }
 
   return results;
 }
@@ -606,7 +659,7 @@ function isTextContent(c: Content): c is TextContent {
 }
 
 function isLogoContent(c: Content): c is LogoContent {
-  return 'path' in c && 'color' in c && !('size_ratio' in c);
+  return 'path' in c && 'color' in c;
 }
 
 function isSignatureContent(c: Content): c is SignatureContent {

@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PREVIEW_ASPECT_RATIOS, type PreviewAspectRatio } from '../v3Types';
-
-const SUPPORTED_EXTENSIONS = [
-  'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'tif', 'tiff',
-  'gif', 'bmp', 'avif', 'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'orf', 'rw2', 'raf', 'pef',
-] as const;
-
-const EXT_REGEX = new RegExp(`\\.(${SUPPORTED_EXTENSIONS.join('|')})$`, 'i');
+import type { RuntimeCapabilities } from '../apiV3';
 
 export type RailPreset<TConfig> = {
   id: string;
@@ -27,6 +21,7 @@ type ImagePresetRailProps<TConfig> = {
   showToast: (message: string, type: 'success' | 'error' | 'info') => void;
   aspectRatio?: PreviewAspectRatio;
   onAspectRatioChange?: (ratio: PreviewAspectRatio) => void;
+  runtimeCaps?: RuntimeCapabilities | null;
 };
 
 /**
@@ -47,11 +42,17 @@ export function ImagePresetRail<TConfig>({
   showToast,
   aspectRatio,
   onAspectRatioChange,
+  runtimeCaps,
 }: ImagePresetRailProps<TConfig>) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [, setUrlRevision] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlsRef = useRef<Map<File, string>>(new Map());
+  const allowedExtensions = (runtimeCaps?.upload.allowed_extensions ?? []).map((ext) =>
+    ext.replace(/^\./, '').toLowerCase(),
+  );
+  const allowedExtensionSet = new Set(allowedExtensions);
+  const maxFileBytes = runtimeCaps?.upload.max_file_bytes ?? 0;
 
   useEffect(() => {
     const currentFiles = new Set(files);
@@ -83,21 +84,33 @@ export function ImagePresetRail<TConfig>({
 
   const handleFiles = useCallback((fileList: FileList | null) => {
     if (!fileList?.length) return;
+    if (!runtimeCaps) {
+      showToast('运行配置尚未加载，请稍后再试', 'error');
+      return;
+    }
 
     const candidates = Array.from(fileList);
-    const supported = candidates.filter((file) => EXT_REGEX.test(file.name));
+    const supported = candidates.filter((file) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+      return allowedExtensionSet.has(ext);
+    });
     const unsupportedCount = candidates.length - supported.length;
+    const tooLargeCount = supported.filter((file) => file.size > maxFileBytes).length;
+    const sizeOk = supported.filter((file) => file.size <= maxFileBytes);
 
     if (unsupportedCount > 0) {
       showToast(`${unsupportedCount} 个文件格式不支持，已跳过`, 'info');
     }
-    if (supported.length === 0) {
-      showToast('不支持的文件格式，请选择图片文件', 'error');
+    if (tooLargeCount > 0) {
+      showToast(`${tooLargeCount} 个文件超过当前设备允许大小，已跳过`, 'info');
+    }
+    if (sizeOk.length === 0) {
+      showToast('没有可导入的有效图片', 'error');
       return;
     }
 
     const existing = new Set(files.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
-    const unique = supported.filter((file) => !existing.has(`${file.name}:${file.size}:${file.lastModified}`));
+    const unique = sizeOk.filter((file) => !existing.has(`${file.name}:${file.size}:${file.lastModified}`));
 
     if (unique.length === 0) {
       showToast('所选图片已存在', 'info');
@@ -106,7 +119,7 @@ export function ImagePresetRail<TConfig>({
     }
 
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [files, setFiles, showToast]);
+  }, [allowedExtensionSet, files, maxFileBytes, runtimeCaps, setFiles, showToast]);
 
   const onDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -132,13 +145,15 @@ export function ImagePresetRail<TConfig>({
             <input
               ref={fileInputRef}
               type="file"
-              accept={SUPPORTED_EXTENSIONS.map((extension) => `.${extension}`).join(',')}
+              accept={allowedExtensions.map((extension) => `.${extension}`).join(',')}
               multiple
               onChange={(event) => handleFiles(event.target.files)}
             />
             <span className="upload-zone-icon">📷</span>
             <span className="upload-zone-text">拖拽或点击上传</span>
-            <span className="upload-zone-hint">JPG / PNG / WebP / HEIC / TIFF / GIF / BMP / RAW</span>
+            <span className="upload-zone-hint">
+              {allowedExtensions.length > 0 ? allowedExtensions.map((ext) => ext.toUpperCase()).join(' / ') : '正在读取配置…'}
+            </span>
           </div>
         </div>
       </div>

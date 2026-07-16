@@ -3,6 +3,8 @@
 
 from kari_core.shared.v3_layout.layout_engine import (
     CanvasConfig,
+    FieldChip,
+    LogoContent,
     MarginsConfig,
     Rect,
     RegionConfig,
@@ -14,8 +16,8 @@ from kari_core.shared.v3_layout.layout_engine import (
 )
 
 
-def _make_chip():
-    return {"field_id": "make"}
+def _make_chip() -> FieldChip:
+    return FieldChip(field_id="make")
 
 
 class TestCanvasSize:
@@ -122,7 +124,9 @@ class TestFontSize:
         assert r1.elements[0].style.font_size == r2.elements[0].style.font_size == 54
 
     def test_region_height_reference(self):
-        """使用 region_height 作为字号基准（默认）。"""
+        """使用 region_height 作为字号基准（默认）。
+        v2: font_size 使用完整的 footer region height，不再用 slot height。
+        """
         style = StyleConfig(font_size_ratio=0.5)
         result = compute_layout(
             WatermarkConfig(
@@ -145,9 +149,107 @@ class TestFontSize:
             1920, 1080,
         )
         el = result.elements[0]
-        # footer-bar 的 left-top 在区域上半部分（高=60）
-        # ratio = 0.5 → 字号 = 60 * 0.5 = 30px
-        assert el.style.font_size == 30
+        # v2: full footer region height = 120px (bottom margin), ratio = 0.5 → 60px
+        assert el.style.font_size == 60
+
+
+class TestFooterBarLayout:
+    """底栏高度和四角/左右布局契约。"""
+
+    @staticmethod
+    def _text_slot() -> SlotConfig:
+        return SlotConfig(
+            enabled=True,
+            content=TextContent(chips=[_make_chip()]),
+            style=StyleConfig(font_size=12),
+        )
+
+    def test_fixed_footer_height_and_dual_row_corners(self):
+        slots = {
+            "left-top": self._text_slot(),
+            "left-bottom": self._text_slot(),
+            "right-top": self._text_slot(),
+            "right-bottom": self._text_slot(),
+        }
+        result = compute_layout(
+            WatermarkConfig(
+                regions=[RegionConfig(
+                    id="footer",
+                    type="footer-bar",
+                    enabled=True,
+                    height=0.09,
+                    slots=slots,
+                )],
+                footer_mode="dual-row",
+            ),
+            1000,
+            600,
+        )
+
+        assert result.canvas.h == 654
+        elements = {el.id: el for el in result.elements}
+        assert elements["footer-left-top"].anchor == "top-left"
+        assert elements["footer-left-bottom"].anchor == "bottom-left"
+        assert elements["footer-right-top"].anchor == "top-right"
+        assert elements["footer-right-bottom"].anchor == "bottom-right"
+        assert elements["footer-left-top"].rect.x < 500
+        assert elements["footer-right-top"].rect.x > 500
+        assert elements["footer-left-top"].rect.y < elements["footer-left-bottom"].rect.y
+        assert elements["footer-right-top"].rect.y < elements["footer-right-bottom"].rect.y
+
+    def test_single_row_is_vertically_centered_left_and_right(self):
+        result = compute_layout(
+            WatermarkConfig(
+                regions=[RegionConfig(
+                    id="footer",
+                    type="footer-bar",
+                    enabled=True,
+                    height=0.09,
+                    slots={
+                        "left-top": self._text_slot(),
+                        "right-top": self._text_slot(),
+                    },
+                )],
+                footer_mode="single-row",
+            ),
+            1000,
+            600,
+        )
+
+        elements = {el.id: el for el in result.elements}
+        left = elements["footer-left-top"]
+        right = elements["footer-right-top"]
+        assert left.anchor == "middle-left"
+        assert right.anchor == "middle-right"
+        assert left.rect.y == right.rect.y
+        assert left.rect.y == 627
+        assert left.rect.x < 500 < right.rect.x
+
+    def test_right_logo_only_reserves_right_side(self):
+        result = compute_layout(
+            WatermarkConfig(
+                regions=[RegionConfig(
+                    id="footer",
+                    type="footer-bar",
+                    enabled=True,
+                    height=0.09,
+                    slots={
+                        "left-top": self._text_slot(),
+                        "right-logo": SlotConfig(
+                            enabled=True,
+                            content=LogoContent(path="logo.png"),
+                        ),
+                    },
+                )],
+            ),
+            1000,
+            600,
+        )
+
+        elements = {el.id: el for el in result.elements}
+        assert elements["footer-left-top"].rect.x < 30
+        assert elements["footer-right-logo"].anchor == "middle-right"
+        assert elements["footer-right-logo"].rect.x > 900
 
 
 class TestSideEdge:

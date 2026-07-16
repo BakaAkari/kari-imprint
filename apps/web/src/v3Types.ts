@@ -50,14 +50,15 @@ export interface TextContent {
 export interface LogoContent {
   path: string;
   color: string;
-  /** logo 高度占所在区域高度的比例，默认 0.6，用于随底栏等水印条高度缩放。 */
-  size_ratio?: number;
+  size_level: SizeLevel | null;
+  size_ratio: number | null;
 }
 
 export interface SignatureContent {
   path: string;
   invert_mono: boolean;
-  size_ratio: number;
+  size_level: SizeLevel | null;
+  size_ratio: number | null;
 }
 
 export type Content = TextContent | LogoContent | SignatureContent;
@@ -71,6 +72,7 @@ export type FontFamily = 'NotoSansCJKsc-Regular.otf' | 'NotoSansCJKsc-Bold.otf';
 
 export interface StyleConfig {
   font_size: number | null;
+  font_size_level: SizeLevel | null;
   font_size_ratio: number | null;
   size_reference: SizeReference;
   color: string;
@@ -117,6 +119,7 @@ export interface CanvasConfig {
 }
 
 export interface WatermarkConfigV3 {
+  schema_version: 2;
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;
@@ -144,9 +147,9 @@ export const fieldOptionsV3: { id: FieldId; label: string }[] = [
 ];
 
 // 主界面参数化控制类型
-export type PresetSize = 'small' | 'medium' | 'large';
+export type SizeLevel = 'small' | 'medium' | 'large';
+export type PresetSize = SizeLevel;
 export type PresetColor = 'black' | 'white' | 'warm-gray' | 'auto';
-export type PresetDensity = 'compact' | 'standard' | 'loose';
 export type FooterMode = 'dual-row' | 'single-row';
 export type LogoPosition = 'left' | 'center' | 'right';
 
@@ -178,24 +181,23 @@ export const LOGO_POSITION_LABELS: Record<LogoPosition, string> = {
   right: '右',
 };
 
+export type FooterTextSlot = 'top_left' | 'bottom_left' | 'top_right' | 'bottom_right' | 'left_row' | 'right_row';
+export type FooterTextSizes = Record<FooterTextSlot, SizeLevel>;
+
 export interface MainControlConfig {
-  size: PresetSize;
   color: PresetColor;
-  density: PresetDensity;
-  // 底部控制条模式
   footer_mode: FooterMode;
-  // Logo 位置
   logo_position: LogoPosition;
-  // 各栏内容（字段 chips）
+  text_sizes: FooterTextSizes;
+  logo_size: SizeLevel;
+  signature_size: SizeLevel;
   top_left: FieldChip[];
   bottom_left: FieldChip[];
   top_right: FieldChip[];
   bottom_right: FieldChip[];
   left_row: FieldChip[];
   right_row: FieldChip[];
-  // 自定义
   custom_text: string;
-  // 资源
   logo_path: string;
   signature_path: string;
 }
@@ -206,8 +208,6 @@ export interface WatermarkPresetV3 {
   description: string;
   // 基于中等大小/黑色/标准密度的基准配置
   base: WatermarkConfigV3;
-  // 三档大小的参数变体
-  sizeVariants: Record<PresetSize, SizeVariant>;
   // 默认主界面控制
   mainControls: MainControlConfig;
 }
@@ -230,39 +230,10 @@ export function chipKey(chip: FieldChip): string {
     : chip.field_id;
 }
 
-export interface SizeVariant {
-  fontSizeMultiplier: number;
-  footerHeightMultiplier: number;
-  logoSizeMultiplier: number;
-  signatureSizeMultiplier: number;
-  densityMarginMultiplier: number;
-}
-
-export const defaultSizeVariant: SizeVariant = {
-  fontSizeMultiplier: 1.0,
-  footerHeightMultiplier: 0.10,
-  logoSizeMultiplier: 1.0,
-  signatureSizeMultiplier: 1.0,
-  densityMarginMultiplier: 1.0,
-};
-
-export const sizeVariants: Record<PresetSize, SizeVariant> = {
-  small: {
-    fontSizeMultiplier: 0.85,
-    footerHeightMultiplier: 0.08,
-    logoSizeMultiplier: 0.85,
-    signatureSizeMultiplier: 0.85,
-    densityMarginMultiplier: 0.75,
-  },
-  medium: defaultSizeVariant,
-  large: {
-    fontSizeMultiplier: 1.25,
-    footerHeightMultiplier: 0.13,
-    logoSizeMultiplier: 1.25,
-    signatureSizeMultiplier: 1.25,
-    densityMarginMultiplier: 1.3,
-  },
-};
+export const FOOTER_HEIGHT_RATIO = 0.09;
+export const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.125, medium: 0.16, large: 0.20 };
+export const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
+export const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
 
 export const colorThemes: Record<PresetColor, { text: string; logo: string; background: string; }> = {
   black: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF' },
@@ -271,17 +242,12 @@ export const colorThemes: Record<PresetColor, { text: string; logo: string; back
   auto: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF' },
 };
 
-export const densityVariants: Record<PresetDensity, number> = {
-  compact: 0.08,
-  standard: 0.10,
-  loose: 0.13,
-};
-
 // ── 预设配置 ────────────────────────────────────────────
 
 export const defaultStyle: StyleConfig = {
   font_size: null,
-  font_size_ratio: 0.35,
+  font_size_level: 'medium',
+  font_size_ratio: null,
   size_reference: 'region_height',
   color: '#222222',
   font_family: 'NotoSansCJKsc-Bold.otf',
@@ -290,6 +256,7 @@ export const defaultStyle: StyleConfig = {
 };
 
 export const presetDefaultBaseV3: WatermarkConfigV3 = {
+  schema_version: 2,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -309,7 +276,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
             chips: [{ field_id: 'make' }, { field_id: 'camera_model' }],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.45, color: '#222222' },
+          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#222222' },
         },
         'left-bottom': {
           enabled: true,
@@ -322,7 +289,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
             ],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.35, color: '#222222' },
+          style: { ...defaultStyle, font_size_level: 'small', font_size_ratio: null, color: '#222222' },
         },
         'right-top': { enabled: false, content: null, style: null },
         'right-bottom': { enabled: false, content: null, style: null },
@@ -330,7 +297,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', color: '#D8D8D6', size_ratio: 0.6 },
+          content: { path: '', color: '#D8D8D6', size_level: 'medium', size_ratio: null },
           style: null,
         },
       },
@@ -341,6 +308,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
 export const presetDefaultV3: WatermarkConfigV3 = presetDefaultBaseV3;
 
 export const presetMinimalBaseV3: WatermarkConfigV3 = {
+  schema_version: 2,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -368,7 +336,7 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
             ],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.32, color: '#2C2C2C' },
+          style: { ...defaultStyle, font_size_level: 'small', font_size_ratio: null, color: '#2C2C2C' },
         },
         'center': { enabled: false, content: null, style: null },
         'left-logo': { enabled: false, content: null, style: null },
@@ -381,6 +349,7 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
 export const presetMinimalV3: WatermarkConfigV3 = presetMinimalBaseV3;
 
 export const presetSoftCardBaseV3: WatermarkConfigV3 = {
+  schema_version: 2,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -400,7 +369,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
             chips: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.40, color: '#242424' },
+          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
         },
         'left-bottom': {
           enabled: true,
@@ -408,7 +377,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
             chips: [{ field_id: 'datetime' }],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.30, color: '#242424' },
+          style: { ...defaultStyle, font_size_level: 'small', font_size_ratio: null, color: '#242424' },
         },
         'right-top': {
           enabled: true,
@@ -416,7 +385,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
             chips: [{ field_id: 'camera_model' }],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.34, color: '#242424' },
+          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
         },
         'right-bottom': {
           enabled: true,
@@ -428,13 +397,13 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
             ],
             separator: ' ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.30, color: '#242424' },
+          style: { ...defaultStyle, font_size_level: 'small', font_size_ratio: null, color: '#242424' },
         },
         'center': { enabled: false, content: null, style: null },
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', color: '#D8D8D6', size_ratio: 0.6 },
+          content: { path: '', color: '#D8D8D6', size_level: 'medium', size_ratio: null },
           style: null,
         },
       },
@@ -445,6 +414,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
 export const presetSoftCardV3: WatermarkConfigV3 = presetSoftCardBaseV3;
 
 export const presetSidesBaseV3: WatermarkConfigV3 = {
+  schema_version: 2,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -487,7 +457,7 @@ export const presetSidesBaseV3: WatermarkConfigV3 = {
             ],
             separator: ' / ',
           },
-          style: { ...defaultStyle, font_size_ratio: 0.05, size_reference: 'short_edge' },
+          style: { ...defaultStyle, font_size_level: null, font_size_ratio: 0.05, size_reference: 'short_edge' },
         },
       },
     },
@@ -496,268 +466,199 @@ export const presetSidesBaseV3: WatermarkConfigV3 = {
 
 export const presetSidesV3: WatermarkConfigV3 = presetSidesBaseV3;
 
-export function createDefaultWatermarkConfigV3(): WatermarkConfigV3 {
-  return applyMainControls(structuredClone(presetDefaultBaseV3), defaultMainControls);
+/**
+ * SlotOverride — 记录用户在高级编辑中对某个 slot 的手动修改。
+ * key 格式为 "regionId:slotId"（如 "footer:left-top"）。
+ * 这些 overrides 在 controls 变更后仍被保留。
+ */
+export interface SlotOverride {
+  enabled?: boolean;
+  style?: Partial<StyleConfig>;
+  content?: Partial<TextContent | LogoContent | SignatureContent>;
 }
 
-// 主界面控制的缺省值
-export const defaultMainControls: MainControlConfig = {
-  size: 'medium',
-  color: 'black',
-  density: 'standard',
-  footer_mode: 'dual-row',
-  logo_position: 'right',
-  top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
-  bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
-  top_right: [],
-  bottom_right: [],
-  left_row: [{ field_id: 'make' }, { field_id: 'camera_model' }, { field_id: 'focal_length' }, { field_id: 'aperture' }],
-  right_row: [{ field_id: 'shutter' }, { field_id: 'iso' }],
-  custom_text: '',
-  logo_path: '',
-  signature_path: '',
-};
+export type SlotOverrides = Record<string, SlotOverride>;
 
 /**
- * 将主界面控制应用到 WatermarkConfigV3，生成新的配置。
+ * 从模板和主控制参数生成渲染配置。
+ *
+ * 核心原则：
+ * - template 的 per-slot style 被保留（如 font_size_ratio）
+ * - controls 只控制 chips 列表、高度、颜色主题、logo 位置
+ * - overrides 在 controls 变更后仍持久化
+ * - 非 footer 区域（side-edge, free）不受影响
  */
-export function applyMainControls(
-  base: WatermarkConfigV3,
-  controls: MainControlConfig,
-): WatermarkConfigV3 {
-  const config = structuredClone(base);
-  const theme = colorThemes[controls.color] ?? colorThemes.black;
-  const size = sizeVariants[controls.size] ?? sizeVariants.medium;
-  const densityHeight = densityVariants[controls.density] ?? densityVariants.standard;
+export interface RegionOverride extends Partial<Omit<RegionConfig, 'id' | 'type' | 'slots'>> {}
+export type RegionOverrides = Record<string, RegionOverride>;
+export interface RootOverrides {
+  canvas?: Partial<Omit<CanvasConfig, 'margins'>> & { margins?: Partial<MarginsConfig> };
+  defaults?: Partial<StyleConfig>;
+}
 
-  // 应用颜色
+function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): StyleConfig {
+  const next = { ...base, ...patch };
+  if (patch.font_size !== undefined && patch.font_size !== null) {
+    next.font_size_level = null;
+    next.font_size_ratio = null;
+  } else if (patch.font_size_ratio !== undefined && patch.font_size_ratio !== null) {
+    next.font_size = null;
+    next.font_size_level = null;
+  } else if (patch.font_size_level !== undefined && patch.font_size_level !== null) {
+    next.font_size = null;
+    next.font_size_ratio = null;
+  }
+  return next;
+}
+
+function mergeSlotOverride(slot: SlotConfig, override: SlotOverride): SlotConfig {
+  const next = structuredClone(slot);
+  if (override.enabled !== undefined) next.enabled = override.enabled;
+  if (override.style) next.style = normalizeStylePatch(next.style ?? defaultStyle, override.style);
+  if (override.content && next.content) {
+    const content = { ...next.content, ...override.content } as Content;
+    if ('size_level' in content && 'size_ratio' in content) {
+      const sizePatch = override.content as Partial<LogoContent | SignatureContent>;
+      if (sizePatch.size_ratio !== undefined && sizePatch.size_ratio !== null) content.size_level = null;
+      if (sizePatch.size_level !== undefined && sizePatch.size_level !== null) content.size_ratio = null;
+    }
+    next.content = content;
+  }
+  return next;
+}
+
+export function resolveConfig(
+  template: WatermarkConfigV3,
+  controls: MainControlConfig,
+  slotOverrides: SlotOverrides = {},
+  regionOverrides: RegionOverrides = {},
+  rootOverrides: RootOverrides = {},
+): WatermarkConfigV3 {
+  const config = structuredClone(template);
+  config.schema_version = 2;
+  const theme = colorThemes[controls.color] ?? colorThemes.black;
   config.canvas.background = theme.background;
   config.defaults.color = theme.text;
-
-  // 应用大小：字号比例
-  const defaults = config.defaults;
-  const baseFontRatio = defaults.font_size_ratio ?? 0.35;
-  defaults.font_size_ratio = Math.min(0.5, baseFontRatio * (size.fontSizeMultiplier ?? 1.0));
-
-  // 应用颜色到已有 slot 样式
-  for (const region of config.regions) {
-    if (!region.slots) continue;
-    for (const slot of Object.values(region.slots)) {
-      if (slot.style) {
-        slot.style.color = theme.text;
-      }
-      if (slot.content && 'color' in slot.content) {
-        slot.content.color = theme.logo;
-      }
-    }
-  }
-
-  // 应用密度：将底栏高度以比例形式写入 footer-bar region，由布局引擎按实际短边计算
-  let footerRegion = config.regions.find(r => r.type === 'footer-bar' && r.enabled);
-  if (footerRegion) {
-    // 底栏高度比例 = 密度系数 * 大小系数 / 密度边距系数
-    footerRegion.height = densityHeight * (size.footerHeightMultiplier ?? 0.10) / (size.densityMarginMultiplier ?? 1.0);
-  }
-
-  // 自定义文本
   config.custom_text = controls.custom_text;
-
-  // 保存主界面模式到配置
   config.footer_mode = controls.footer_mode;
   config.logo_position = controls.logo_position;
 
-  // 找到或创建 footer 区域
-  if (!footerRegion) {
-    footerRegion = {
-      id: 'footer',
-      type: 'footer-bar',
-      enabled: true,
-      slots: {},
-    };
-    config.regions.push(footerRegion);
+  for (const region of config.regions) {
+    const regionOverride = regionOverrides[region.id];
+    if (regionOverride) Object.assign(region, regionOverride);
+    if (!region.slots) continue;
+    for (const slot of Object.values(region.slots)) {
+      if (slot.style) slot.style.color = theme.text;
+      if (slot.content && 'color' in slot.content) slot.content.color = theme.logo;
+    }
   }
-  if (!footerRegion.slots) {
-    footerRegion.slots = {};
+
+  let footer = config.regions.find((region) => region.type === 'footer-bar');
+  if (!footer) {
+    footer = { id: 'footer', type: 'footer-bar', enabled: true, slots: {} };
+    config.regions.push(footer);
   }
-  const slots = footerRegion.slots;
+  footer.enabled = true;
+  footer.height = FOOTER_HEIGHT_RATIO;
+  footer.slots ??= {};
 
-  // 根据 footer_mode 填充 slots
-  const slotRows: [string, FieldChip[]][] =
-    controls.footer_mode === 'dual-row'
-      ? [
-          ['left-top', controls.top_left],
-          ['left-bottom', controls.bottom_left],
-          ['right-top', controls.top_right],
-          ['right-bottom', controls.bottom_right],
-        ]
-      : [
-          ['left-top', controls.left_row],
-          ['right-top', controls.right_row],
-        ];
-
-  for (const [slotId, chips] of slotRows) {
-    slots[slotId] = {
+  const chipMap: Partial<Record<FooterTextSlot, FieldChip[]>> = controls.footer_mode === 'dual-row'
+    ? { top_left: controls.top_left, bottom_left: controls.bottom_left, top_right: controls.top_right, bottom_right: controls.bottom_right }
+    : { left_row: controls.left_row, right_row: controls.right_row };
+  const physicalSlot: Record<FooterTextSlot, string> = {
+    top_left: 'left-top', bottom_left: 'left-bottom', top_right: 'right-top', bottom_right: 'right-bottom',
+    left_row: 'left-top', right_row: 'right-top',
+  };
+  for (const slotId of ['left-top', 'left-bottom', 'right-top', 'right-bottom']) {
+    footer.slots[slotId] = { enabled: false, content: null, style: null };
+  }
+  for (const [logicalId, chips] of Object.entries(chipMap) as [FooterTextSlot, FieldChip[]][]) {
+    const slotId = physicalSlot[logicalId];
+    const existing = template.regions.find((region) => region.id === footer!.id)?.slots?.[slotId];
+    footer.slots[slotId] = {
       enabled: chips.length > 0,
-      content: chips.length > 0 ? { chips, separator: ' ' } : null,
-      style: chips.length > 0 ? { ...config.defaults, font_size_ratio: 0.35 } : null,
+      content: chips.length > 0 ? { chips, separator: existing?.content && 'separator' in existing.content ? existing.content.separator : ' ' } : null,
+      style: chips.length > 0 ? {
+        ...(existing?.style ?? config.defaults),
+        font_size: null,
+        font_size_level: controls.text_sizes[logicalId],
+        font_size_ratio: null,
+        color: theme.text,
+      } : null,
     };
   }
 
-  // 移除不用的底栏文本 slot
-  const allFooterSlots = ['left-top', 'left-bottom', 'right-top', 'right-bottom', 'center'];
-  for (const slotId of allFooterSlots) {
-    if (!slotRows.some(([id]) => id === slotId)) {
-      slots[slotId] = { enabled: false, content: null, style: null };
-    }
+  for (const slotId of ['left-logo', 'right-logo', 'center']) {
+    footer.slots[slotId] = { enabled: false, content: null, style: null };
   }
+  const logoSlot = controls.logo_position === 'left' ? 'left-logo' : controls.logo_position === 'right' ? 'right-logo' : 'center';
+  footer.slots[logoSlot] = {
+    enabled: true,
+    content: { path: controls.logo_path, color: theme.logo, size_level: controls.logo_size, size_ratio: null },
+    style: null,
+  };
 
-  // 应用 Logo 位置
-  const logoPath = controls.logo_path || '';
-  slots['left-logo'] = { enabled: false, content: null, style: null };
-  slots['right-logo'] = { enabled: false, content: null, style: null };
-  slots['center'] = { enabled: false, content: null, style: null };
-
-  if (controls.logo_position === 'left') {
-    slots['left-logo'] = {
-      enabled: true,
-      content: { path: logoPath, color: theme.logo, size_ratio: 0.6 * (size.logoSizeMultiplier ?? 1.0) },
-      style: null,
-    };
-  } else if (controls.logo_position === 'right') {
-    slots['right-logo'] = {
-      enabled: true,
-      content: { path: logoPath, color: theme.logo, size_ratio: 0.6 * (size.logoSizeMultiplier ?? 1.0) },
-      style: null,
-    };
-  } else if (controls.logo_position === 'center') {
-    slots['center'] = {
-      enabled: true,
-      content: { path: logoPath, color: theme.logo, size_ratio: 0.6 * (size.logoSizeMultiplier ?? 1.0) },
-      style: null,
-    };
-  }
-
-  // 应用自定义 Logo：更新已启用 logo slot 的 path，保留 size_ratio 不变
-  if (controls.logo_path) {
-    for (const slotId of ['left-logo', 'right-logo', 'center'] as const) {
-      const slot = slots[slotId];
-      if (slot?.enabled && slot.content && 'path' in slot.content) {
-        slot.content.path = controls.logo_path;
-      }
-    }
-  }
-
-  // 应用签名：在不存在 free region 时创建一个
+  let signatureRegion = config.regions.find((region) => region.type === 'free');
   if (controls.signature_path) {
-    let freeRegion = config.regions.find(r => r.type === 'free');
-    if (!freeRegion) {
-      freeRegion = {
-        id: 'signature',
-        type: 'free',
-        enabled: true,
-        anchor: 'bottom-right',
-        offset_x: 0.05,
-        offset_y: 0.05,
-        offset_unit: 'short_edge_ratio',
-        slots: { sig1: { enabled: true, content: { path: controls.signature_path, invert_mono: false, size_ratio: 0.20 * size.signatureSizeMultiplier }, style: null } },
-      };
-      config.regions.push(freeRegion);
-    } else {
-      freeRegion.enabled = true;
-      if (!freeRegion.slots) freeRegion.slots = {};
-      const sigSlot = freeRegion.slots.sig1 ?? { enabled: true, content: { path: '', invert_mono: false, size_ratio: 0.20 }, style: null };
-      sigSlot.enabled = true;
-      if (sigSlot.content && 'size_ratio' in sigSlot.content) {
-        sigSlot.content.size_ratio = 0.20 * size.signatureSizeMultiplier;
-      }
-      sigSlot.content = { path: controls.signature_path, invert_mono: false, size_ratio: 0.20 * size.signatureSizeMultiplier };
-      freeRegion.slots.sig1 = sigSlot;
+    if (!signatureRegion) {
+      signatureRegion = { id: 'signature', type: 'free', enabled: true, anchor: 'bottom-right', offset_x: -0.05, offset_y: -0.05, offset_unit: 'short_edge_ratio', slots: {} };
+      config.regions.push(signatureRegion);
     }
+    signatureRegion.enabled = true;
+    signatureRegion.slots ??= {};
+    signatureRegion.slots.sig1 = {
+      enabled: true,
+      content: { path: controls.signature_path, invert_mono: false, size_level: controls.signature_size, size_ratio: null },
+      style: null,
+    };
+  } else if (signatureRegion) {
+    signatureRegion.enabled = false;
   }
 
+  for (const [key, override] of Object.entries(slotOverrides)) {
+    const separator = key.indexOf(':');
+    if (separator < 0) continue;
+    const region = config.regions.find((item) => item.id === key.slice(0, separator));
+    const slotId = key.slice(separator + 1);
+    const slot = region?.slots?.[slotId];
+    if (region && slot) region.slots![slotId] = mergeSlotOverride(slot, override);
+  }
+  if (rootOverrides.canvas) {
+    const { margins, ...canvasPatch } = rootOverrides.canvas;
+    Object.assign(config.canvas, canvasPatch);
+    if (margins) Object.assign(config.canvas.margins, margins);
+  }
+  if (rootOverrides.defaults) Object.assign(config.defaults, rootOverrides.defaults);
   return config;
 }
 
-// 帮助函数：从 footer slot 提取 chips
-function extractFooterSlotChips(config: WatermarkConfigV3, slotId: string): FieldChip[] {
-  const footer = config.regions.find(r => r.type === 'footer-bar' && r.enabled);
-  const slot = footer?.slots?.[slotId];
-  if (slot?.enabled && slot.content && 'chips' in slot.content) {
-    return [...slot.content.chips];
-  }
-  return [];
+/**
+ * 创建默认 WatermarkConfigV3（用于初始渲染）。
+ */
+// 主界面控制的缺省值
+export const defaultMainControls: MainControlConfig = {
+  color: 'black', footer_mode: 'dual-row', logo_position: 'right',
+  text_sizes: { top_left: 'medium', bottom_left: 'small', top_right: 'medium', bottom_right: 'small', left_row: 'medium', right_row: 'medium' },
+  logo_size: 'medium', signature_size: 'medium',
+  top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
+  bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
+  top_right: [], bottom_right: [],
+  left_row: [{ field_id: 'make' }, { field_id: 'camera_model' }, { field_id: 'focal_length' }, { field_id: 'aperture' }],
+  right_row: [{ field_id: 'shutter' }, { field_id: 'iso' }],
+  custom_text: '', logo_path: '', signature_path: '',
+};
+
+export function createDefaultWatermarkConfigV3(): WatermarkConfigV3 {
+  return resolveConfig(presetDefaultBaseV3, defaultMainControls);
 }
 
-/**
- * 从一个 WatermarkConfigV3 中推断当前主界面控制状态。
- */
 export function inferMainControls(config: WatermarkConfigV3): MainControlConfig {
   const controls = structuredClone(defaultMainControls);
-
-  // 直接使用保存在配置中的模式
-  if (config.footer_mode) {
-    controls.footer_mode = config.footer_mode;
-  }
-  if (config.logo_position) {
-    controls.logo_position = config.logo_position;
-  }
-
-  // 从 footer slots 提取各栏内容
-  controls.top_left = extractFooterSlotChips(config, 'left-top');
-  controls.bottom_left = extractFooterSlotChips(config, 'left-bottom');
-  controls.top_right = extractFooterSlotChips(config, 'right-top');
-  controls.bottom_right = extractFooterSlotChips(config, 'right-bottom');
-  // 单排时，左排 = left-top，右排 = right-top
-  controls.left_row = extractFooterSlotChips(config, 'left-top');
-  controls.right_row = extractFooterSlotChips(config, 'right-top');
-
+  controls.footer_mode = config.footer_mode ?? controls.footer_mode;
+  controls.logo_position = config.logo_position ?? controls.logo_position;
   controls.custom_text = config.custom_text ?? '';
-
-  // Logo 路径和位置
-  for (const region of config.regions) {
-    if (region.type !== 'footer-bar') continue;
-    if (region.slots?.['left-logo']?.enabled) {
-      controls.logo_position = 'left';
-      const content = region.slots['left-logo'].content;
-      if (content && 'path' in content) controls.logo_path = content.path;
-    } else if (region.slots?.['right-logo']?.enabled) {
-      controls.logo_position = 'right';
-      const content = region.slots['right-logo'].content;
-      if (content && 'path' in content) controls.logo_path = content.path;
-    } else if (region.slots?.['center']?.enabled) {
-      const content = region.slots['center'].content;
-      if (content && 'path' in content) {
-        controls.logo_position = 'center';
-        controls.logo_path = content.path;
-      }
-    }
-  }
-
-  // 签名路径
-  const freeRegion = config.regions.find(r => r.type === 'free');
-  if (freeRegion?.slots) {
-    for (const slot of Object.values(freeRegion.slots)) {
-      if (slot.enabled && slot.content && 'size_ratio' in slot.content) {
-        controls.signature_path = slot.content.path;
-      }
-    }
-  }
-
   return controls;
 }
 
-/**
- * 获取预设的主界面控制。
- * 如果预设定义了 mainControls。
- */
 export function getPresetMainControls(preset: WatermarkPresetV3): MainControlConfig {
   return preset.mainControls ? structuredClone(preset.mainControls) : structuredClone(defaultMainControls);
-}
-
-/**
- * 获取预设在当前主界面控制下的完整 WatermarkConfigV3。
- */
-export function getPresetConfig(preset: WatermarkPresetV3, controls?: Partial<MainControlConfig>): WatermarkConfigV3 {
-  const merged = { ...getPresetMainControls(preset), ...controls };
-  return applyMainControls(preset.base, merged);
 }

@@ -232,7 +232,7 @@ def _render_logo_element(
     el: ComputedElement,
     field_values: dict[str, str],
 ) -> Image.Image | None:
-    """加载并缩放 Logo 元素。"""
+    """加载并缩放 Logo 元素（contain 模式：保持比例，不拉伸）。"""
     content = el.content
     if not isinstance(content, LogoContent):
         return None
@@ -248,12 +248,17 @@ def _render_logo_element(
         logger.warning("[v3_renderer] Logo 加载失败: %s (%s)", logo_path, exc)
         return None
 
-    target_size = (max(1, el.rect.w), max(1, el.rect.h))
-    if logo.size != target_size:
-        logo = logo.resize(target_size, Image.Resampling.LANCZOS)
+    # Contain: fit within max_width × max_height preserving aspect ratio
+    max_w = max(1, el.rect.w)
+    max_h = max(1, el.rect.h)
+    logo = logo.convert("RGBA")
+    lw, lh = logo.size
+    scale = min(max_w / lw, max_h / lh)
+    if scale < 1.0:
+        new_w = max(1, round(lw * scale))
+        new_h = max(1, round(lh * scale))
+        logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
-    # 若 LogoContent 指定了着色颜色，应用颜色叠加（仅当 logo 为灰度/单色时）
-    # 目前保持原样，与 V2 行为一致
     return logo
 
 

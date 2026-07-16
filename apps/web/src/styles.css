@@ -1378,18 +1378,24 @@ hr, .divider {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 150px;
+  min-height: 150px;
+  max-height: 150px;
   padding: 10px;
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  min-height: 0;
+  overflow: hidden;
 }
 
 .v3-footer-bar {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 26px 94px;
   gap: 8px;
-  min-height: 0;
+  height: 128px;
+  min-height: 128px;
+  max-height: 128px;
+  overflow: hidden;
 }
 
 .v3-footer-bar-header {
@@ -1415,17 +1421,47 @@ hr, .divider {
 }
 
 .v3-footer-bar-rows {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
-  min-height: 0;
+  height: 94px;
+  min-height: 94px;
+  max-height: 94px;
+  overflow: hidden;
 }
+
+.v3-footer-bar-rows-dual-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "top-left top-right"
+    "bottom-left bottom-right";
+}
+
+.v3-footer-bar-rows-single-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "left right";
+}
+
+.v3-footer-row-top-left { grid-area: top-left; }
+.v3-footer-row-top-right { grid-area: top-right; }
+.v3-footer-row-bottom-left { grid-area: bottom-left; }
+.v3-footer-row-bottom-right { grid-area: bottom-right; }
+.v3-footer-row-left { grid-area: left; }
+.v3-footer-row-right { grid-area: right; }
 
 .v3-footer-row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 0;
+  height: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  overflow: hidden;
 }
 
 .v3-footer-row-label {
@@ -1436,14 +1472,33 @@ hr, .divider {
   font-weight: 700;
 }
 
+.v3-footer-row-size {
+  flex: 0 0 48px;
+  width: 48px;
+  min-width: 48px;
+  height: 28px;
+  padding: 0 4px;
+  font-size: 12px;
+}
+
 .v3-footer-row-chips {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: nowrap;
   overflow-x: auto;
-  padding-bottom: 2px;
+  overflow-y: hidden;
+  padding: 2px 0;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+.v3-footer-row-chips::-webkit-scrollbar {
+  display: none;
 }
 
 .v3-field-chip {
