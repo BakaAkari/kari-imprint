@@ -46,7 +46,7 @@ export const watermarkPresetsV3: RailPreset<WatermarkConfigV3>[] = [
 export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlConfig }> = {
   default: {
     mainControls: {
-      color: 'black',
+      scheme: 'dark',
       footer_mode: 'dual-row',
       logo_position: 'right',
       text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
@@ -61,12 +61,11 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: '',
       logo_path: '',
       signature_path: '',
-      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
-    },
+      border_enabled: false, border_width_level: 'medium',    },
   },
   minimal: {
     mainControls: {
-      color: 'black',
+      scheme: 'dark',
       footer_mode: 'dual-row',
       logo_position: 'right',
       text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
@@ -81,12 +80,11 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: '',
       logo_path: '',
       signature_path: '',
-      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
-    },
+      border_enabled: false, border_width_level: 'medium',    },
   },
   'soft-card': {
     mainControls: {
-      color: 'black',
+      scheme: 'dark',
       footer_mode: 'dual-row',
       logo_position: 'right',
       text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
@@ -101,12 +99,11 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: 'AKARI PHOTO',
       logo_path: '',
       signature_path: '',
-      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
-    },
+      border_enabled: false, border_width_level: 'medium',    },
   },
   sides: {
     mainControls: {
-      color: 'black',
+      scheme: 'dark',
       footer_mode: 'dual-row',
       logo_position: 'left',
       text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
@@ -121,8 +118,7 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: '',
       logo_path: '',
       signature_path: '',
-      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
-    },
+      border_enabled: false, border_width_level: 'medium',    },
   },
 };
 

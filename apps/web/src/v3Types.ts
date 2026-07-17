@@ -156,7 +156,7 @@ export const fieldOptionsV3: { id: FieldId; label: string }[] = [
 // 主界面参数化控制类型
 export type SizeLevel = 'small' | 'medium' | 'large';
 export type PresetSize = SizeLevel;
-export type PresetColor = 'black' | 'white' | 'warm-gray' | 'auto';
+export type ColorScheme = 'dark' | 'light';
 export type FooterMode = 'dual-row' | 'single-row';
 export type LogoPosition = 'left' | 'center' | 'right';
 
@@ -192,7 +192,7 @@ export type FooterTextSlot = 'top_left' | 'bottom_left' | 'top_right' | 'bottom_
 export type FooterTextSizes = Record<FooterTextSlot, SizeLevel>;
 
 export interface MainControlConfig {
-  color: PresetColor;
+  scheme: ColorScheme;
   footer_mode: FooterMode;
   logo_position: LogoPosition;
   text_sizes: FooterTextSizes;
@@ -209,7 +209,6 @@ export interface MainControlConfig {
   signature_path: string;
   border_enabled: boolean;
   border_width_level: SizeLevel;
-  border_color: string;
 }
 
 export interface WatermarkPresetV3 {
@@ -245,11 +244,9 @@ export const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.125, mediu
 export const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
 export const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
 
-export const colorThemes: Record<PresetColor, { text: string; logo: string; background: string; }> = {
-  black: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF' },
-  white: { text: '#F5F5F5', logo: '#FFFFFF', background: '#1A1A1A' },
-  'warm-gray': { text: '#3A3532', logo: '#B0A89A', background: '#EDEAE6' },
-  auto: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF' },
+export const colorSchemes: Record<ColorScheme, { text: string; logo: string; background: string; border: string }> = {
+  dark: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF', border: '#FFFFFF' },
+  light: { text: '#F5F5F5', logo: '#FFFFFF', background: '#1A1A1A', border: '#1A1A1A' },
 };
 
 // ── 预设配置 ────────────────────────────────────────────
@@ -549,16 +546,16 @@ export function resolveConfig(
 ): WatermarkConfigV3 {
   const config = structuredClone(template);
   config.schema_version = 2;
-  const theme = colorThemes[controls.color] ?? colorThemes.black;
-  config.canvas.background = theme.background;
-  config.defaults.color = theme.text;
+  const scheme = colorSchemes[controls.scheme] ?? colorSchemes.dark;
+  config.canvas.background = scheme.background;
+  config.defaults.color = scheme.text;
   config.custom_text = controls.custom_text;
   config.footer_mode = controls.footer_mode;
   config.logo_position = controls.logo_position;
   config.canvas.border = {
     enabled: controls.border_enabled,
     width_level: controls.border_width_level,
-    color: controls.border_color,
+    color: scheme.border,
   };
   if (rootOverrides.canvas?.border) {
     Object.assign(config.canvas.border, rootOverrides.canvas.border);
@@ -569,8 +566,8 @@ export function resolveConfig(
     if (regionOverride) Object.assign(region, regionOverride);
     if (!region.slots) continue;
     for (const slot of Object.values(region.slots)) {
-      if (slot.style) slot.style.color = theme.text;
-      if (slot.content && 'color' in slot.content) slot.content.color = theme.logo;
+      if (slot.style) slot.style.color = scheme.text;
+      if (slot.content && 'color' in slot.content) slot.content.color = scheme.logo;
     }
   }
 
@@ -604,7 +601,7 @@ export function resolveConfig(
         font_size: null,
         font_size_level: controls.text_sizes[logicalId],
         font_size_ratio: null,
-        color: theme.text,
+        color: scheme.text,
       } : null,
     };
   }
@@ -615,7 +612,7 @@ export function resolveConfig(
   const logoSlot = controls.logo_position === 'left' ? 'left-logo' : controls.logo_position === 'right' ? 'right-logo' : 'center';
   footer.slots[logoSlot] = {
     enabled: true,
-    content: { path: controls.logo_path, color: theme.logo, size_level: controls.logo_size, size_ratio: null },
+    content: { path: controls.logo_path, color: scheme.logo, size_level: controls.logo_size, size_ratio: null },
     style: null,
   };
 
@@ -658,10 +655,10 @@ export function resolveConfig(
  */
 // 主界面控制的缺省值
 export const defaultMainControls: MainControlConfig = {
-  color: 'black', footer_mode: 'dual-row', logo_position: 'right',
+  scheme: 'dark', footer_mode: 'dual-row', logo_position: 'right',
   text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
   logo_size: 'medium', signature_size: 'medium',
-  border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
+  border_enabled: false, border_width_level: 'medium',
   top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
   bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
   top_right: [], bottom_right: [],

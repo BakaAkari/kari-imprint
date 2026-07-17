@@ -87,7 +87,7 @@ const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.18, medium: 0.23,
 const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
 const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
 
-const BORDER_WIDTH_RATIOS: Record<SizeLevel, number> = { small: 0.02, medium: 0.035, large: 0.05 };
+const BORDER_WIDTH_RATIOS: Record<SizeLevel, number> = { small: 0.0075, medium: 0.0165, large: 0.022 };
 
 export type Content = TextContent | LogoContent | SignatureContent;
 
@@ -656,8 +656,8 @@ function computeFooterSlots(
   const rightW = Math.max(0, textRight - rightX);
 
   results['left-logo'] = rect(innerLeft, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
-  results['right-logo'] = rect(innerRight, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
-  results['center'] = rect(Math.floor((innerLeft + innerRight) / 2), regionBounds.y + padY, 0, regionBounds.h - padY * 2);
+  results['right-logo'] = rect(innerRight - logoReserve, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
+  results['center'] = rect(Math.floor((innerLeft + innerRight - logoReserve) / 2), regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
   results['left-top'] = rect(textLeft, regionBounds.y + padY, leftW, rowH);
   results['left-bottom'] = rect(textLeft, rectBottom(regionBounds) - padY - rowH, leftW, rowH);
   results['right-top'] = rect(rightX, regionBounds.y + padY, rightW, rowH);

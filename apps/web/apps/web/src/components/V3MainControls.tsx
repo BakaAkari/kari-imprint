@@ -6,14 +6,13 @@ import {
   type FooterMode,
   type LogoPosition,
   type MainControlConfig,
-  type ColorScheme,
+  type PresetColor,
   type SizeLevel,
   type WatermarkConfigV3,
   FOOTER_MODE_LABELS,
   LOGO_POSITION_LABELS,
   fieldOptionsV3,
   getFieldLabel,
-  colorSchemes,
 } from '../v3Types';
 
 interface V3MainControlsProps {
@@ -227,18 +226,17 @@ export function V3StyleControls({
           </div>
         )}
         <div className="v3-form-row">
-          <label>配色</label>
-          <div className="v3-segmented-group">
-            {(['dark', 'light'] as ColorScheme[]).map(s => (
-              <button
-                key={s}
-                className={`v3-segment ${controls.scheme === s ? 'active' : ''}`}
-                onClick={() => onChange({ scheme: s })}
-              >
-                {s === 'dark' ? '深色' : '浅色'}
-              </button>
+          <label>颜色</label>
+          <select
+            value={controls.color}
+            onChange={(e) => onChange({ color: e.target.value as PresetColor })}
+          >
+            {(['black', 'white', 'warm-gray', 'auto'] as PresetColor[]).map(c => (
+              <option key={c} value={c}>
+                {c === 'black' ? '黑色' : c === 'white' ? '白色' : c === 'warm-gray' ? '暖灰' : '自动'}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
       </div>
@@ -356,26 +354,43 @@ export function V3BorderControls({
       <div className="v3-right-section-title">边框</div>
       <div className="v3-right-section-body">
         <label className="v3-form-row v3-checkbox-row">
-          <input type="checkbox" checked={controls.border_enabled}
-            onChange={(e) => onChange({ border_enabled: e.target.checked })} />
+          <input
+            type="checkbox"
+            checked={controls.border_enabled}
+            onChange={(e) => onChange({ border_enabled: e.target.checked })}
+          />
           <span className="text-sm">启用边框</span>
         </label>
         {controls.border_enabled && (
-          <>
-            <div className="v3-form-row">
-              <label>宽度</label>
-              <select value={controls.border_width_level}
-                onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
-                <option value="small">小</option>
-                <option value="medium">中</option>
-                <option value="large">大</option>
-              </select>
+          <div className="v3-right-section">
+            <div className="v3-right-section-body">
+              <div className="v3-form-row">
+                <label>宽度</label>
+                <select
+                  value={controls.border_width_level}
+                  onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}
+                >
+                  <option value="small">小</option>
+                  <option value="medium">中</option>
+                  <option value="large">大</option>
+                </select>
+              </div>
+              <div className="v3-form-row">
+                <label>颜色</label>
+                <input
+                  type="color"
+                  value={controls.border_color}
+                  onChange={(e) => onChange({ border_color: e.target.value })}
+                  style={{ width: 50, height: 28, padding: 2 }}
+                />
+              </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, ColorScheme, SizeLevel };
+
+export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, PresetColor, SizeLevel };

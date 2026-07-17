@@ -527,9 +527,9 @@ _SIGNATURE_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "large": 0.25,
 }
 _BORDER_WIDTH_RATIOS: dict[str, float] = {
-    "small": 0.02,
-    "medium": 0.035,
-    "large": 0.05,
+    "small": 0.0075,
+    "medium": 0.0165,
+    "large": 0.022,
 }
 
 
@@ -718,8 +718,8 @@ def _compute_footer_slots(
     right_w = max(0, text_right - right_x)
 
     results["left-logo"] = Rect(inner_left, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
-    results["right-logo"] = Rect(inner_right, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
-    results["center"] = Rect((inner_left + inner_right) // 2, region_bounds.y + pad_y, 0, region_bounds.h - pad_y * 2)
+    results["right-logo"] = Rect(inner_right - logo_reserve, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
+    results["center"] = Rect((inner_left + inner_right - logo_reserve) // 2, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
     results["left-top"] = Rect(text_left, region_bounds.y + pad_y, left_w, row_h)
     results["left-bottom"] = Rect(text_left, region_bounds.bottom - pad_y - row_h, left_w, row_h)
     results["right-top"] = Rect(right_x, region_bounds.y + pad_y, right_w, row_h)
