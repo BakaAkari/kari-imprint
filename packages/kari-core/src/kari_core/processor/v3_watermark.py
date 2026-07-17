@@ -49,6 +49,29 @@ class WatermarkV3Filter(FilterProcessor):
 
         # 2. 创建画布并粘贴原图
         canvas = Image.new("RGBA", (layout.canvas.w, layout.canvas.h), config.canvas.background)
+
+        # 2b. 绘制边框（填充 margin 区域，底部有 footer 时不画底边）
+        border_cfg = config.canvas.border
+        if border_cfg is not None and border_cfg.enabled:
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(canvas)
+            ir = layout.image_rect
+            # 顶部边
+            if ir.y > 0:
+                draw.rectangle([(0, 0), (layout.canvas.w, ir.y)], fill=border_cfg.color)
+            # 左边
+            if ir.x > 0:
+                draw.rectangle([(0, ir.y), (ir.x, ir.y + ir.h)], fill=border_cfg.color)
+            # 右边
+            right_gap = layout.canvas.w - (ir.x + ir.w)
+            if right_gap > 0:
+                draw.rectangle([(ir.x + ir.w, ir.y), (layout.canvas.w, ir.y + ir.h)], fill=border_cfg.color)
+            # 底部：仅当没有 footer-bar 时才画
+            has_footer = any(r.enabled and r.type == "footer-bar" for r in config.regions)
+            bottom_gap = layout.canvas.h - (ir.y + ir.h)
+            if bottom_gap > 0 and not has_footer:
+                draw.rectangle([(0, ir.y + ir.h), (layout.canvas.w, layout.canvas.h)], fill=border_cfg.color)
+
         canvas.paste(img, (layout.image_rect.x, layout.image_rect.y))
 
         # 3. 获取 EXIF / file_path 用于文本值解析

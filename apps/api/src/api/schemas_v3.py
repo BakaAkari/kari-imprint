@@ -200,10 +200,22 @@ class MarginsConfigPayload(StrictModel):
     left: int = Field(default=0, ge=0, le=600)
 
 
+class BorderConfigPayload(StrictModel):
+    enabled: bool = False
+    width_level: Literal["small", "medium", "large"] = "medium"
+    color: Color = "#FFFFFF"
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
 class CanvasConfigPayload(StrictModel):
     margins: MarginsConfigPayload = Field(default_factory=MarginsConfigPayload)
     background: Color = "#FFFFFF"
     border_radius: int = Field(default=0, ge=0, le=300)
+    border: BorderConfigPayload | None = None
 
     @field_validator("background")
     @classmethod

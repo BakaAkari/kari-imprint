@@ -45,10 +45,17 @@ export interface MarginsConfig {
   left: number;
 }
 
+export interface BorderConfig {
+  enabled: boolean;
+  width_level: SizeLevel;  // small/medium/large → 边框宽度档位
+  color: string;
+}
+
 export interface CanvasConfig {
   margins: MarginsConfig;
   background: string;
   border_radius: number;
+  border: BorderConfig;
 }
 
 export interface FieldChip {
@@ -79,6 +86,8 @@ export type SizeLevel = 'small' | 'medium' | 'large';
 const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.18, medium: 0.23, large: 0.25 };
 const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
 const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
+
+const BORDER_WIDTH_RATIOS: Record<SizeLevel, number> = { small: 0.02, medium: 0.035, large: 0.05 };
 
 export type Content = TextContent | LogoContent | SignatureContent;
 
@@ -172,10 +181,21 @@ export function computeLayout(config: WatermarkConfig, imageW: number, imageH: n
   const longEdge = Math.max(imageW, imageH);
 
   // footer-bar 的 height 为占短边比例，在此解析为实际像素底部边距
+  let hasFooter = false;
   for (const region of config.regions) {
     if (region.enabled && region.type === 'footer-bar' && typeof region.height === 'number') {
       margins.bottom = Math.max(20, Math.round(shortEdge * region.height));
+      hasFooter = true;
     }
+  }
+
+  // 边框：在空白边设置 margins，底部有 footer-bar 时不额外加底边
+  if (config.canvas.border?.enabled) {
+    const bw = Math.max(1, Math.round(shortEdge * BORDER_WIDTH_RATIOS[config.canvas.border.width_level]));
+    if (margins.top === 0) margins.top = bw;
+    if (margins.left === 0) margins.left = bw;
+    if (margins.right === 0) margins.right = bw;
+    if (!hasFooter && margins.bottom === 0) margins.bottom = bw;
   }
 
   const canvasW = imageW + margins.left + margins.right;

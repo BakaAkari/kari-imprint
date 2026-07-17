@@ -112,10 +112,17 @@ export interface MarginsConfig {
   left: number;
 }
 
+export interface BorderConfig {
+  enabled: boolean;
+  width_level: SizeLevel;
+  color: string;
+}
+
 export interface CanvasConfig {
   margins: MarginsConfig;
   background: string;
   border_radius: number;
+  border: BorderConfig;
 }
 
 export interface WatermarkConfigV3 {
@@ -200,6 +207,9 @@ export interface MainControlConfig {
   custom_text: string;
   logo_path: string;
   signature_path: string;
+  border_enabled: boolean;
+  border_width_level: SizeLevel;
+  border_color: string;
 }
 
 export interface WatermarkPresetV3 {
@@ -261,6 +271,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 0,
+    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -313,6 +324,7 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 0,
+    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -354,6 +366,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 24,
+    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -419,6 +432,7 @@ export const presetSidesBaseV3: WatermarkConfigV3 = {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 0,
+    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -541,6 +555,14 @@ export function resolveConfig(
   config.custom_text = controls.custom_text;
   config.footer_mode = controls.footer_mode;
   config.logo_position = controls.logo_position;
+  config.canvas.border = {
+    enabled: controls.border_enabled,
+    width_level: controls.border_width_level,
+    color: controls.border_color,
+  };
+  if (rootOverrides.canvas?.border) {
+    Object.assign(config.canvas.border, rootOverrides.canvas.border);
+  }
 
   for (const region of config.regions) {
     const regionOverride = regionOverrides[region.id];
@@ -639,6 +661,7 @@ export const defaultMainControls: MainControlConfig = {
   color: 'black', footer_mode: 'dual-row', logo_position: 'right',
   text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
   logo_size: 'medium', signature_size: 'medium',
+  border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
   top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
   bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
   top_right: [], bottom_right: [],

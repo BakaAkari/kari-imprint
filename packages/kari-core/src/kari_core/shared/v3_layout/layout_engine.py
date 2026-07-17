@@ -65,6 +65,14 @@ class CanvasConfig:
     margins: MarginsConfig = field(default_factory=MarginsConfig)
     background: str = "#FFFFFF"
     border_radius: int = 0
+    border: BorderConfig | None = None
+
+
+@dataclass(slots=True)
+class BorderConfig:
+    enabled: bool = False
+    width_level: str = "medium"  # 'small' | 'medium' | 'large'
+    color: str = "#FFFFFF"
 
 
 @dataclass(slots=True)
@@ -189,9 +197,24 @@ def compute_layout(config: WatermarkConfig, image_w: int, image_h: int) -> Layou
     long_edge = max(image_w, image_h)
 
     # footer-bar 的 height 为占短边比例，在此解析为实际像素底部边距
+    has_footer = False
     for region in config.regions:
         if region.enabled and region.type == "footer-bar" and region.height is not None:
             margins.bottom = max(20, round(short_edge * region.height))
+            has_footer = True
+
+    # 边框：在空白边设置 margins，底部有 footer-bar 时不额外加底边
+    border = config.canvas.border
+    if border is not None and border.enabled:
+        bw = max(1, round(short_edge * _BORDER_WIDTH_RATIOS.get(border.width_level, 0.035)))
+        if margins.top == 0:
+            margins.top = bw
+        if margins.left == 0:
+            margins.left = bw
+        if margins.right == 0:
+            margins.right = bw
+        if not has_footer and margins.bottom == 0:
+            margins.bottom = bw
 
     canvas_w = image_w + margins.left + margins.right
     canvas_h = image_h + margins.top + margins.bottom
@@ -502,6 +525,11 @@ _SIGNATURE_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "small": 0.15,
     "medium": 0.20,
     "large": 0.25,
+}
+_BORDER_WIDTH_RATIOS: dict[str, float] = {
+    "small": 0.02,
+    "medium": 0.035,
+    "large": 0.05,
 }
 
 

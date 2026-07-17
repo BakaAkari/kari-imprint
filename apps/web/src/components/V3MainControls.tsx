@@ -342,4 +342,44 @@ export function V3LogoPositionControls({
   );
 }
 
+export function V3BorderControls({
+  controls,
+  onChange,
+}: {
+  controls: MainControlConfig;
+  onChange: (patch: Partial<MainControlConfig>) => void;
+}) {
+  return (
+    <div className="v3-right-section">
+      <div className="v3-right-section-title">边框</div>
+      <div className="v3-right-section-body">
+        <label className="v3-form-row v3-checkbox-row">
+          <input type="checkbox" checked={controls.border_enabled}
+            onChange={(e) => onChange({ border_enabled: e.target.checked })} />
+          <span className="text-sm">启用边框</span>
+        </label>
+        {controls.border_enabled && (
+          <>
+            <div className="v3-form-row">
+              <label>宽度</label>
+              <select value={controls.border_width_level}
+                onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
+                <option value="small">小</option>
+                <option value="medium">中</option>
+                <option value="large">大</option>
+              </select>
+            </div>
+            <div className="v3-form-row">
+              <label>颜色</label>
+              <input type="color" value={controls.border_color}
+                onChange={(e) => onChange({ border_color: e.target.value })}
+                style={{ width: 50, height: 28, padding: 2 }} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, PresetColor, SizeLevel };

@@ -61,6 +61,7 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: '',
       logo_path: '',
       signature_path: '',
+      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
     },
   },
   minimal: {
@@ -80,6 +81,7 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: '',
       logo_path: '',
       signature_path: '',
+      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
     },
   },
   'soft-card': {
@@ -99,6 +101,7 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: 'AKARI PHOTO',
       logo_path: '',
       signature_path: '',
+      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
     },
   },
   sides: {
@@ -118,6 +121,7 @@ export const watermarkPresetMetaV3: Record<string, { mainControls: MainControlCo
       custom_text: '',
       logo_path: '',
       signature_path: '',
+      border_enabled: false, border_width_level: 'medium', border_color: '#FFFFFF',
     },
   },
 };

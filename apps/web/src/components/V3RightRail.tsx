@@ -3,7 +3,7 @@ import { V3AppContext } from '../V3HomePage';
 import { type RegionConfig, type RootOverrides, type SlotOverride, type WatermarkConfigV3 } from '../v3Types';
 import type { RuntimeCapabilities } from '../apiV3';
 import { InspectorPanelV3 } from './InspectorPanelV3';
-import { V3StyleControls, V3ResourceControls, V3LogoPositionControls } from './V3MainControls';
+import { V3StyleControls, V3ResourceControls, V3LogoPositionControls, V3BorderControls } from './V3MainControls';
 
 interface V3RightRailProps {
   config: WatermarkConfigV3;
@@ -51,6 +51,7 @@ export function V3RightRail({ config, onRegionOverride, onRootOverride, onSlotOv
       <V3StyleControls controls={controls} onChange={onControlsChange} />
       <V3ResourceControls controls={controls} onChange={onControlsChange} />
       <V3LogoPositionControls controls={controls} onChange={onControlsChange} />
+      <V3BorderControls controls={controls} onChange={onControlsChange} />
 
       <div className="v3-right-section">
         <div className="v3-right-section-title">高级设置</div>

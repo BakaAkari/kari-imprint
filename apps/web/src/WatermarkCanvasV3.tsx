@@ -79,6 +79,23 @@ function renderCanvas(
   ctx.fillStyle = _config.canvas.background;
   ctx.fillRect(0, 0, canvas.w, canvas.h);
 
+  // 1b. 绘制边框（填充 margin 区域，底部有 footer 时不画底边）
+  const border = _config.canvas.border;
+  if (border?.enabled) {
+    ctx.fillStyle = border.color;
+    // 顶部边
+    if (image_rect.y > 0) ctx.fillRect(0, 0, canvas.w, image_rect.y);
+    // 左边
+    if (image_rect.x > 0) ctx.fillRect(0, image_rect.y, image_rect.x, image_rect.h);
+    // 右边
+    const rightGap = canvas.w - (image_rect.x + image_rect.w);
+    if (rightGap > 0) ctx.fillRect(image_rect.x + image_rect.w, image_rect.y, rightGap, image_rect.h);
+    // 底部：仅当底部 margin 不是由 footer-bar 占据时才画
+    const bottomGap = canvas.h - (image_rect.y + image_rect.h);
+    const hasFooter = _config.regions?.some(r => r.type === 'footer-bar' && r.enabled);
+    if (bottomGap > 0 && !hasFooter) ctx.fillRect(0, image_rect.y + image_rect.h, canvas.w, bottomGap);
+  }
+
   // 2. 绘制照片主体（或占位）
   if (image) {
     ctx.drawImage(image, image_rect.x, image_rect.y, image_rect.w, image_rect.h);
