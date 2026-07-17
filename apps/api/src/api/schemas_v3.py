@@ -94,9 +94,9 @@ class SignatureContentPayload(StrictModel):
 
 
 _FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
-    "small": 0.125,
-    "medium": 0.16,
-    "large": 0.20,
+    "small": 0.18,
+    "medium": 0.23,
+    "large": 0.25,
 }
 _LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "small": 0.50,

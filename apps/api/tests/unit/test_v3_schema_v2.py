@@ -131,7 +131,7 @@ class TestMigration:
     def _sample_v1() -> dict:
         return {
             "defaults": {
-                "font_size_ratio": 0.16,
+                "font_size_ratio": 0.18,
                 "size_reference": "region_height",
                 "color": "#222222",
                 "font_family": "NotoSansCJKsc-Bold.otf",
@@ -151,7 +151,7 @@ class TestMigration:
                                 "separator": " ",
                             },
                             "style": {
-                                "font_size_ratio": 0.20,
+                                "font_size_ratio": 0.23,
                                 "size_reference": "region_height",
                                 "color": "#222222",
                                 "font_family": "NotoSansCJKsc-Bold.otf",
@@ -172,15 +172,15 @@ class TestMigration:
             ],
         }
 
-    def test_defaults_ratio_16_migrates_to_medium(self):
+    def test_defaults_ratio_18_migrates_to_small(self):
         result = validate_v3_payload(deepcopy(self._sample_v1()))
-        assert result["defaults"]["font_size_level"] == "medium"
+        assert result["defaults"]["font_size_level"] == "small"
         assert result["defaults"]["font_size_ratio"] is None
 
-    def test_slot_ratio_20_migrates_to_large(self):
+    def test_slot_ratio_23_migrates_to_medium(self):
         result = validate_v3_payload(deepcopy(self._sample_v1()))
         slot = result["regions"][0]["slots"]["left-top"]
-        assert slot["style"]["font_size_level"] == "large"
+        assert slot["style"]["font_size_level"] == "medium"
         assert slot["style"]["font_size_ratio"] is None
 
     def test_logo_ratio_60_migrates_to_medium(self):

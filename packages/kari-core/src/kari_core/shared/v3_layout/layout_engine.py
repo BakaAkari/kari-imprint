@@ -489,9 +489,9 @@ def _compute_free(
 # ── 辅助函数 ─────────────────────────────────
 
 _FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
-    "small": 0.125,
-    "medium": 0.16,
-    "large": 0.20,
+    "small": 0.18,
+    "medium": 0.23,
+    "large": 0.25,
 }
 _LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "small": 0.50,
@@ -523,9 +523,9 @@ def _resolve_font_size(
     if style.font_size_ratio is not None:
         ratio = style.font_size_ratio
     elif style.font_size_level is not None:
-        ratio = _FONT_SIZE_LEVEL_RATIOS.get(style.font_size_level, 0.16)
+        ratio = _FONT_SIZE_LEVEL_RATIOS.get(style.font_size_level, 0.23)
     else:
-        ratio = 0.16
+        ratio = 0.23
 
     if style.size_reference == "short_edge":
         ref = short_edge

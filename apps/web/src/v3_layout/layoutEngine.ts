@@ -76,7 +76,7 @@ export interface SignatureContent {
 }
 
 export type SizeLevel = 'small' | 'medium' | 'large';
-const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.125, medium: 0.16, large: 0.20 };
+const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.18, medium: 0.23, large: 0.25 };
 const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
 const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
 
