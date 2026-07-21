@@ -47,7 +47,7 @@ function defaultTextContent(): TextContent {
 }
 
 function defaultLogoContent(): LogoContent {
-  return { path: '', color: '#D8D8D6', size_level: 'medium', size_ratio: null };
+  return { path: '', color: '#D8D8D6', treatment: 'mono-scheme', size_level: 'medium', size_ratio: null };
 }
 
 function defaultSignatureContent(): SignatureContent {

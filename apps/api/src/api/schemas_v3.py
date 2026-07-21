@@ -53,6 +53,7 @@ class TextContentPayload(StrictModel):
 class LogoContentPayload(StrictModel):
     path: ResourceId = Field(default="", max_length=128, pattern=_RESOURCE_ID_PATTERN)
     color: Color = "#D8D8D6"
+    treatment: Literal["original", "mono-scheme"] = "mono-scheme"
     size_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
     size_level: Literal["small", "medium", "large"] | None = None
 
@@ -157,6 +158,14 @@ class WidthPayload(StrictModel):
         return self
 
 
+
+
+class PaddingPayload(StrictModel):
+    top: int = Field(default=8, ge=0, le=600)
+    right: int = Field(default=8, ge=0, le=600)
+    bottom: int = Field(default=8, ge=0, le=600)
+    left: int = Field(default=8, ge=0, le=600)
+
 class RegionConfigPayload(StrictModel):
     id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
     type: Literal["footer-bar", "side-edge", "free"]
@@ -166,6 +175,8 @@ class RegionConfigPayload(StrictModel):
     edge: Literal["left", "right"] | None = None
     width: WidthPayload | None = None
     alignment: Literal["start", "center", "end"] | None = "start"
+    vertical_alignment: Literal["start", "center", "end"] | None = "center"
+    padding: PaddingPayload | None = None
     anchor: Anchor | None = None
     offset_x: float = Field(default=0.0, ge=-2000.0, le=2000.0)
     offset_y: float = Field(default=0.0, ge=-2000.0, le=2000.0)

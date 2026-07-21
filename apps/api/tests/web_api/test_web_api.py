@@ -114,6 +114,22 @@ def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
     assert download.content
 
 
+
+
+def test_v3_process_download_is_valid_image_bytes(tmp_path: Path) -> None:
+    image_path = _make_image(tmp_path / "valid-download.jpg")
+
+    response = _post_image(f"{API_PREFIX}/process", image_path)
+
+    assert response.status_code == 200, response.json()
+    download = client.get(response.json()["file"]["download_url"])
+    assert download.status_code == 200
+    assert download.content.startswith(b"\xff\xd8") or download.content.startswith(b"\x89PNG")
+    output = tmp_path / "downloaded-image"
+    output.write_bytes(download.content)
+    with Image.open(output) as img:
+        img.verify()
+
 def test_v3_preview_image_generates_downloadable_file(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "input-v3.jpg", size=(900, 600))
 
@@ -305,3 +321,66 @@ def test_upload_once_then_process_by_image_id(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+def test_metadata_returns_normalized_exif_fields_without_raw_paths(tmp_path: Path, monkeypatch) -> None:
+    image_path = _make_image(tmp_path / "meta.jpg")
+
+    def fake_get_exif(path: str) -> dict[str, str]:
+        assert path
+        return {
+            "Make": "LEICA",
+            "CameraModelName": "Q3",
+            "FocalLengthIn35mmFormat": "28 mm",
+            "ApertureValue": "1.7",
+            "ShutterSpeed": "1/500",
+            "ISO": "100",
+            "DateTimeOriginal": "2026:07:21 09:08:07",
+            "SourceFile": path,
+        }
+
+    monkeypatch.setattr(web_main, "get_exif", fake_get_exif)
+    with image_path.open("rb") as file:
+        response = client.post(
+            f"{API_PREFIX}/metadata",
+            files={"file": (image_path.name, file, "image/jpeg")},
+        )
+
+    assert response.status_code == 200, response.json()
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["fields"]["make"] == "LEICA"
+    assert payload["fields"]["camera_model"] == "Q3"
+    assert payload["fields"]["focal_length"] == "28mm"
+    assert payload["fields"]["aperture"] == "f/1.7"
+    assert payload["fields"]["shutter"] == "1/500s"
+    assert payload["fields"]["iso"] == "ISO100"
+    assert payload["fields"]["datetime"] == "2026:07:21 09:08"
+    assert "SourceFile" not in payload["fields"]
+    assert str(tmp_path) not in response.text
+
+
+def test_metadata_reuses_opaque_image_id(tmp_path: Path, monkeypatch) -> None:
+    image_path = _make_image(tmp_path / "meta-id.jpg")
+    monkeypatch.setattr(web_main, "get_exif", lambda _path: {"Make": "SONY", "CameraModelName": "A7C"})
+
+    with image_path.open("rb") as file:
+        upload = client.post(
+            f"{API_PREFIX}/uploads",
+            files={"file": (image_path.name, file, "image/jpeg")},
+        )
+    image_id = upload.json()["image_id"]
+
+    response = client.post(f"{API_PREFIX}/metadata", data={"image_id": image_id})
+
+    assert response.status_code == 200, response.json()
+    payload = response.json()
+    assert payload["image_id"] == image_id
+    assert payload["fields"]["make"] == "SONY"
+    assert payload["fields"]["camera_model"] == "A7C"
+
+
+def test_metadata_rejects_missing_image() -> None:
+    response = client.post(f"{API_PREFIX}/metadata")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "missing_image"

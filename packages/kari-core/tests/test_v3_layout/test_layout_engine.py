@@ -13,6 +13,7 @@ from kari_core.shared.v3_layout.layout_engine import (
     TextContent,
     WatermarkConfig,
     compute_layout,
+    compute_layout_with_diagnostics,
 )
 
 
@@ -379,3 +380,68 @@ class TestEmptyConfig:
             100, 100,
         )
         assert len(result.elements) == 0
+
+class TestSideEdgePaddingAndVerticalAlignment:
+    def test_side_edge_vertical_alignment_start_uses_top_padding(self):
+        result = compute_layout(
+            WatermarkConfig(
+                canvas=CanvasConfig(margins=MarginsConfig()),
+                regions=[
+                    RegionConfig(
+                        id="side-left",
+                        type="side-edge",
+                        enabled=True,
+                        edge="left",
+                        width={"mode": "pixel", "value": 160},
+                        alignment="start",
+                        vertical_alignment="start",
+                        padding={"top": 24, "left": 12, "right": 12, "bottom": 12},
+                        slots={
+                            "line1": SlotConfig(enabled=True, content=TextContent(chips=[_make_chip()])),
+                        },
+                    )
+                ],
+            ),
+            1920, 1080,
+        )
+        el = result.elements[0]
+        assert el.rect.y == 24
+        assert el.rect.x == 12
+
+    def test_side_edge_vertical_alignment_end_uses_bottom_padding(self):
+        result = compute_layout(
+            WatermarkConfig(
+                canvas=CanvasConfig(margins=MarginsConfig()),
+                regions=[
+                    RegionConfig(
+                        id="side-right",
+                        type="side-edge",
+                        enabled=True,
+                        edge="right",
+                        width={"mode": "pixel", "value": 160},
+                        alignment="end",
+                        vertical_alignment="end",
+                        padding={"top": 12, "left": 12, "right": 12, "bottom": 30},
+                        slots={
+                            "line1": SlotConfig(enabled=True, content=TextContent(chips=[_make_chip()])),
+                        },
+                    )
+                ],
+            ),
+            1920, 1080,
+        )
+        el = result.elements[0]
+        assert el.rect.y + el.rect.h <= 1080 - 30
+
+class TestDiagnostics:
+    def test_enabled_region_without_slots_warns(self):
+        result = compute_layout_with_diagnostics(
+            WatermarkConfig(
+                canvas=CanvasConfig(margins=MarginsConfig()),
+                regions=[
+                    RegionConfig(id="empty-footer", type="footer-bar", enabled=True, slots={}),
+                ],
+            ),
+            1920, 1080,
+        )
+        assert any(d.type == "empty-region" for d in result.diagnostics)

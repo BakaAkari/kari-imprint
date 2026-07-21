@@ -274,6 +274,28 @@ class TestV3EndToEndProcessing:
         with Image.open(output_path) as img:
             assert img.width > 0 and img.height > 0
 
+
+    def test_v3_border_config_affects_processed_output(self, sample_image: Path, tmp_path: Path):
+        """Backend process output must include V3 decorative border config."""
+        from copy import deepcopy
+
+        import kari_core.processor  # noqa: F401  # registers production processors
+        from kari_core.processor.core import start_process
+
+        config = deepcopy(SAMPLE_V3_CONFIG)
+        config["canvas"]["border"] = {"enabled": True, "width_level": "small", "color": "#FFFFFF"}
+        config["regions"] = []
+        processors = v3_config_to_processors(validate_v3_payload(config))
+
+        output_path = tmp_path / "border-output.jpg"
+        start_process(data=processors, input_path=str(sample_image), output_path=str(output_path))
+
+        assert output_path.exists()
+        with Image.open(output_path) as img:
+            assert img.width > 1200
+            assert img.height > 800
+            assert img.getpixel((1, 1))[0] > 230
+
     def test_v3_custom_text_stays_literal(self):
         from kari_core.processor.v3_watermark import _build_text
         from kari_core.shared.v3_layout.layout_engine import FieldChip, TextContent

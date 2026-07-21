@@ -14,6 +14,8 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from kari_core.core.util import get_exif
+from kari_core.shared.render_values import missing_field_ids, resolve_field_values
 from starlette.concurrency import run_in_threadpool
 
 from api import stats
@@ -127,6 +129,30 @@ async def upload_resource(
         filename=path.name,
         kind=kind,
         resource_id=path.name,
+    )
+
+
+@app.post(f"{_api}/metadata")
+async def metadata_endpoint(
+    file: UploadFile | None = File(default=None),
+    image_id: str = Form(default=""),
+) -> dict[str, Any]:
+    """Return normalized, safe EXIF field values for V3 canvas preview."""
+
+    cleanup_expired_files(settings)
+    if file is not None:
+        input_path = await save_upload(file, settings)
+    elif image_id:
+        input_path = resolve_upload(image_id, settings)
+    else:
+        raise ApiError(code="missing_image", message="请先上传图片", status_code=400)
+
+    exif = await run_in_threadpool(get_exif, str(input_path))
+    fields = resolve_field_values(exif, str(input_path))
+    return success_response(
+        image_id=input_path.name,
+        fields=fields,
+        missing=missing_field_ids(fields),
     )
 
 

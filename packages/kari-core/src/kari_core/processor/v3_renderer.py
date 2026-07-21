@@ -23,6 +23,7 @@ from kari_core.shared.v3_layout.layout_engine import (
     LogoContent,
     SignatureContent,
     TextContent,
+    WatermarkConfig,
 )
 
 # ── 颜色解析 ──────────────────────────────────────────────────────────
@@ -248,7 +249,8 @@ def _render_logo_element(
         logger.warning("[v3_renderer] Logo 加载失败: %s (%s)", logo_path, exc)
         return None
 
-    # Contain: fit within max_width × max_height preserving aspect ratio
+    # Contain: fit within max_width × max_height preserving aspect ratio.
+    # Small uploaded logos are not upscaled; oversized logos are scaled down.
     max_w = max(1, el.rect.w)
     max_h = max(1, el.rect.h)
     logo = logo.convert("RGBA")
@@ -258,6 +260,13 @@ def _render_logo_element(
         new_w = max(1, round(lw * scale))
         new_h = max(1, round(lh * scale))
         logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    if getattr(content, "treatment", "mono-scheme") == "mono-scheme":
+        color = _parse_color(content.color)
+        alpha = logo.getchannel("A")
+        tinted = Image.new("RGBA", logo.size, color)
+        tinted.putalpha(alpha)
+        logo = tinted
 
     return logo
 
@@ -302,6 +311,7 @@ def render_pil(
     bg_color: str = "#FFFFFF",
     field_values: dict[str, str] | None = None,
     custom_text: str = "",
+    config: WatermarkConfig | None = None,
 ) -> Image.Image:
     """V3 主渲染函数 — 按 LayoutResult 将水印元素绘制到画布上。
 
@@ -320,11 +330,29 @@ def render_pil(
         "RGBA", (layout.canvas.w, layout.canvas.h), _parse_color(bg_color)
     )
 
-    # 2. 粘贴照片主体
+    # 2. 绘制装饰边框（填充 margin 区域，底部有 footer 时不画底边）。
+    if config is not None and config.canvas.border is not None and config.canvas.border.enabled:
+        border_cfg = config.canvas.border
+        draw = ImageDraw.Draw(canvas)
+        ir = layout.image_rect
+        color = _parse_color(border_cfg.color)
+        if ir.y > 0:
+            draw.rectangle([(0, 0), (layout.canvas.w, ir.y)], fill=color)
+        if ir.x > 0:
+            draw.rectangle([(0, ir.y), (ir.x, ir.y + ir.h)], fill=color)
+        right_gap = layout.canvas.w - (ir.x + ir.w)
+        if right_gap > 0:
+            draw.rectangle([(ir.x + ir.w, ir.y), (layout.canvas.w, ir.y + ir.h)], fill=color)
+        bottom_gap = layout.canvas.h - (ir.y + ir.h)
+        has_footer = any(r.enabled and r.type == "footer-bar" for r in config.regions)
+        if bottom_gap > 0 and not has_footer:
+            draw.rectangle([(0, ir.y + ir.h), (layout.canvas.w, layout.canvas.h)], fill=color)
+
+    # 3. 粘贴照片主体
     img = image.convert("RGBA") if image.mode != "RGBA" else image.copy()
     canvas.paste(img, (layout.image_rect.x, layout.image_rect.y))
 
-    # 3. 按 LayoutResult 顺序绘制所有水印元素
+    # 4. 按 LayoutResult 顺序绘制所有水印元素
     field_values = field_values or {}
     for el in layout.elements:
         if el.type == "text":

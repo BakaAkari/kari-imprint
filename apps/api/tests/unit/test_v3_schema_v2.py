@@ -105,6 +105,10 @@ class TestLogoSizeLevel:
         assert p.size_ratio == 0.6
         assert p.size_level is None
 
+    def test_logo_treatment_accepted(self):
+        p = LogoContentPayload(path=self.VALID_PATH, treatment="original")
+        assert p.treatment == "original"
+
 
 class TestSignatureSizeLevel:
     """SignatureContentPayload size_level and conflict rules."""
@@ -209,3 +213,30 @@ class TestMigration:
         assert content["size_level"] == "large"
         # compatible ratio (0.72 == large) dropped
         assert content["size_ratio"] is None
+
+class TestRegionLayoutFields:
+    def test_region_padding_and_vertical_alignment_accepted(self):
+        result = validate_v3_payload({
+            "schema_version": 2,
+            "regions": [
+                {
+                    "id": "side-left",
+                    "type": "side-edge",
+                    "enabled": True,
+                    "edge": "left",
+                    "alignment": "start",
+                    "vertical_alignment": "end",
+                    "padding": {"top": 24, "right": 12, "bottom": 30, "left": 12},
+                    "slots": {
+                        "line1": {
+                            "enabled": True,
+                            "content": {"chips": [{"field_id": "make"}], "separator": " / "},
+                            "style": {"font_size_level": "small"},
+                        }
+                    },
+                }
+            ],
+        })
+        region = result["regions"][0]
+        assert region["vertical_alignment"] == "end"
+        assert region["padding"]["bottom"] == 30

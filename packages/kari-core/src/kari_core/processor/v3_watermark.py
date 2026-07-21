@@ -12,22 +12,11 @@
 
 from __future__ import annotations
 
-from jinja2 import Template
-from PIL import Image
-
-from kari_core.core.jinja2renders import resolve_auto_logo
 from kari_core.processor.core import PipelineContext, register
 from kari_core.processor.filters import FilterProcessor
-from kari_core.processor.generators import RichTextGenerator, TextSegment
-from kari_core.shared.field_registry import get_default_registry
-from kari_core.shared.v3_layout.layout_engine import (
-    ComputedElement,
-    LogoContent,
-    SignatureContent,
-    TextContent,
-    WatermarkConfig,
-    compute_layout,
-)
+from kari_core.processor.v3_renderer import render_pil
+from kari_core.shared.render_values import resolve_field_values
+from kari_core.shared.v3_layout.layout_engine import TextContent, compute_layout
 
 # ── 注册处理器 ──────────────────────────────────────────────────────────
 
@@ -47,157 +36,30 @@ class WatermarkV3Filter(FilterProcessor):
         # 1. 计算布局
         layout = compute_layout(config, img.width, img.height)
 
-        # 2. 创建画布并粘贴原图
-        canvas = Image.new("RGBA", (layout.canvas.w, layout.canvas.h), config.canvas.background)
-
-        # 2b. 绘制边框（填充 margin 区域，底部有 footer 时不画底边）
-        border_cfg = config.canvas.border
-        if border_cfg is not None and border_cfg.enabled:
-            from PIL import ImageDraw
-            draw = ImageDraw.Draw(canvas)
-            ir = layout.image_rect
-            # 顶部边
-            if ir.y > 0:
-                draw.rectangle([(0, 0), (layout.canvas.w, ir.y)], fill=border_cfg.color)
-            # 左边
-            if ir.x > 0:
-                draw.rectangle([(0, ir.y), (ir.x, ir.y + ir.h)], fill=border_cfg.color)
-            # 右边
-            right_gap = layout.canvas.w - (ir.x + ir.w)
-            if right_gap > 0:
-                draw.rectangle([(ir.x + ir.w, ir.y), (layout.canvas.w, ir.y + ir.h)], fill=border_cfg.color)
-            # 底部：仅当没有 footer-bar 时才画
-            has_footer = any(r.enabled and r.type == "footer-bar" for r in config.regions)
-            bottom_gap = layout.canvas.h - (ir.y + ir.h)
-            if bottom_gap > 0 and not has_footer:
-                draw.rectangle([(0, ir.y + ir.h), (layout.canvas.w, layout.canvas.h)], fill=border_cfg.color)
-
-        canvas.paste(img, (layout.image_rect.x, layout.image_rect.y))
-
-        # 3. 获取 EXIF / file_path 用于文本值解析
+        # 2. 获取 EXIF / file_path 用于文本值解析
         exif = ctx.get_exif() or {}
         file_path = ctx.get("input_path", "")
+        field_values = resolve_field_values(exif, file_path)
 
-        # 4. 按 LayoutResult 顺序渲染每个元素
-        for el in layout.elements:
-            self._render_element(canvas, el, config, exif, file_path)
+        # 3. 唯一后端 renderer：按 LayoutResult 绘制，不在 processor 内重复坐标/绘制逻辑
+        canvas = render_pil(
+            layout,
+            img,
+            bg_color=config.canvas.background,
+            field_values=field_values,
+            custom_text=config.custom_text,
+            config=config,
+        )
 
         ctx.update_buffer([canvas]).save_buffer(self.name()).success()
-
-    def _render_element(
-        self,
-        canvas: Image.Image,
-        el: ComputedElement,
-        config: WatermarkConfig,
-        exif: dict,
-        file_path: str,
-    ) -> None:
-        if el.type == "text":
-            self._render_text(canvas, el, config, exif, file_path)
-        elif el.type == "logo":
-            self._render_logo(canvas, el, exif)
-        elif el.type == "signature":
-            self._render_signature(canvas, el, exif, file_path)
-
-    # ── 文本渲染 ────────────────────────────────────────────────────────
-
-    def _render_text(
-        self,
-        canvas: Image.Image,
-        el: ComputedElement,
-        config: WatermarkConfig,
-        exif: dict,
-        file_path: str,
-    ) -> None:
-        if not isinstance(el.content, TextContent):
-            return
-
-        text = _build_text(el.content, config.custom_text, exif, file_path)
-        if not text:
-            return
-
-        font_size = el.style.font_size or 16
-        segment = TextSegment(
-            text=text,
-            font_path=el.style.font_family,
-            height=font_size,
-            color=el.style.color,
-            is_bold=el.style.bold,
-        )
-        text_img = RichTextGenerator.generate(segment)
-
-        x, y = _apply_anchor_for_paste(el.rect, el.anchor, text_img.width, text_img.height)
-        canvas.paste(text_img, (x, y), mask=text_img if text_img.mode == "RGBA" else None)
-
-    # ── Logo 渲染 ───────────────────────────────────────────────────────
-
-    def _render_logo(self, canvas: Image.Image, el: ComputedElement, exif: dict) -> None:
-        if not isinstance(el.content, LogoContent):
-            return
-
-        logo_path = el.content.path
-        if not logo_path:
-            # 空 path 表示 auto logo；仅根据受控 EXIF 品牌值匹配内置资源。
-            logo_path = resolve_auto_logo(exif)
-
-        if not logo_path:
-            return
-
-        try:
-            from kari_core.core.image_io import load_logo
-
-            logo = load_logo(logo_path)
-        except (FileNotFoundError, OSError):
-            return
-
-        # Contain: fit within rect preserving aspect ratio
-        max_w = max(1, el.rect.w)
-        max_h = max(1, el.rect.h)
-        logo = logo.convert("RGBA")
-        lw, lh = logo.size
-        scale = min(max_w / lw, max_h / lh)
-        new_w = max(1, round(lw * scale))
-        new_h = max(1, round(lh * scale))
-        if logo.size != (new_w, new_h):
-            logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        x, y = _apply_anchor_for_paste(el.rect, el.anchor, logo.width, logo.height)
-        canvas.paste(logo, (x, y), mask=logo if logo.mode == "RGBA" else None)
-
-    # ── 签名渲染（简化版）────────────────────────────────────────────────
-
-    def _render_signature(
-        self,
-        canvas: Image.Image,
-        el: ComputedElement,
-        exif: dict,
-        file_path: str,
-    ) -> None:
-        if not isinstance(el.content, SignatureContent):
-            return
-
-        sig_path = el.content.path
-        if not sig_path:
-            return
-
-        try:
-            from kari_core.core.image_io import load_logo
-
-            sig = load_logo(sig_path)
-        except (FileNotFoundError, OSError):
-            return
-
-        # 按计算后的 rect 尺寸缩放
-        sig = sig.resize((el.rect.w, el.rect.h), Image.Resampling.LANCZOS)
-        x, y = _apply_anchor_for_paste(el.rect, el.anchor, sig.width, sig.height)
-        canvas.paste(sig, (x, y), mask=sig if sig.mode == "RGBA" else None)
-
 
 # ── 辅助函数 ────────────────────────────────────────────────────────────
 
 
+
 def _build_text(content: TextContent, custom_text: str, exif: dict, file_path: str) -> str:
     """将 TextContent 中的 chips 解析为实际文本字符串。"""
-    registry = get_default_registry()
+    field_values = resolve_field_values(exif, file_path)
     texts: list[str] = []
 
     for chip in content.chips:
@@ -206,49 +68,19 @@ def _build_text(content: TextContent, custom_text: str, exif: dict, file_path: s
         if chip.field_id == "custom_text":
             texts.append(chip.custom_text or custom_text or "")
             continue
-
-        field_def = registry.get(chip.field_id)
-        if field_def is None or not field_def.jinja_template:
-            continue
-
-        template = Template(field_def.jinja_template)
-        context = {"exif": exif, "file_path": file_path, "file_dir": ""}
-        texts.append(template.render(**context))
+        value = field_values.get(chip.field_id, "")
+        if value:
+            texts.append(value)
 
     return content.separator.join(texts)
 
 
-def _apply_anchor_for_paste(
-    rect, anchor: str, elem_w: int, elem_h: int
-) -> tuple[int, int]:
-    """根据 anchor 语义，将元素参考点转换为粘贴用的左上角坐标。
-
-    anchor 语义与 CSS transform-origin 一致：
-      top-left     → (rect.x, rect.y) 是元素左上角
-      middle-center→ (rect.x, rect.y) 是元素中心
-      bottom-right → (rect.x, rect.y) 是元素右下角
-      ...
-    """
-    if "center" in anchor:
-        x = rect.x - elem_w // 2
-    elif "right" in anchor:
-        x = rect.x - elem_w
-    else:  # left
-        x = rect.x
-
-    if "middle" in anchor:
-        y = rect.y - elem_h // 2
-    elif "bottom" in anchor:
-        y = rect.y - elem_h
-    else:  # top
-        y = rect.y
-
-    return x, y
 
 
-def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
+def _dict_to_watermark_config(data: dict):
     """将前端/API 传来的 plain dict 重建为 layout_engine 的 dataclass。"""
     from kari_core.shared.v3_layout.layout_engine import (
+        BorderConfig,
         CanvasConfig,
         FieldChip,
         LogoContent,
@@ -258,6 +90,7 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
         SlotConfig,
         StyleConfig,
         TextContent,
+        WatermarkConfig,
     )
 
     def _style(d: dict | None) -> StyleConfig | None:
@@ -277,7 +110,6 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
     def _content(d: dict | None):
         if d is None:
             return None
-        # 通过字段存在性判断类型（与 TS 类型守卫 isTextContent/isLogoContent/isSignatureContent 对应）
         if "chips" in d and "separator" in d:
             return TextContent(
                 chips=[
@@ -289,19 +121,20 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
                 ],
                 separator=d.get("separator", " "),
             )
-        if 'path' in d and 'invert_mono' in d:
+        if "path" in d and "invert_mono" in d:
             return SignatureContent(
-                path=d.get('path', ''),
-                invert_mono=d.get('invert_mono', False),
-                size_ratio=d.get('size_ratio'),
-                size_level=d.get('size_level'),
+                path=d.get("path", ""),
+                invert_mono=d.get("invert_mono", False),
+                size_ratio=d.get("size_ratio"),
+                size_level=d.get("size_level"),
             )
-        if 'path' in d and 'color' in d:
+        if "path" in d and "color" in d:
             return LogoContent(
-                path=d.get('path', ''),
-                color=d.get('color', '#D8D8D6'),
-                size_ratio=d.get('size_ratio'),
-                size_level=d.get('size_level'),
+                path=d.get("path", ""),
+                color=d.get("color", "#D8D8D6"),
+                treatment=d.get("treatment", "mono-scheme"),
+                size_ratio=d.get("size_ratio"),
+                size_level=d.get("size_level"),
             )
         return None
 
@@ -324,6 +157,8 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
             edge=d.get("edge"),
             width=d.get("width"),
             alignment=d.get("alignment", "start"),
+            vertical_alignment=d.get("vertical_alignment", "center"),
+            padding=d.get("padding"),
             anchor=d.get("anchor"),
             offset_x=d.get("offset_x", 0.0),
             offset_y=d.get("offset_y", 0.0),
@@ -332,6 +167,7 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
 
     canvas = data.get("canvas", {})
     margins = canvas.get("margins", {})
+    border = canvas.get("border")
 
     return WatermarkConfig(
         canvas=CanvasConfig(
@@ -343,6 +179,11 @@ def _dict_to_watermark_config(data: dict) -> WatermarkConfig:
             ),
             background=canvas.get("background", "#FFFFFF"),
             border_radius=canvas.get("border_radius", 0),
+            border=BorderConfig(
+                enabled=border.get("enabled", False),
+                width_level=border.get("width_level", "medium"),
+                color=border.get("color", "#FFFFFF"),
+            ) if isinstance(border, dict) else None,
         ),
         regions=[_region(r) for r in data.get("regions", [])],
         defaults=_style(data.get("defaults")) or StyleConfig(),

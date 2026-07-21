@@ -8,6 +8,8 @@
  * 与 Python 版本共享同一套算法逻辑，通过单元测试保证一致性。
  */
 
+import { BORDER_WIDTH_RATIOS, FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS } from '../designTokens';
+
 // ── 基础几何 ────────────────────────────────────────────
 
 export interface Rect {
@@ -71,6 +73,7 @@ export interface TextContent {
 export interface LogoContent {
   path: string;
   color: string;
+  treatment?: 'original' | 'mono-scheme';
   size_level: SizeLevel | null;
   size_ratio: number | null;
 }
@@ -83,11 +86,6 @@ export interface SignatureContent {
 }
 
 export type SizeLevel = 'small' | 'medium' | 'large';
-const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.18, medium: 0.23, large: 0.25 };
-const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
-const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
-
-const BORDER_WIDTH_RATIOS: Record<SizeLevel, number> = { small: 0.0075, medium: 0.0165, large: 0.022 };
 
 export type Content = TextContent | LogoContent | SignatureContent;
 
@@ -120,6 +118,8 @@ export interface RegionConfig {
   edge?: 'left' | 'right';
   width?: { mode: 'pixel' | 'short_edge_ratio'; value: number };
   alignment?: 'start' | 'center' | 'end';
+  vertical_alignment?: 'start' | 'center' | 'end';
+  padding?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
   anchor?: string;        // 九宫格锚点
   offset_x?: number;
   offset_y?: number;
@@ -326,7 +326,14 @@ function computeSideEdge(
     ? rect(imageRect.x, imageRect.y, regionW, imageRect.h)
     : rect(rectRight(imageRect) - regionW, imageRect.y, regionW, imageRect.h);
 
+  const padding = {
+    top: region.padding?.top ?? 8,
+    right: region.padding?.right ?? 8,
+    bottom: region.padding?.bottom ?? 8,
+    left: region.padding?.left ?? 8,
+  };
   const elements: ComputedElement[] = [];
+  let cursorY = regionBounds.y + padding.top;
 
   if (region.slots) {
     for (const [slotId, slot] of Object.entries(region.slots)) {
@@ -337,16 +344,23 @@ function computeSideEdge(
 
       if (isTextContent(slot.content) && slot.content.chips.length > 0) {
         const lineH = Math.round(fontSize * style.line_height);
-        const totalH = lineH;
-        const startY = regionBounds.y + Math.floor((regionBounds.h - totalH) / 2);
+        let startY: number;
+        if (region.vertical_alignment === 'start') {
+          startY = cursorY;
+          cursorY += lineH;
+        } else if (region.vertical_alignment === 'end') {
+          startY = rectBottom(regionBounds) - padding.bottom - lineH;
+        } else {
+          startY = regionBounds.y + Math.floor((regionBounds.h - lineH) / 2);
+        }
 
         let x: number;
         let anchor: string;
         if (region.alignment === 'start') {
-          x = regionBounds.x + 8;
+          x = regionBounds.x + padding.left;
           anchor = 'middle-left';
         } else if (region.alignment === 'end') {
-          x = rectRight(regionBounds) - 8;
+          x = rectRight(regionBounds) - padding.right;
           anchor = 'middle-right';
         } else {
           x = rectCenterX(regionBounds);
@@ -356,7 +370,7 @@ function computeSideEdge(
         elements.push({
           id: `${region.id}-${slotId}`,
           type: 'text',
-          rect: rect(x, startY, regionBounds.w - 16, lineH),
+          rect: rect(x, startY, Math.max(1, regionBounds.w - padding.left - padding.right), lineH),
           anchor,
           content: slot.content,
           style: withFontSize(style, fontSize),

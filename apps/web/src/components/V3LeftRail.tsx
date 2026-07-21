@@ -1,8 +1,8 @@
 import { useCallback, useContext } from 'react';
 import { V3AppContext } from '../V3HomePage';
 import { defaultMainControls, type WatermarkConfigV3, type PreviewAspectRatio } from '../v3Types';
-import { watermarkPresetsV3, getPresetMainControls } from '../v3Presets';
-import { ImagePresetRail } from './ImagePresetRail';
+import { watermarkPresetsV3 } from '../v3Presets';
+import { ImagePresetRail, type RailPreset } from './ImagePresetRail';
 import type { RuntimeCapabilities } from '../apiV3';
 
 interface V3LeftRailProps {
@@ -26,15 +26,15 @@ export function V3LeftRail({ aspectRatio, onAspectRatioChange, runtimeCaps }: V3
     onPresetChange,
   } = context;
 
-  const applyPreset = useCallback((template: WatermarkConfigV3) => {
-    const controls = getPresetMainControls(template);
-    onPresetChange(structuredClone(template), controls);
+  const applyPreset = useCallback((preset: RailPreset<WatermarkConfigV3>) => {
+    const controls = preset.mainControls ? structuredClone(preset.mainControls) : structuredClone(defaultMainControls);
+    onPresetChange(structuredClone(preset.config), controls, preset.controlSurface);
   }, [onPresetChange]);
 
   const resetConfig = useCallback(() => {
     const defaultPreset = watermarkPresetsV3.find(p => p.id === 'default');
     if (!defaultPreset) return;
-    applyPreset(defaultPreset.config);
+    applyPreset(defaultPreset as any);
     clearOutputs();
   }, [applyPreset, clearOutputs]);
 

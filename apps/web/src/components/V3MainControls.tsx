@@ -5,6 +5,7 @@ import {
   type FieldId,
   type FooterMode,
   type LogoPosition,
+  type LogoTreatment,
   type MainControlConfig,
   type ColorScheme,
   type SizeLevel,
@@ -13,7 +14,6 @@ import {
   LOGO_POSITION_LABELS,
   fieldOptionsV3,
   getFieldLabel,
-  colorSchemes,
 } from '../v3Types';
 
 interface V3MainControlsProps {
@@ -192,61 +192,7 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
   );
 }
 
-export function V3StyleControls({
-  controls,
-  onChange,
-}: {
-  controls: MainControlConfig;
-  onChange: (patch: Partial<MainControlConfig>) => void;
-}) {
-  return (
-    <div className="v3-right-section">
-      <div className="v3-right-section-title">样式</div>
-      <div className="v3-right-section-body">
-        <div className="v3-form-row">
-          <label>Logo 大小</label>
-          <select
-            value={controls.logo_size}
-            onChange={(e) => onChange({ logo_size: e.target.value as SizeLevel })}
-          >
-            {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
-              <option key={s} value={s}>
-                {s === 'small' ? '小' : s === 'medium' ? '中' : '大'}
-              </option>
-            ))}
-          </select>
-        </div>
-        {controls.signature_path && (
-          <div className="v3-form-row">
-            <label>签名大小</label>
-            <select value={controls.signature_size} onChange={(e) => onChange({ signature_size: e.target.value as SizeLevel })}>
-              {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
-                <option key={s} value={s}>{s === 'small' ? '小' : s === 'medium' ? '中' : '大'}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="v3-form-row">
-          <label>配色</label>
-          <div className="v3-segmented-group">
-            {(['dark', 'light'] as ColorScheme[]).map(s => (
-              <button
-                key={s}
-                className={`v3-segment ${controls.scheme === s ? 'active' : ''}`}
-                onClick={() => onChange({ scheme: s })}
-              >
-                {s === 'dark' ? '深色' : '浅色'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-export function V3ResourceControls({
+export function V3LogoControls({
   controls,
   onChange,
 }: {
@@ -254,7 +200,6 @@ export function V3ResourceControls({
   onChange: (patch: Partial<MainControlConfig>) => void;
 }) {
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const sigInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,6 +212,110 @@ export function V3ResourceControls({
     },
     [onChange],
   );
+
+  return (
+    <div className="v3-right-section v3-logo-drawer">
+      <div className="v3-right-section-title">Logo</div>
+      <div className="v3-right-section-body">
+        <div className="v3-form-row">
+          <label>资源</label>
+          <div className="v3-file-row">
+            <button className="v3-btn v3-btn-sm" onClick={() => logoInputRef.current?.click()}>
+              {controls.logo_path ? '更换' : '上传'}
+            </button>
+            {controls.logo_path && (
+              <button className="v3-btn v3-btn-sm v3-btn-ghost" onClick={() => onChange({ logo_path: '' })}>
+                清除
+              </button>
+            )}
+            <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
+          </div>
+        </div>
+        <div className="v3-form-row">
+          <label>大小</label>
+          <select
+            value={controls.logo_size}
+            onChange={(e) => onChange({ logo_size: e.target.value as SizeLevel })}
+          >
+            {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
+              <option key={s} value={s}>
+                {s === 'small' ? '小' : s === 'medium' ? '中' : '大'}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="v3-form-row">
+          <label>位置</label>
+          <div className="v3-segmented-group">
+            {(Object.keys(LOGO_POSITION_LABELS) as LogoPosition[]).map(pos => (
+              <button
+                key={pos}
+                className={`v3-segment ${controls.logo_position === pos ? 'active' : ''}`}
+                onClick={() => onChange({ logo_position: pos })}
+              >
+                {LOGO_POSITION_LABELS[pos]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="v3-form-row">
+          <label>外观</label>
+          <div className="v3-segmented-group">
+            {(['mono-scheme', 'original'] as LogoTreatment[]).map(t => (
+              <button
+                key={t}
+                className={`v3-segment ${controls.logo_treatment === t ? 'active' : ''}`}
+                onClick={() => onChange({ logo_treatment: t })}
+              >
+                {t === 'mono-scheme' ? '跟随方案' : '保持原色'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function V3AppearanceControls({
+  controls,
+  onChange,
+}: {
+  controls: MainControlConfig;
+  onChange: (patch: Partial<MainControlConfig>) => void;
+}) {
+  return (
+    <div className="v3-right-section">
+      <div className="v3-right-section-title">整体外观</div>
+      <div className="v3-right-section-body">
+        <div className="v3-form-row">
+          <label>明暗方案</label>
+          <div className="v3-segmented-group">
+            {(['dark', 'light'] as ColorScheme[]).map(s => (
+              <button
+                key={s}
+                className={`v3-segment ${controls.scheme === s ? 'active' : ''}`}
+                onClick={() => onChange({ scheme: s })}
+              >
+                {s === 'dark' ? '深色水印' : '浅色水印'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="v3-control-note">影响文字、水印条背景、边框与默认 Logo 色；不是单独的 Logo 配色。</div>
+      </div>
+    </div>
+  );
+}
+
+export function V3OutputControls({
+  controls,
+  onChange,
+}: {
+  controls: MainControlConfig;
+  onChange: (patch: Partial<MainControlConfig>) => void;
+}) {
+  const sigInputRef = useRef<HTMLInputElement>(null);
 
   const handleSignatureChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -282,24 +331,10 @@ export function V3ResourceControls({
 
   return (
     <div className="v3-right-section">
-      <div className="v3-right-section-title">资源</div>
+      <div className="v3-right-section-title">输出与高级</div>
       <div className="v3-right-section-body">
         <div className="v3-form-row">
-          <label>Logo</label>
-          <div className="v3-file-row">
-            <button className="v3-btn v3-btn-sm" onClick={() => logoInputRef.current?.click()}>
-              {controls.logo_path ? '更换' : '上传'}
-            </button>
-            {controls.logo_path && (
-              <button className="v3-btn v3-btn-sm v3-btn-ghost" onClick={() => onChange({ logo_path: '' })}>
-                清除
-              </button>
-            )}
-            <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
-          </div>
-        </div>
-        <div className="v3-form-row">
-          <label>签名</label>
+          <label>资源</label>
           <div className="v3-file-row">
             <button className="v3-btn v3-btn-sm" onClick={() => sigInputRef.current?.click()}>
               {controls.signature_path ? '更换' : '上传'}
@@ -312,33 +347,32 @@ export function V3ResourceControls({
             <input ref={sigInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleSignatureChange} />
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function V3LogoPositionControls({
-  controls,
-  onChange,
-}: {
-  controls: MainControlConfig;
-  onChange: (patch: Partial<MainControlConfig>) => void;
-}) {
-  return (
-    <div className="v3-right-section">
-      <div className="v3-right-section-title">Logo 位置</div>
-      <div className="v3-right-section-body">
-        <div className="v3-segmented-group">
-          {(Object.keys(LOGO_POSITION_LABELS) as LogoPosition[]).map(pos => (
-            <button
-              key={pos}
-              className={`v3-segment ${controls.logo_position === pos ? 'active' : ''}`}
-              onClick={() => onChange({ logo_position: pos })}
-            >
-              {LOGO_POSITION_LABELS[pos]}
-            </button>
-          ))}
-        </div>
+        {controls.signature_path && (
+          <div className="v3-form-row">
+            <label>签名大小</label>
+            <select value={controls.signature_size} onChange={(e) => onChange({ signature_size: e.target.value as SizeLevel })}>
+              {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
+                <option key={s} value={s}>{s === 'small' ? '小' : s === 'medium' ? '中' : '大'}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <label className="v3-form-row v3-checkbox-row">
+          <input type="checkbox" checked={controls.border_enabled}
+            onChange={(e) => onChange({ border_enabled: e.target.checked })} />
+          <span className="text-sm">启用边框</span>
+        </label>
+        {controls.border_enabled && (
+          <div className="v3-form-row">
+            <label>边框宽度</label>
+            <select value={controls.border_width_level}
+              onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
+              <option value="small">小</option>
+              <option value="medium">中</option>
+              <option value="large">大</option>
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -378,4 +412,4 @@ export function V3BorderControls({
   );
 }
 
-export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, ColorScheme, SizeLevel };
+export type { FieldChip, FieldId, FooterMode, LogoPosition, LogoTreatment, MainControlConfig, ColorScheme, SizeLevel };

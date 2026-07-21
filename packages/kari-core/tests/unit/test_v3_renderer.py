@@ -12,6 +12,7 @@ from kari_core.processor.v3_renderer import (
     render_pil,
 )
 from kari_core.shared.v3_layout.layout_engine import (
+    BorderConfig,
     CanvasConfig,
     FieldChip,
     MarginsConfig,
@@ -110,6 +111,21 @@ class TestRenderPil:
 
         assert result.size == (400, 300)
         assert result.mode == "RGBA"
+
+
+    def test_render_pil_with_decorative_border(self):
+        """render_pil draws configured border margins before pasting the image."""
+        img = self._make_test_image(40, 30)
+        config = self._make_minimal_config()
+        config.canvas.margins = MarginsConfig(top=4, right=5, bottom=6, left=7)
+        config.canvas.border = BorderConfig(enabled=True, width_level="small", color="#112233")
+        layout = compute_layout(config, 40, 30)
+
+        result = render_pil(layout, img, bg_color=config.canvas.background, config=config)
+
+        assert result.size == (52, 40)
+        assert result.getpixel((1, 1)) == (17, 34, 51, 255)
+        assert result.getpixel((7, 4)) == (128, 128, 128, 255)
 
     def test_render_pil_with_footer_bar(self):
         """底部栏包含文本时，画布应扩展，文本应被渲染。"""

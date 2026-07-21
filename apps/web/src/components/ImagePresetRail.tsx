@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PREVIEW_ASPECT_RATIOS, type PreviewAspectRatio } from '../v3Types';
+import { PREVIEW_ASPECT_RATIOS, type PreviewAspectRatio, type MainControlConfig, type ControlSurface } from '../v3Types';
 import type { RuntimeCapabilities } from '../apiV3';
 
 export type RailPreset<TConfig> = {
   id: string;
   name: string;
   description: string;
+  category?: string;
   config: TConfig;
+  mainControls?: MainControlConfig;
+  controlSurface?: ControlSurface;
 };
 
 type ImagePresetRailProps<TConfig> = {
@@ -16,7 +19,7 @@ type ImagePresetRailProps<TConfig> = {
   setActiveFileIndex: React.Dispatch<React.SetStateAction<number>>;
   removeFile: (index: number) => void;
   presets: RailPreset<TConfig>[];
-  onApplyPreset: (config: TConfig) => void;
+  onApplyPreset: (preset: RailPreset<TConfig>) => void;
   onReset: () => void;
   showToast: (message: string, type: 'success' | 'error' | 'info') => void;
   aspectRatio?: PreviewAspectRatio;
@@ -225,9 +228,12 @@ export function ImagePresetRail<TConfig>({
               <button
                 key={preset.id}
                 className="preset-card"
-                onClick={() => onApplyPreset(preset.config)}
+                onClick={() => onApplyPreset(preset)}
               >
-                <span className="preset-card-name">{preset.name}</span>
+                <span className="preset-card-name">
+                  {preset.name}
+                  {preset.category && <span className="preset-card-tag">{preset.category}</span>}
+                </span>
                 <span className="preset-card-desc">{preset.description}</span>
               </button>
             ))}

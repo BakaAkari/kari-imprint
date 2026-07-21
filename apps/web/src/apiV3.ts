@@ -1,4 +1,4 @@
-import type { WatermarkConfigV3 } from './v3Types';
+import type { FieldId, WatermarkConfigV3 } from './v3Types';
 import { API_BASE } from './env';
 
 export type ApiFile = { filename: string; download_url: string; download_filename?: string };
@@ -13,6 +13,9 @@ export type ResourceUploadResponse = {
   kind: string;
   resource_id: string;
 };
+
+export type ExifFieldValues = Partial<Record<FieldId, string>>;
+export type MetadataResponse = { ok: true; image_id: string; fields: ExifFieldValues; missing: FieldId[] };
 
 export type RuntimeCapabilities = {
   upload: {
@@ -60,6 +63,21 @@ async function ensureUploaded(file: File, signal?: AbortSignal): Promise<{ image
   }
 }
 
+export async function fetchImageMetadataV3(
+  file: File,
+  signal?: AbortSignal,
+): Promise<MetadataResponse> {
+  const { image_id } = await ensureUploaded(file, signal);
+  const form = new FormData();
+  form.append('image_id', image_id);
+  const response = await fetch(`${API_BASE}/api/metadata`, { method: 'POST', body: form, signal });
+  const payload = (await response.json()) as MetadataResponse | ApiErrorResponse;
+  if (!response.ok || !payload.ok) {
+    throw new Error((payload as ApiErrorResponse).error?.message || `读取 EXIF 失败：${response.status}`);
+  }
+  return payload;
+}
+
 export async function processImageV3(
   endpoint: 'process' | 'preview',
   file: File,
@@ -105,5 +123,12 @@ export async function uploadResourceV3(
 }
 
 export function toDownloadUrl(file: ApiFile): string {
-  return file.download_url;
+  if (/^https?:\/\//.test(file.download_url)) return file.download_url;
+  const base = API_BASE.replace(/\/+$/, '');
+  const path = file.download_url.startsWith('/') ? file.download_url : `/${file.download_url}`;
+  const apiPath = new URL(base, window.location.origin).pathname.replace(/\/+$/, '');
+  if (path === apiPath || path.startsWith(`${apiPath}/`)) {
+    return `${new URL(base, window.location.origin).origin}${path}`;
+  }
+  return `${base}${path}`;
 }

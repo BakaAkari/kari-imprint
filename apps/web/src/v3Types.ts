@@ -7,6 +7,8 @@
  * - 支持 size_reference 控制字号基准
  */
 
+import { FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS } from './designTokens';
+
 export type FieldId =
   | 'camera_model'
   | 'lens_model'
@@ -50,6 +52,7 @@ export interface TextContent {
 export interface LogoContent {
   path: string;
   color: string;
+  treatment: LogoTreatment;
   size_level: SizeLevel | null;
   size_ratio: number | null;
 }
@@ -68,6 +71,13 @@ export type Anchor =
   | 'top-left' | 'top-center' | 'top-right'
   | 'middle-left' | 'middle-center' | 'middle-right'
   | 'bottom-left' | 'bottom-center' | 'bottom-right';
+export type Alignment = 'start' | 'center' | 'end';
+export interface PaddingConfig {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
 export type FontFamily = 'NotoSansCJKsc-Regular.otf' | 'NotoSansCJKsc-Bold.otf';
 
 export interface StyleConfig {
@@ -96,7 +106,9 @@ export interface RegionConfig {
   slots?: Record<string, SlotConfig>;
   edge?: 'left' | 'right';
   width?: { mode: 'pixel' | 'short_edge_ratio'; value: number };
-  alignment?: 'start' | 'center' | 'end';
+  alignment?: Alignment;
+  vertical_alignment?: Alignment;
+  padding?: Partial<PaddingConfig>;
   anchor?: Anchor;
   offset_x?: number;
   offset_y?: number;
@@ -159,6 +171,7 @@ export type PresetSize = SizeLevel;
 export type ColorScheme = 'dark' | 'light';
 export type FooterMode = 'dual-row' | 'single-row';
 export type LogoPosition = 'left' | 'center' | 'right';
+export type LogoTreatment = 'original' | 'mono-scheme';
 
 export type PreviewAspectRatio = '3:2' | '4:3' | '16:9' | '1:1' | '2:3';
 
@@ -197,6 +210,7 @@ export interface MainControlConfig {
   logo_position: LogoPosition;
   text_sizes: FooterTextSizes;
   logo_size: SizeLevel;
+  logo_treatment: LogoTreatment;
   signature_size: SizeLevel;
   top_left: FieldChip[];
   bottom_left: FieldChip[];
@@ -211,6 +225,10 @@ export interface MainControlConfig {
   border_width_level: SizeLevel;
 }
 
+export const FOOTER_HEIGHT_RATIO = 0.09;
+
+export { FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS };
+
 export interface WatermarkPresetV3 {
   id: string;
   name: string;
@@ -219,7 +237,62 @@ export interface WatermarkPresetV3 {
   base: WatermarkConfigV3;
   // 默认主界面控制
   mainControls: MainControlConfig;
+  // 声明这个预设允许主控制面影响哪些结构。未声明时使用 defaultControlSurface。
+  controlSurface?: ControlSurface;
 }
+
+export interface FooterControlSurface {
+  enabled: boolean;
+  regionId: string;
+  heightRatio?: number;
+  slots: Partial<Record<FooterTextSlot, string>>;
+  logoSlots: Partial<Record<LogoPosition, string>>;
+}
+
+export interface SignatureControlSurface {
+  enabled: boolean;
+  regionId: string;
+  slotId: string;
+  anchor: Anchor;
+  offset_x: number;
+  offset_y: number;
+  offset_unit: 'pixel' | 'short_edge_ratio';
+}
+
+export interface ControlSurface {
+  footer: FooterControlSurface;
+  logo: { enabled: boolean };
+  signature: SignatureControlSurface;
+  border: { enabled: boolean };
+}
+
+export const defaultControlSurface: ControlSurface = {
+  footer: {
+    enabled: true,
+    regionId: 'footer',
+    heightRatio: FOOTER_HEIGHT_RATIO,
+    slots: {
+      top_left: 'left-top',
+      bottom_left: 'left-bottom',
+      top_right: 'right-top',
+      bottom_right: 'right-bottom',
+      left_row: 'left-top',
+      right_row: 'right-top',
+    },
+    logoSlots: { left: 'left-logo', center: 'center', right: 'right-logo' },
+  },
+  logo: { enabled: true },
+  signature: {
+    enabled: true,
+    regionId: 'signature',
+    slotId: 'sig1',
+    anchor: 'bottom-right',
+    offset_x: -0.05,
+    offset_y: -0.05,
+    offset_unit: 'short_edge_ratio',
+  },
+  border: { enabled: true },
+};
 
 /** 从字段 id 获取显示标签。 */
 export function getFieldLabel(fieldId: FieldId): string {
@@ -238,11 +311,6 @@ export function chipKey(chip: FieldChip): string {
     ? `custom_text:${chip.custom_text}`
     : chip.field_id;
 }
-
-export const FOOTER_HEIGHT_RATIO = 0.09;
-export const FONT_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.125, medium: 0.16, large: 0.20 };
-export const LOGO_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.50, medium: 0.60, large: 0.72 };
-export const SIGNATURE_SIZE_RATIOS: Record<SizeLevel, number> = { small: 0.15, medium: 0.20, large: 0.25 };
 
 export const colorSchemes: Record<ColorScheme, { text: string; logo: string; background: string; border: string }> = {
   dark: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF', border: '#FFFFFF' },
@@ -305,7 +373,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', color: '#D8D8D6', size_level: 'medium', size_ratio: null },
+          content: { path: '', color: '#D8D8D6', treatment: 'mono-scheme', size_level: 'medium', size_ratio: null },
           style: null,
         },
       },
@@ -413,7 +481,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', color: '#D8D8D6', size_level: 'medium', size_ratio: null },
+          content: { path: '', color: '#D8D8D6', treatment: 'mono-scheme', size_level: 'medium', size_ratio: null },
           style: null,
         },
       },
@@ -543,6 +611,7 @@ export function resolveConfig(
   slotOverrides: SlotOverrides = {},
   regionOverrides: RegionOverrides = {},
   rootOverrides: RootOverrides = {},
+  controlSurface: ControlSurface = defaultControlSurface,
 ): WatermarkConfigV3 {
   const config = structuredClone(template);
   config.schema_version = 2;
@@ -552,13 +621,15 @@ export function resolveConfig(
   config.custom_text = controls.custom_text;
   config.footer_mode = controls.footer_mode;
   config.logo_position = controls.logo_position;
-  config.canvas.border = {
-    enabled: controls.border_enabled,
-    width_level: controls.border_width_level,
-    color: scheme.border,
-  };
-  if (rootOverrides.canvas?.border) {
-    Object.assign(config.canvas.border, rootOverrides.canvas.border);
+  if (controlSurface.border.enabled) {
+    config.canvas.border = {
+      enabled: controls.border_enabled,
+      width_level: controls.border_width_level,
+      color: scheme.border,
+    };
+    if (rootOverrides.canvas?.border) {
+      Object.assign(config.canvas.border, rootOverrides.canvas.border);
+    }
   }
 
   for (const region of config.regions) {
@@ -571,65 +642,84 @@ export function resolveConfig(
     }
   }
 
-  let footer = config.regions.find((region) => region.type === 'footer-bar');
-  if (!footer) {
-    footer = { id: 'footer', type: 'footer-bar', enabled: true, slots: {} };
-    config.regions.push(footer);
-  }
-  footer.enabled = true;
-  footer.height = FOOTER_HEIGHT_RATIO;
-  footer.slots ??= {};
+  const footerSurface = controlSurface.footer;
+  let footer = config.regions.find((region) => region.id === footerSurface.regionId);
+  if (footerSurface.enabled) {
+    if (!footer) {
+      footer = { id: footerSurface.regionId, type: 'footer-bar', enabled: true, slots: {} };
+      config.regions.push(footer);
+    }
+    footer.enabled = true;
+    footer.height = footerSurface.heightRatio ?? FOOTER_HEIGHT_RATIO;
+    footer.slots ??= {};
 
-  const chipMap: Partial<Record<FooterTextSlot, FieldChip[]>> = controls.footer_mode === 'dual-row'
-    ? { top_left: controls.top_left, bottom_left: controls.bottom_left, top_right: controls.top_right, bottom_right: controls.bottom_right }
-    : { left_row: controls.left_row, right_row: controls.right_row };
-  const physicalSlot: Record<FooterTextSlot, string> = {
-    top_left: 'left-top', bottom_left: 'left-bottom', top_right: 'right-top', bottom_right: 'right-bottom',
-    left_row: 'left-top', right_row: 'right-top',
-  };
-  for (const slotId of ['left-top', 'left-bottom', 'right-top', 'right-bottom']) {
-    footer.slots[slotId] = { enabled: false, content: null, style: null };
-  }
-  for (const [logicalId, chips] of Object.entries(chipMap) as [FooterTextSlot, FieldChip[]][]) {
-    const slotId = physicalSlot[logicalId];
-    const existing = template.regions.find((region) => region.id === footer!.id)?.slots?.[slotId];
-    footer.slots[slotId] = {
-      enabled: chips.length > 0,
-      content: chips.length > 0 ? { chips, separator: existing?.content && 'separator' in existing.content ? existing.content.separator : ' ' } : null,
-      style: chips.length > 0 ? {
-        ...(existing?.style ?? config.defaults),
-        font_size: null,
-        font_size_level: controls.text_sizes[logicalId],
-        font_size_ratio: null,
-        color: scheme.text,
-      } : null,
-    };
+    const chipMap: Partial<Record<FooterTextSlot, FieldChip[]>> = controls.footer_mode === 'dual-row'
+      ? { top_left: controls.top_left, bottom_left: controls.bottom_left, top_right: controls.top_right, bottom_right: controls.bottom_right }
+      : { left_row: controls.left_row, right_row: controls.right_row };
+    const controlledSlotIds = new Set<string>([
+      ...Object.values(footerSurface.slots).filter((slotId): slotId is string => Boolean(slotId)),
+      ...Object.values(footerSurface.logoSlots).filter((slotId): slotId is string => Boolean(slotId)),
+    ]);
+    for (const slotId of controlledSlotIds) {
+      footer.slots[slotId] = { enabled: false, content: null, style: null };
+    }
+    for (const [logicalId, chips] of Object.entries(chipMap) as [FooterTextSlot, FieldChip[]][]) {
+      const slotId = footerSurface.slots[logicalId];
+      if (!slotId) continue;
+      const existing = template.regions.find((region) => region.id === footer!.id)?.slots?.[slotId];
+      footer.slots[slotId] = {
+        enabled: chips.length > 0,
+        content: chips.length > 0 ? { chips, separator: existing?.content && 'separator' in existing.content ? existing.content.separator : ' ' } : null,
+        style: chips.length > 0 ? {
+          ...(existing?.style ?? config.defaults),
+          font_size: null,
+          font_size_level: controls.text_sizes[logicalId],
+          font_size_ratio: null,
+          color: scheme.text,
+        } : null,
+      };
+    }
+
+    if (controlSurface.logo.enabled) {
+      const logoSlot = footerSurface.logoSlots[controls.logo_position];
+      if (logoSlot) {
+        footer.slots[logoSlot] = {
+          enabled: true,
+          content: { path: controls.logo_path, color: scheme.logo, treatment: controls.logo_treatment, size_level: controls.logo_size, size_ratio: null },
+          style: null,
+        };
+      }
+    }
   }
 
-  for (const slotId of ['left-logo', 'right-logo', 'center']) {
-    footer.slots[slotId] = { enabled: false, content: null, style: null };
-  }
-  const logoSlot = controls.logo_position === 'left' ? 'left-logo' : controls.logo_position === 'right' ? 'right-logo' : 'center';
-  footer.slots[logoSlot] = {
-    enabled: true,
-    content: { path: controls.logo_path, color: scheme.logo, size_level: controls.logo_size, size_ratio: null },
-    style: null,
-  };
-
-  let signatureRegion = config.regions.find((region) => region.type === 'free');
-  if (controls.signature_path) {
+  const signatureSurface = controlSurface.signature;
+  let signatureRegion = config.regions.find((region) => region.id === signatureSurface.regionId);
+  if (signatureSurface.enabled && controls.signature_path) {
     if (!signatureRegion) {
-      signatureRegion = { id: 'signature', type: 'free', enabled: true, anchor: 'bottom-right', offset_x: -0.05, offset_y: -0.05, offset_unit: 'short_edge_ratio', slots: {} };
+      signatureRegion = {
+        id: signatureSurface.regionId,
+        type: 'free',
+        enabled: true,
+        anchor: signatureSurface.anchor,
+        offset_x: signatureSurface.offset_x,
+        offset_y: signatureSurface.offset_y,
+        offset_unit: signatureSurface.offset_unit,
+        slots: {},
+      };
       config.regions.push(signatureRegion);
     }
     signatureRegion.enabled = true;
+    signatureRegion.anchor = signatureSurface.anchor;
+    signatureRegion.offset_x = signatureSurface.offset_x;
+    signatureRegion.offset_y = signatureSurface.offset_y;
+    signatureRegion.offset_unit = signatureSurface.offset_unit;
     signatureRegion.slots ??= {};
-    signatureRegion.slots.sig1 = {
+    signatureRegion.slots[signatureSurface.slotId] = {
       enabled: true,
       content: { path: controls.signature_path, invert_mono: false, size_level: controls.signature_size, size_ratio: null },
       style: null,
     };
-  } else if (signatureRegion) {
+  } else if (signatureRegion && signatureSurface.enabled) {
     signatureRegion.enabled = false;
   }
 
@@ -657,7 +747,7 @@ export function resolveConfig(
 export const defaultMainControls: MainControlConfig = {
   scheme: 'dark', footer_mode: 'dual-row', logo_position: 'right',
   text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
-  logo_size: 'medium', signature_size: 'medium',
+  logo_size: 'medium', logo_treatment: 'mono-scheme', signature_size: 'medium',
   border_enabled: false, border_width_level: 'medium',
   top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
   bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],

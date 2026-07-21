@@ -61,18 +61,18 @@ class MarginsConfig:
 
 
 @dataclass(slots=True)
+class BorderConfig:
+    enabled: bool = False
+    width_level: str = "medium"  # 'small' | 'medium' | 'large'
+    color: str = "#FFFFFF"
+
+
+@dataclass(slots=True)
 class CanvasConfig:
     margins: MarginsConfig = field(default_factory=MarginsConfig)
     background: str = "#FFFFFF"
     border_radius: int = 0
     border: BorderConfig | None = None
-
-
-@dataclass(slots=True)
-class BorderConfig:
-    enabled: bool = False
-    width_level: str = "medium"  # 'small' | 'medium' | 'large'
-    color: str = "#FFFFFF"
 
 
 @dataclass(slots=True)
@@ -91,6 +91,7 @@ class TextContent:
 class LogoContent:
     path: str = ""           # 空表示 auto
     color: str = "#D8D8D6"
+    treatment: str = "mono-scheme"  # 'original' | 'mono-scheme'
     size_ratio: float | None = 0.6  # logo 高度占所在区域高度的比例
     size_level: str | None = None   # 'small' | 'medium' | 'large'
 
@@ -132,8 +133,10 @@ class RegionConfig:
     height: float | None = None  # 占图片短边的比例，由布局引擎解析为实际像素高度
     # side-edge 特有
     edge: Literal["left", "right"] | None = None
-    width: dict[str, float | int] | None = None  # {"mode": "pixel"|"short_edge_ratio", "value": ...}
+    width: dict[str, float | int | str] | None = None  # {"mode": "pixel"|"short_edge_ratio", "value": ...}
     alignment: Literal["start", "center", "end"] = "start"
+    vertical_alignment: Literal["start", "center", "end"] = "center"
+    padding: dict[str, int] | None = None
     # free 特有
     anchor: str | None = None  # 九宫格锚点
     offset_x: float = 0.0
@@ -310,6 +313,17 @@ def diagnose_layout(layout: LayoutResult, _config: WatermarkConfig) -> list[Diag
                 element_ids=[el.id],
             ))
 
+    present_region_ids = {el.id.split("-", 1)[0] for el in elements}
+    for region in _config.regions:
+        if region.enabled and region.id not in present_region_ids:
+            diagnostics.append(DiagnosticItem(
+                id=f"empty-region-{region.id}",
+                type="empty-region",
+                severity="warning",
+                message=f"{region.id} 区域未生成任何元素",
+                element_ids=[],
+            ))
+
     # 4. 字号过大
     for el in elements:
         if el.type == "text" and el.style.font_size is not None and el.style.font_size > el.rect.h:
@@ -426,7 +440,13 @@ def _compute_side_edge(
             h=image_rect.h,
         )
 
+    padding = region.padding or {}
+    pad_top = int(padding.get("top", 8))
+    pad_right = int(padding.get("right", 8))
+    pad_bottom = int(padding.get("bottom", 8))
+    pad_left = int(padding.get("left", 8))
     elements: list[ComputedElement] = []
+    cursor_y = region_bounds.y + pad_top
 
     if region.slots:
         for slot_id, slot in region.slots.items():
@@ -438,15 +458,19 @@ def _compute_side_edge(
 
             if isinstance(slot.content, TextContent) and slot.content.chips:
                 line_h = round(font_size * style.line_height)
-                n_lines = 1
-                total_h = n_lines * line_h
-                start_y = region_bounds.y + (region_bounds.h - total_h) // 2
+                if region.vertical_alignment == "start":
+                    start_y = cursor_y
+                    cursor_y += line_h
+                elif region.vertical_alignment == "end":
+                    start_y = region_bounds.bottom - pad_bottom - line_h
+                else:
+                    start_y = region_bounds.y + (region_bounds.h - line_h) // 2
 
                 if region.alignment == "start":
-                    x = region_bounds.x + 8
+                    x = region_bounds.x + pad_left
                     anchor = "middle-left"
                 elif region.alignment == "end":
-                    x = region_bounds.right - 8
+                    x = region_bounds.right - pad_right
                     anchor = "middle-right"
                 else:
                     x = region_bounds.center_x
@@ -455,7 +479,7 @@ def _compute_side_edge(
                 elements.append(ComputedElement(
                     id=f"{region.id}-{slot_id}",
                     type="text",
-                    rect=Rect(x=x, y=start_y, w=region_bounds.w - 16, h=line_h),
+                    rect=Rect(x=x, y=start_y, w=max(1, region_bounds.w - pad_left - pad_right), h=line_h),
                     anchor=anchor,
                     content=slot.content,
                     style=_with_font_size(style, font_size),

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchRuntimeCapabilitiesV3, processImageV3, type ApiFile, type RuntimeCapabilities } from './apiV3';
+import { fetchImageMetadataV3, fetchRuntimeCapabilitiesV3, processImageV3, type ApiFile, type ExifFieldValues, type RuntimeCapabilities } from './apiV3';
 import { TopBar } from './components/TopBar';
 import { V3LeftRail } from './components/V3LeftRail';
 import V3MainControls from './components/V3MainControls';
@@ -11,6 +11,7 @@ import {
   resolveConfig,
   presetDefaultBaseV3,
   defaultMainControls,
+  defaultControlSurface,
   type MainControlConfig,
   type RegionConfig,
   type RegionOverrides,
@@ -54,7 +55,7 @@ export type V3AppContextType = {
   onControlsChange: (patch: Partial<MainControlConfig>) => void;
   slotOverrides: SlotOverrides;
   onSlotOverridesChange: (overrides: SlotOverrides) => void;
-  onPresetChange: (template: WatermarkConfigV3, controls: MainControlConfig) => void;
+  onPresetChange: (template: WatermarkConfigV3, controls: MainControlConfig, controlSurface?: typeof defaultControlSurface) => void;
 };
 
 export const V3AppContext = createContext<V3AppContextType | null>(null);
@@ -68,12 +69,13 @@ export function V3HomePage() {
   // ── 新三层状态 ──────────────────────────────────────────
   const [template, setTemplate] = useState<WatermarkConfigV3>(presetDefaultBaseV3);
   const [controls, setControls] = useState<MainControlConfig>(defaultMainControls);
+  const [controlSurface, setControlSurface] = useState(defaultControlSurface);
   const [slotOverrides, setSlotOverrides] = useState<SlotOverrides>({});
   const [regionOverrides, setRegionOverrides] = useState<RegionOverrides>({});
   const [rootOverrides, setRootOverrides] = useState<RootOverrides>({});
   const config = useMemo(
-    () => resolveConfig(template, controls, slotOverrides, regionOverrides, rootOverrides),
-    [template, controls, slotOverrides, regionOverrides, rootOverrides],
+    () => resolveConfig(template, controls, slotOverrides, regionOverrides, rootOverrides, controlSurface),
+    [template, controls, slotOverrides, regionOverrides, rootOverrides, controlSurface],
   );
 
   const onControlsChange = useCallback((patch: Partial<MainControlConfig>) => {
@@ -97,9 +99,10 @@ export function V3HomePage() {
   }, []);
 
   const onPresetChange = useCallback(
-    (newTemplate: WatermarkConfigV3, newControls: MainControlConfig) => {
+    (newTemplate: WatermarkConfigV3, newControls: MainControlConfig, nextControlSurface = defaultControlSurface) => {
       setTemplate(structuredClone(newTemplate));
       setControls(newControls);
+      setControlSurface(structuredClone(nextControlSurface));
       setSlotOverrides({});
       clearOutputs();
     },
@@ -120,6 +123,7 @@ export function V3HomePage() {
   const [canvasImage, setCanvasImage] = useState<ImageBitmap | null>(null);
   const [previewRevision, setPreviewRevision] = useState(0);
   const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>('3:2');
+  const [fieldValues, setFieldValues] = useState<ExifFieldValues>({});
 
   const showToast = useCallback((message: string, type: ToastItem['type']) => {
     const id = ++toastIdCounter;
@@ -169,6 +173,26 @@ export function V3HomePage() {
       bitmap?.close();
     };
   }, [files, activeFileIndex, runtimeCaps, showToast, previewRevision]);
+
+
+  useEffect(() => {
+    const file = files[activeFileIndex];
+    if (!file) {
+      setFieldValues({});
+      return;
+    }
+    const controller = new AbortController();
+    void fetchImageMetadataV3(file, controller.signal)
+      .then((metadata) => {
+        setFieldValues(metadata.fields);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setFieldValues({});
+        showToast(error instanceof Error ? error.message : '读取 EXIF 失败，预览使用示例字段', 'error');
+      });
+    return () => controller.abort();
+  }, [files, activeFileIndex, showToast]);
 
   /** Refresh local preview state on explicit user request. */
   const loadPreview = useCallback(() => {
@@ -305,6 +329,7 @@ export function V3HomePage() {
                 image={canvasImage}
                 placeholderAspectRatio={previewAspectRatio}
                 runtimeCaps={runtimeCaps}
+                fieldValues={fieldValues}
               />
             </div>
             <V3MainControls config={config} onChange={onControlsChange} />

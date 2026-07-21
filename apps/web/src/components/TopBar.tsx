@@ -1,3 +1,4 @@
+import { toDownloadUrl } from '../apiV3';
 import type { V3AppContextType } from '../V3HomePage';
 
 export type TopBarController = Pick<
@@ -32,7 +33,7 @@ export function TopBar({ controller: ctx }: { controller: TopBarController }) {
   const downloadBatch = () => {
     batchResults.forEach((file, i) => {
       const a = document.createElement('a');
-      a.href = file.download_url;
+      a.href = toDownloadUrl(file);
       a.download = file.download_filename || file.filename;
       a.style.display = 'none';
       document.body.appendChild(a);
@@ -103,7 +104,7 @@ export function TopBar({ controller: ctx }: { controller: TopBarController }) {
         )}
 
         {result && !isMulti && (
-          <a className="btn success" href={result.download_url} download={result.download_filename || result.filename}>
+          <a className="btn success" href={toDownloadUrl(result)} download={result.download_filename || result.filename}>
             ↓ Download
           </a>
         )}
