@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { V3AppContext } from '../V3HomePage';
-import { builtinLogoUrl, fetchLogosV3, uploadResourceV3 } from '../apiV3';
+import { DEFAULT_LOGO_PLACEHOLDER_URL, builtinLogoUrl, fetchLogosV3, uploadResourceV3 } from '../apiV3';
 import {
   type FieldChip,
   type FieldId,
@@ -230,6 +230,7 @@ export function V3LogoControls({
             </button>
             <button
               className={`v3-segment ${logoMode === 'builtin' ? 'active' : ''}`}
+              disabled={builtinLogos.length === 0}
               onClick={() => {
                 if (builtinLogos.length > 0) onChange({ logo_path: `builtin:${currentBuiltin || builtinLogos[0]}` });
               }}
@@ -262,10 +263,12 @@ export function V3LogoControls({
         {(logoMode === 'builtin' || logoMode === 'auto') && (
           <div className="v3-form-row">
             <img
-              src={logoMode === 'builtin' ? builtinLogoUrl(currentBuiltin) : builtinLogoUrl('default')}
+              src={logoMode === 'builtin' && currentBuiltin ? builtinLogoUrl(currentBuiltin) : DEFAULT_LOGO_PLACEHOLDER_URL}
               alt="logo 预览"
               style={{ maxHeight: 32, maxWidth: 120, objectFit: 'contain' }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              onError={(e) => {
+                e.currentTarget.src = DEFAULT_LOGO_PLACEHOLDER_URL;
+              }}
             />
           </div>
         )}

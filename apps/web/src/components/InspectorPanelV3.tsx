@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { uploadResourceV3, fetchLogosV3, builtinLogoUrl } from '../apiV3';
+import { DEFAULT_LOGO_PLACEHOLDER_URL, uploadResourceV3, fetchLogosV3, builtinLogoUrl } from '../apiV3';
 import type {
   WatermarkConfigV3,
   RegionConfig,
@@ -582,9 +582,9 @@ function LogoContentEditor({
   const isCustom = !isAuto && !isBuiltin;
   const currentBuiltin = isBuiltin ? content.path.split(':', 2)[1] : '';
   const previewSrc = isBuiltin
-    ? builtinLogoUrl(currentBuiltin)
+    ? (currentBuiltin ? builtinLogoUrl(currentBuiltin) : DEFAULT_LOGO_PLACEHOLDER_URL)
     : isAuto
-      ? builtinLogoUrl('default')
+      ? DEFAULT_LOGO_PLACEHOLDER_URL
       : null;
 
   const uploadLogo = async (file: File) => {
@@ -612,6 +612,7 @@ function LogoContentEditor({
           </button>
           <button
             className={`small ${isBuiltin ? 'primary' : ''}`}
+            disabled={logos.length === 0}
             onClick={() => {
               if (logos.length > 0) onUpdateContent({ ...content, path: `builtin:${logos[0]}` });
             }}
@@ -644,6 +645,9 @@ function LogoContentEditor({
             src={previewSrc}
             alt="logo"
             style={{ maxHeight: 40, maxWidth: 120, objectFit: 'contain', background: '#333', padding: 4, borderRadius: 4 }}
+            onError={(e) => {
+              e.currentTarget.src = DEFAULT_LOGO_PLACEHOLDER_URL;
+            }}
           />
           <span className="text-tertiary text-xs">始终保留原始颜色与透明通道</span>
         </div>

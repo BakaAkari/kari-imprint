@@ -26,6 +26,8 @@ from kari_core.shared.v3_layout.layout_engine import (
     WatermarkConfig,
 )
 
+_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+
 # ── 颜色解析 ──────────────────────────────────────────────────────────
 
 
@@ -213,14 +215,20 @@ def _resolve_auto_logo_path(
     """解析 auto logo 路径。"""
     if content.path.startswith("builtin:"):
         key = content.path.split(":", 1)[1]
-        builtin = LOGOS_DIR / f"{key}.png"
-        return str(builtin.absolute()) if builtin.is_file() else None
+        if not LOGOS_DIR.exists():
+            return None
+        for f in sorted(LOGOS_DIR.iterdir(), key=lambda x: x.name.lower()):
+            if f.is_file() and f.stem == key and f.suffix.lower() in _LOGO_EXTENSIONS:
+                return str(f.absolute())
+        return None
     if content.path:
         return content.path
 
     # auto 模式：根据 Make 字段推断品牌 logo
     make = field_values.get("make", "")
     if not make:
+        return None
+    if not LOGOS_DIR.exists():
         return None
 
     # 复用 jinja2renders.auto_logo 的匹配逻辑（但不需要 Jinja context）
@@ -237,7 +245,7 @@ def _resolve_auto_logo_path(
     def _is_valid_logo(f: Path) -> bool:
         if f.name.startswith(".") or f.name.startswith("._"):
             return False
-        return f.suffix.lower() in {".png", ".jpg", ".jpeg"}
+        return f.suffix.lower() in _LOGO_EXTENSIONS
 
     # 1. 优先匹配用户自定义 Logo
     custom_dir = LOGOS_DIR / "custom"

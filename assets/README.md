@@ -7,7 +7,7 @@
 
 ## 为什么不放在 Git 里
 
-字体文件（如 NotoSansCJKsc）单个就有 16MB，会过度腥肿仓库，导致：
+字体文件（如 NotoSansCJKsc）单个就有 16MB，会过度臃肿仓库，导致：
 
 - `git clone` 和部署包传输超时
 - GitHub 仓库体积过大
@@ -18,6 +18,8 @@
 代码默认会在仓库根目录的 `assets/` 下查找字体和 logo。
 如果 `assets/` 不存在，就会回退到项目内的 `packages/kari-core/config/fonts|logos`
 （为了兼容过渡）。
+
+没有安装 `assets/logos/` 时，Web 端会禁用“内置品牌”选择，并用内联占位 Logo 保持预览可用；后端导出会跳过不可解析的内置/自动 Logo，不应因缺失资源崩溃。
 
 ```text
 kari-imprint/
@@ -69,4 +71,4 @@ export KARI_IMPRINT_ASSETS_DIR=/var/lib/kari-imprint/assets
 - `Roboto-Medium.ttf`
 - `Roboto-Light.ttf`
 
-Logo 图片与品牌名称对应，例如 `nikon.png`。
+Logo 图片与品牌名称对应，例如 `nikon.png`。API 的 `/tools/watermark-v3/api/builtin-logos/{name}` 按文件 stem 解析，支持 `.png` / `.jpg` / `.jpeg` / `.webp`，因此 `DJI.jpg` 会以 `builtin:DJI` 引用。

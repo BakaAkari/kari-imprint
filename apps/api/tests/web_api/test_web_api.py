@@ -97,6 +97,25 @@ def test_capabilities_expose_active_frontend_limits() -> None:
     assert payload["capabilities"]["process"]["max_image_pixels"] == settings.max_image_pixels
 
 
+def test_builtin_logo_endpoint_resolves_safe_stem_across_extensions(tmp_path: Path, monkeypatch) -> None:
+    logos_dir = tmp_path / "logos"
+    logos_dir.mkdir()
+    _make_image(logos_dir / "DJI.jpg", size=(32, 16))
+    _make_image(logos_dir / "fujifilm.png", size=(32, 16))
+    monkeypatch.setattr(web_main, "_logos_dir", logos_dir)
+
+    listed = client.get(f"{API_PREFIX}/logos")
+    assert listed.status_code == 200
+    assert listed.json()["logos"] == ["DJI", "fujifilm"]
+
+    response = client.get(f"{API_PREFIX}/builtin-logos/DJI")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+
+    assert client.get(f"{API_PREFIX}/builtin-logos/../secret").status_code in {400, 404}
+    assert client.get(f"{API_PREFIX}/builtin-logos/DJI.jpg").status_code == 400
+
+
 def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "input-v3.jpg")
 

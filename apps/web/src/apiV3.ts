@@ -106,8 +106,12 @@ export async function fetchLogosV3(): Promise<string[]> {
 }
 
 export function builtinLogoUrl(name: string): string {
-  return `${API_BASE}/api/logos/${encodeURIComponent(name)}.png`;
+  return `${API_BASE}/api/builtin-logos/${encodeURIComponent(name)}`;
 }
+
+export const DEFAULT_LOGO_PLACEHOLDER_URL = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96"><rect width="320" height="96" rx="18" fill="none" stroke="#999" stroke-width="4"/><text x="160" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#777">LOGO</text></svg>',
+)}`;
 
 export async function fetchRuntimeCapabilitiesV3(): Promise<RuntimeCapabilities> {
   const response = await fetch(`${API_BASE}/api/capabilities`);

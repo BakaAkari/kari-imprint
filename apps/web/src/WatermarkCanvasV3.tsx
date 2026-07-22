@@ -17,14 +17,13 @@ import type { WatermarkConfigV3, FieldChip, TextContent, PreviewAspectRatio } fr
 import { PLACEHOLDER_EXIF, PREVIEW_ASPECT_RATIOS } from './v3Types';
 import { computeLayout } from './v3_layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './v3_layout/layoutEngine';
-import { API_BASE } from './env';
-import { builtinLogoUrl, resourceUrlV3 } from './apiV3';
+import { DEFAULT_LOGO_PLACEHOLDER_URL, builtinLogoUrl, resourceUrlV3 } from './apiV3';
 import type { ExifFieldValues, RuntimeCapabilities } from './apiV3';
 
 function resolveAssetSrc(path: string, kind: 'logo' | 'signature'): string {
   if (path.startsWith('builtin:')) return builtinLogoUrl(path.split(':', 2)[1]);
   if (path) return resourceUrlV3(kind, path);
-  return kind === 'logo' ? `${API_BASE}/api/logos/fujifilm.png` : '';
+  return kind === 'logo' ? DEFAULT_LOGO_PLACEHOLDER_URL : '';
 }
 
 function assetKind(content: object): 'logo' | 'signature' {

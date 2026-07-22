@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from PIL import Image
 
+from kari_core.processor import v3_renderer
 from kari_core.processor.v3_renderer import (
     _anchor_to_paste_offset,
     _build_text,
     _parse_color,
+    _resolve_auto_logo_path,
     _resolve_field_value,
     render_pil,
 )
@@ -15,6 +17,7 @@ from kari_core.shared.v3_layout.layout_engine import (
     BorderConfig,
     CanvasConfig,
     FieldChip,
+    LogoContent,
     MarginsConfig,
     SignatureContent,
     SlotConfig,
@@ -53,6 +56,20 @@ class TestHelpers:
             separator=" ",
         )
         assert _build_text(content, {"make": "Sony", "camera_model": "A7M4"}, "") == "Sony A7M4"
+
+    def test_builtin_logo_resolution_supports_non_png_and_missing_assets(self, tmp_path, monkeypatch):
+        logos_dir = tmp_path / "logos"
+        logos_dir.mkdir()
+        Image.new("RGB", (32, 16), (255, 0, 0)).save(logos_dir / "DJI.jpg")
+        monkeypatch.setattr(v3_renderer, "LOGOS_DIR", logos_dir)
+
+        resolved = _resolve_auto_logo_path(LogoContent(path="builtin:DJI"), {})
+        assert resolved is not None
+        assert resolved.endswith("DJI.jpg")
+
+        monkeypatch.setattr(v3_renderer, "LOGOS_DIR", tmp_path / "missing")
+        assert _resolve_auto_logo_path(LogoContent(path="builtin:DJI"), {}) is None
+        assert _resolve_auto_logo_path(LogoContent(path=""), {"make": "DJI"}) is None
 
     def test_build_text_with_empty_chip(self):
         content = TextContent(

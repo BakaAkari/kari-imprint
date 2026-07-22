@@ -57,6 +57,19 @@ _logos_dir = settings.assets_dir / "logos"
 if _logos_dir.exists():
     app.mount(f"{_api}/logos", StaticFiles(directory=str(_logos_dir)), name="logos")
 
+_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _resolve_builtin_logo(name: str) -> Path:
+    if not name or Path(name).name != name or Path(name).suffix:
+        raise ApiError(code="invalid_logo_name", message="Logo 名称不合法", status_code=400)
+    if not _logos_dir.exists():
+        raise ApiError(code="logo_not_found", message="内置 Logo 资源不存在", status_code=404)
+    for path in sorted(_logos_dir.iterdir(), key=lambda item: item.name.lower()):
+        if path.is_file() and path.stem == name and path.suffix.lower() in _LOGO_EXTENSIONS:
+            return path
+    raise ApiError(code="logo_not_found", message="内置 Logo 资源不存在", status_code=404)
+
 # Frontend static files are served by Caddy; API only serves fonts/logos and endpoints here.
 
 
@@ -75,9 +88,16 @@ def list_logos() -> dict[str, Any]:
     names = sorted(
         p.stem
         for p in _logos_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg"} and not p.name.startswith((".", "._"))
+        if p.is_file() and p.suffix.lower() in _LOGO_EXTENSIONS and not p.name.startswith((".", "._"))
     )
     return success_response(logos=names)
+
+
+@app.get(f"{_api}/builtin-logos/{{name}}")
+def get_builtin_logo(name: str) -> FileResponse:
+    """Serve a built-in logo by safe stem, regardless of image extension."""
+
+    return FileResponse(_resolve_builtin_logo(name))
 
 
 @app.get(f"{_api}/health")
