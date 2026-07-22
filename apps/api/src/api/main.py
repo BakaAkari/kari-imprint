@@ -28,6 +28,7 @@ from api.storage import (
     new_output_path,
     public_file_payload,
     resolve_public_output,
+    resolve_resource,
     resolve_upload,
     save_resource,
     save_upload,
@@ -143,6 +144,16 @@ async def upload_resource(
         kind=kind,
         resource_id=path.name,
     )
+
+
+@app.get(f"{_api}/resources/{{kind}}/{{resource_id}}")
+def get_resource(kind: str, resource_id: str) -> FileResponse:
+    """Serve an uploaded logo/signature resource for canvas preview.
+
+    The id is opaque and resolved strictly inside its declared kind directory.
+    """
+
+    return FileResponse(resolve_resource(resource_id, kind, settings))
 
 
 @app.post(f"{_api}/metadata")

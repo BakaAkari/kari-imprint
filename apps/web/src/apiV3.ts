@@ -133,6 +133,11 @@ export async function uploadResourceV3(
   return payload;
 }
 
+/** Build a preview URL for an uploaded opaque resource id. */
+export function resourceUrlV3(kind: 'logo' | 'signature', resourceId: string): string {
+  return `${API_BASE}/api/resources/${kind}/${encodeURIComponent(resourceId)}`;
+}
+
 export function toDownloadUrl(file: ApiFile): string {
   if (/^https?:\/\//.test(file.download_url)) return file.download_url;
   const base = API_BASE.replace(/\/+$/, '');

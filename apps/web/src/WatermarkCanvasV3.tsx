@@ -18,12 +18,17 @@ import { PLACEHOLDER_EXIF, PREVIEW_ASPECT_RATIOS } from './v3Types';
 import { computeLayout } from './v3_layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './v3_layout/layoutEngine';
 import { API_BASE } from './env';
-import { builtinLogoUrl } from './apiV3';
+import { builtinLogoUrl, resourceUrlV3 } from './apiV3';
 import type { ExifFieldValues, RuntimeCapabilities } from './apiV3';
 
-function resolveLogoSrc(path: string): string {
+function resolveAssetSrc(path: string, kind: 'logo' | 'signature'): string {
   if (path.startsWith('builtin:')) return builtinLogoUrl(path.split(':', 2)[1]);
-  return path || `${API_BASE}/api/logos/fujifilm.png`;
+  if (path) return resourceUrlV3(kind, path);
+  return kind === 'logo' ? `${API_BASE}/api/logos/fujifilm.png` : '';
+}
+
+function assetKind(content: object): 'logo' | 'signature' {
+  return 'invert_mono' in content ? 'signature' : 'logo';
 }
 
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
@@ -184,7 +189,7 @@ function drawElement(
 
     case 'logo': {
       if (!('path' in content)) return;
-      const logoPath = resolveLogoSrc(content.path);
+      const logoPath = resolveAssetSrc(content.path, 'logo');
       const img = logos.get(logoPath);
       if (img) {
         const origin = anchorOrigin(rect, anchor);
@@ -208,10 +213,16 @@ function drawElement(
     }
 
     case 'signature': {
-      // 签名绘制：简化为矩形占位
+      if (!('path' in content) || !content.path) return;
+      const sigPath = resolveAssetSrc(content.path, 'signature');
+      const img = logos.get(sigPath);
       const origin = anchorOrigin(rect, anchor);
-      ctx.fillStyle = '#aaaaaa';
-      ctx.fillRect(origin.x, origin.y, rect.w, rect.h);
+      if (img) {
+        drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor);
+      } else {
+        ctx.fillStyle = '#aaaaaa';
+        ctx.fillRect(origin.x, origin.y, rect.w, rect.h);
+      }
       break;
     }
   }
@@ -372,11 +383,11 @@ export function WatermarkCanvasV3({
       ctx.clip();
     }
 
-    // 收集需要加载的 logo 路径
+    // 收集需要加载的 logo / 签名路径
     const logoPaths: string[] = [];
     for (const el of layout.elements) {
-      if (el.type === 'logo' && 'path' in el.content) {
-        const path = resolveLogoSrc(el.content.path);
+      if ((el.type === 'logo' || el.type === 'signature') && 'path' in el.content && el.content.path) {
+        const path = resolveAssetSrc(el.content.path, assetKind(el.content));
         if (!logoImages.has(path)) {
           logoPaths.push(path);
         }

@@ -1,6 +1,6 @@
-import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { V3AppContext } from '../V3HomePage';
-import { uploadResourceV3 } from '../apiV3';
+import { builtinLogoUrl, fetchLogosV3, uploadResourceV3 } from '../apiV3';
 import {
   type FieldChip,
   type FieldId,
@@ -186,6 +186,16 @@ export function V3LogoControls({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [builtinLogos, setBuiltinLogos] = useState<string[]>([]);
+
+  useEffect(() => {
+    void fetchLogosV3().then(setBuiltinLogos);
+  }, []);
+
+  const logoPath = controls.logo_path;
+  const logoMode: 'auto' | 'builtin' | 'custom' =
+    !logoPath ? 'auto' : logoPath.startsWith('builtin:') ? 'builtin' : 'custom';
+  const currentBuiltin = logoMode === 'builtin' ? logoPath.split(':', 2)[1] : '';
 
   const handleLogoChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -210,20 +220,55 @@ export function V3LogoControls({
       <div className="v3-right-section-title">Logo</div>
       <div className="v3-right-section-body">
         <div className="v3-form-row">
-          <label>资源</label>
-          <div className="v3-file-row">
-            <button className="v3-btn v3-btn-sm" onClick={() => logoInputRef.current?.click()}>
-              {controls.logo_path ? '更换' : '上传'}
+          <label>来源</label>
+          <div className="v3-segmented-group">
+            <button
+              className={`v3-segment ${logoMode === 'auto' ? 'active' : ''}`}
+              onClick={() => onChange({ logo_path: '' })}
+            >
+              自动
             </button>
-            {controls.logo_path && (
-              <button className="v3-btn v3-btn-sm v3-btn-ghost" onClick={() => onChange({ logo_path: '' })}>
-                清除
-              </button>
-            )}
-            <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
+            <button
+              className={`v3-segment ${logoMode === 'builtin' ? 'active' : ''}`}
+              onClick={() => {
+                if (builtinLogos.length > 0) onChange({ logo_path: `builtin:${currentBuiltin || builtinLogos[0]}` });
+              }}
+            >
+              内置
+            </button>
+            <button
+              className={`v3-segment ${logoMode === 'custom' ? 'active' : ''}`}
+              onClick={() => logoInputRef.current?.click()}
+            >
+              上传
+            </button>
           </div>
+          <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
           {uploadStatus && <div className="v3-control-note">{uploadStatus}</div>}
         </div>
+        {logoMode === 'builtin' && (
+          <div className="v3-form-row">
+            <label>品牌</label>
+            <select
+              value={currentBuiltin}
+              onChange={(e) => onChange({ logo_path: `builtin:${e.target.value}` })}
+            >
+              {builtinLogos.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {(logoMode === 'builtin' || logoMode === 'auto') && (
+          <div className="v3-form-row">
+            <img
+              src={logoMode === 'builtin' ? builtinLogoUrl(currentBuiltin) : builtinLogoUrl('default')}
+              alt="logo 预览"
+              style={{ maxHeight: 32, maxWidth: 120, objectFit: 'contain' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
+        )}
         <div className="v3-form-row">
           <label>大小</label>
           <select
