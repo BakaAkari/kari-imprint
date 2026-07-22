@@ -188,7 +188,16 @@ function drawElement(
       const img = logos.get(logoPath);
       if (img) {
         const origin = anchorOrigin(rect, anchor);
-        drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor);
+        const orientation = 'orientation' in content ? content.orientation : 'upright';
+        if (orientation === 'rotate-cw' || orientation === 'rotate-ccw') {
+          ctx.save();
+          ctx.translate(rect.x, rect.y);
+          ctx.rotate(orientation === 'rotate-cw' ? Math.PI / 2 : -Math.PI / 2);
+          drawImageContain(ctx, img, -rect.h / 2, -rect.w / 2, rect.h, rect.w, 'top-left');
+          ctx.restore();
+        } else {
+          drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor);
+        }
       } else {
         // 加载中/失败占位
         const origin = anchorOrigin(rect, anchor);

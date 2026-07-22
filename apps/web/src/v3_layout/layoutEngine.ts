@@ -336,6 +336,26 @@ function computeSideBar(
   return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical');
 }
 
+function resolveTextDirection(region: RegionConfig, style: StyleConfig): NonNullable<StyleConfig['text_direction']> {
+  if (style.text_direction) return style.text_direction;
+  const policy = region.text_orientation ?? 'auto';
+  if (policy === 'rotate-with-edge' || policy === 'auto') {
+    if (region.type === 'side-bar' || region.type === 'side-edge') {
+      return region.edge === 'left' ? 'rotate-ccw' : 'rotate-cw';
+    }
+    return 'horizontal';
+  }
+  return policy;
+}
+
+function resolveAssetOrientation(region: RegionConfig, orientation: string): string {
+  if (orientation !== 'follow-flow') return orientation;
+  if (region.type === 'side-bar' || region.type === 'side-edge') {
+    return region.edge === 'left' ? 'rotate-ccw' : 'rotate-cw';
+  }
+  return 'upright';
+}
+
 function computeFlowRegion(
   region: RegionConfig, bounds: Rect, defaults: StyleConfig,
   shortEdge: number, longEdge: number, flow: 'horizontal' | 'vertical',
@@ -383,6 +403,7 @@ function computeFlowRegion(
       const slot = slots[slotId];
       if (!slot?.enabled || !slot.content) continue;
       const style = mergeStyle(defaults, slot.style);
+      style.text_direction = resolveTextDirection(region, style);
       const ref = flow === 'horizontal' ? bounds.h : bounds.w;
       const fontSize = resolveFontSize(style, ref, shortEdge, longEdge);
       const anchor = flow === 'horizontal'
@@ -405,8 +426,9 @@ function computeFlowRegion(
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoH = resolveLogoSize(asset.content, sizeRef);
     const pos = applyAnchor(inner, 'middle-center');
+    const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
     elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, logoH * 3), logoH),
-      anchor: 'middle-center', content: asset.content, style: defaults });
+      anchor: 'middle-center', content, style: defaults });
   }
   return elements;
 }
@@ -440,6 +462,7 @@ function computeSideEdge(
       if (!slot.enabled || !slot.content) continue;
 
       const style = mergeStyle(defaults, slot.style);
+      style.text_direction = resolveTextDirection(region, style);
       const fontSize = resolveFontSize(style, regionBounds.h, shortEdge, longEdge);
 
       if (isTextContent(slot.content) && slot.content.chips.length > 0) {

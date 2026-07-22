@@ -69,6 +69,28 @@ def test_side_bar_keeps_explicit_horizontal_direction():
     assert result.elements[0].style.text_direction == "horizontal"
 
 
+def test_region_orientation_resolves_by_edge_and_slot_override_wins():
+    auto = WatermarkConfig(
+        regions=[RegionConfig(
+            id="side", type="side-bar", enabled=True, edge="right",
+            width={"mode": "pixel", "value": 100},
+            text_orientation="rotate-with-edge",
+            slots={"primary-start": _text_slot("horizontal")},
+        )],
+    )
+    auto.regions[0].slots["primary-start"].style.text_direction = None
+    result = compute_layout(auto, 800, 600)
+    assert result.elements[0].style.text_direction == "rotate-cw"
+
+    auto.regions[0].edge = "left"
+    result = compute_layout(auto, 800, 600)
+    assert result.elements[0].style.text_direction == "rotate-ccw"
+
+    auto.regions[0].slots["primary-start"].style.text_direction = "vertical-glyphs"
+    result = compute_layout(auto, 800, 600)
+    assert result.elements[0].style.text_direction == "vertical-glyphs"
+
+
 def test_rotated_and_vertical_text_render_dimensions():
     base = dict(
         id="text", type="text", rect=Rect(0, 0, 100, 40),

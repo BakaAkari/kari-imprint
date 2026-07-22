@@ -128,17 +128,6 @@ export function BorderAdvancedV3({ config, onRootOverride }: Props) {
 }
 
 export function LayoutAdvancedV3({ config, onRegionOverride, onSlotOverride }: Props) {
-  const setSideTextDirection = (region: RegionConfig, edge: 'left' | 'right') => {
-    Object.entries(region.slots ?? {}).forEach(([slotId, slot]) => {
-      if (!slot.content || !('chips' in slot.content)) return;
-      onSlotOverride(slotKey(region.id, slotId), {
-        style: {
-          ...(slot.style ?? config.defaults),
-          text_direction: edge === 'left' ? 'rotate-ccw' : 'rotate-cw',
-        },
-      });
-    });
-  };
   return (
     <div className="v3-category-editor">
       {config.regions.map((region) => (
@@ -160,15 +149,6 @@ export function LayoutAdvancedV3({ config, onRegionOverride, onSlotOverride }: P
                     edge: type === 'side-bar' ? edge : region.edge,
                     width: type === 'side-bar' ? (region.width ?? { mode: 'short_edge_ratio', value: 0.12 }) : region.width,
                   });
-                  if (type === 'side-bar') setSideTextDirection(region, edge);
-                  if (type === 'footer-bar') {
-                    Object.entries(region.slots ?? {}).forEach(([slotId, slot]) => {
-                      if (!slot.content || !('chips' in slot.content)) return;
-                      onSlotOverride(slotKey(region.id, slotId), {
-                        style: { ...(slot.style ?? config.defaults), text_direction: 'horizontal' },
-                      });
-                    });
-                  }
                 }}>
                 <option value="footer-bar">底部水印</option>
                 <option value="side-bar">侧边水印</option>
@@ -187,7 +167,6 @@ export function LayoutAdvancedV3({ config, onRegionOverride, onSlotOverride }: P
                 onChange={(e) => {
                   const edge = e.target.value as 'left' | 'right';
                   onRegionOverride(region.id, { edge });
-                  if (region.type === 'side-bar') setSideTextDirection(region, edge);
                 }}>
                 <option value="left">左侧</option><option value="right">右侧</option>
               </select>

@@ -286,6 +286,11 @@ def _render_logo_element(
         new_h = max(1, round(lh * scale))
         logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
+    if content.orientation == "rotate-cw":
+        logo = logo.rotate(-90, expand=True)
+    elif content.orientation == "rotate-ccw":
+        logo = logo.rotate(90, expand=True)
+
     return logo
 
 

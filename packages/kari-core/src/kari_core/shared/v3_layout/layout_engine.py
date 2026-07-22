@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 # ── 基础几何 ─────────────────────────────────
@@ -454,6 +454,25 @@ def _compute_side_bar(
     return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "vertical")
 
 
+def _resolve_text_direction(region: RegionConfig, style: StyleConfig) -> str:
+    if style.text_direction:
+        return style.text_direction
+    policy = region.text_orientation or "auto"
+    if policy in {"auto", "rotate-with-edge"}:
+        if region.type in {"side-bar", "side-edge"}:
+            return "rotate-ccw" if region.edge == "left" else "rotate-cw"
+        return "horizontal"
+    return policy
+
+
+def _resolve_asset_orientation(region: RegionConfig, orientation: str) -> str:
+    if orientation != "follow-flow":
+        return orientation
+    if region.type in {"side-bar", "side-edge"}:
+        return "rotate-ccw" if region.edge == "left" else "rotate-cw"
+    return "upright"
+
+
 def _compute_flow_region(
     region: RegionConfig,
     bounds: Rect,
@@ -506,6 +525,7 @@ def _compute_flow_region(
             if slot is None or not slot.enabled or slot.content is None:
                 continue
             style = _merge_style(defaults, slot.style)
+            style.text_direction = _resolve_text_direction(region, style)
             ref = bounds.h if flow == "horizontal" else bounds.w
             font_size = _resolve_font_size(style, ref, short_edge, long_edge)
             if flow == "horizontal":
@@ -533,10 +553,14 @@ def _compute_flow_region(
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)
         pos = _apply_anchor(inner, "middle-center")
+        content = replace(
+            asset.content,
+            orientation=_resolve_asset_orientation(region, asset.content.orientation),
+        )
         elements.append(ComputedElement(
             id=f"{region.id}-asset", type="logo",
             rect=Rect(pos.x, pos.y, min(inner.w, logo_h * 3), logo_h),
-            anchor="middle-center", content=asset.content, style=defaults,
+            anchor="middle-center", content=content, style=defaults,
         ))
     return elements
 
@@ -581,6 +605,7 @@ def _compute_side_edge(
                 continue
 
             style = _merge_style(defaults, slot.style)
+            style.text_direction = _resolve_text_direction(region, style)
             font_size = _resolve_font_size(style, region_bounds.h, short_edge, long_edge)
 
             if isinstance(slot.content, TextContent) and slot.content.chips:

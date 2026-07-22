@@ -10,6 +10,7 @@
 - v1/v2 到 v3 的配置迁移层；API 输出只保留 canonical Flow 结构。
 - `docs/flow-layout-architecture.md` 架构设计与分阶段验收标准。
 - Footer / Side 独立 Flow 几何策略，并用共享 JSON Fixture 校验 TS/Python 布局输出一致。
+- Region 级文字方向策略与 Slot 显式覆盖；Logo/签名使用独立资源方向，不再在切换侧栏时批量重写样式。
 
 - V3 Region-Based Layout 架构：Region / Slot / Content 声明式配置。
 - 前端布局引擎：`web_frontend/src/v3_layout/layoutEngine.ts`。
