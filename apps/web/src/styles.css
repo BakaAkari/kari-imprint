@@ -1469,11 +1469,11 @@ hr, .divider {
 
 .v3-footer-bar {
   display: grid;
-  grid-template-rows: 26px 94px;
+  grid-template-rows: 26px 86px;
   gap: 8px;
-  height: 128px;
-  min-height: 128px;
-  max-height: 128px;
+  height: 120px;
+  min-height: 120px;
+  max-height: 120px;
   overflow: hidden;
 }
 
@@ -1502,32 +1502,30 @@ hr, .divider {
 .v3-footer-bar-rows {
   display: grid;
   gap: 8px;
-  height: 94px;
-  min-height: 94px;
-  max-height: 94px;
+  height: 86px;
+  min-height: 86px;
+  max-height: 86px;
   overflow: hidden;
 }
 
-.v3-footer-bar-rows-dual-row {
+.v3-footer-bar-rows-dual-track {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: repeat(2, minmax(0, 1fr));
   grid-template-areas:
-    "top-left top-right"
-    "bottom-left bottom-right";
+    "primary-start primary-end"
+    "secondary-start secondary-end";
 }
 
-.v3-footer-bar-rows-single-row {
+.v3-footer-bar-rows-single-track {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "left right";
+  grid-template-areas: "primary-start primary-end";
 }
 
-.v3-footer-row-top-left { grid-area: top-left; }
-.v3-footer-row-top-right { grid-area: top-right; }
-.v3-footer-row-bottom-left { grid-area: bottom-left; }
-.v3-footer-row-bottom-right { grid-area: bottom-right; }
-.v3-footer-row-left { grid-area: left; }
-.v3-footer-row-right { grid-area: right; }
+.v3-footer-row-primary-start { grid-area: primary-start; }
+.v3-footer-row-primary-end { grid-area: primary-end; }
+.v3-footer-row-secondary-start { grid-area: secondary-start; }
+.v3-footer-row-secondary-end { grid-area: secondary-end; }
 
 .v3-footer-row {
   display: flex;
