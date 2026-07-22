@@ -58,10 +58,10 @@ function defaultSignatureContent(): SignatureContent {
 // ── Slot 标签 ──────────────────────────────────────────────
 
 const FOOTER_SLOT_LABELS: Record<string, string> = {
-  'primary-start': '第一排左侧',
-  'primary-end': '第一排右侧',
-  'secondary-start': '第二排左侧',
-  'secondary-end': '第二排右侧',
+  'primary-start': '左上',
+  'primary-end': '右上',
+  'secondary-start': '左下',
+  'secondary-end': '右下',
   asset: 'Logo / 资源',
 };
 

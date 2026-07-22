@@ -211,8 +211,8 @@ export const PREVIEW_ASPECT_RATIOS: AspectRatioOption[] = [
 ];
 
 export const FLOW_MODE_LABELS: Record<FlowMode, string> = {
-  'dual-track': '左右双排',
-  'single-track': '左右单排',
+  'dual-track': '上下双排',
+  'single-track': '单排',
 };
 
 export const LOGO_POSITION_LABELS: Record<LogoPosition, string> = {

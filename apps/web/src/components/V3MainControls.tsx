@@ -47,7 +47,7 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
   const isDual = controls.flow_mode === 'dual-track';
   const labels = isSideBar
     ? { primary_start: '内列上方', primary_end: '内列下方', secondary_start: '外列上方', secondary_end: '外列下方' }
-    : { primary_start: '第一排左侧', primary_end: '第一排右侧', secondary_start: '第二排左侧', secondary_end: '第二排右侧' };
+    : { primary_start: '左上', primary_end: '右上', secondary_start: '左下', secondary_end: '右下' };
   const rows = useMemo(() => {
     const all = [
       { id: 'primary_start', label: labels.primary_start, chips: controls.primary_start, position: 'primary-start' },
