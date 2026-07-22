@@ -47,11 +47,11 @@ function defaultTextContent(): TextContent {
 }
 
 function defaultLogoContent(): LogoContent {
-  return { path: '', size_level: 'medium', size_ratio: null };
+  return { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' };
 }
 
 function defaultSignatureContent(): SignatureContent {
-  return { path: '', invert_mono: false, size_level: 'medium', size_ratio: null };
+  return { path: '', invert_mono: false, size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'end', track: 'span' };
 }
 
 // ── Slot 标签 ──────────────────────────────────────────────
@@ -213,6 +213,7 @@ function RegionEditor({
 
   const typeLabel =
     region.type === 'footer-bar' ? '底部水印条' :
+    region.type === 'side-bar' ? '侧边水印条' :
     region.type === 'side-edge' ? '垂直边缘' :
     '自由定位';
 
@@ -251,7 +252,7 @@ function RegionEditor({
 
       {expanded && (
         <>
-          {region.type === 'footer-bar' && (
+          {(region.type === 'footer-bar' || region.type === 'side-bar') && (
             <FooterBarEditor region={region} diagnostics={diagnostics} onUpdateSlot={onUpdateSlot} />
           )}
           {region.type === 'side-edge' && (
@@ -881,6 +882,15 @@ function StyleEditor({
           onChange={(e) => onUpdate({ ...style, line_height: parseFloat(e.target.value) || 1.2 })}
           style={{ width: 60 }}
         />
+      </label>
+      <label className="small-label">
+        文字方向
+        <select value={style.text_direction ?? 'horizontal'} onChange={(e) => onUpdate({ ...style, text_direction: e.target.value as StyleConfig['text_direction'] })}>
+          <option value="horizontal">横向</option>
+          <option value="rotate-cw">顺时针旋转</option>
+          <option value="rotate-ccw">逆时针旋转</option>
+          <option value="vertical-glyphs">逐字纵排</option>
+        </select>
       </label>
     </div>
   );

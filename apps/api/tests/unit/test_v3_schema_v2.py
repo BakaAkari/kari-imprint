@@ -18,22 +18,22 @@ from api.schemas_v3 import (
 class TestSchemaVersion:
     """schema_version=2 must be accepted; missing/v1 payloads migrated."""
 
-    def test_accepts_explicit_v2(self):
-        result = validate_v3_payload({"schema_version": 2})
-        assert result["schema_version"] == 2
+    def test_accepts_explicit_v3(self):
+        result = validate_v3_payload({"schema_version": 3})
+        assert result["schema_version"] == 3
 
-    def test_defaults_to_v2_when_missing(self):
+    def test_defaults_to_v3_when_missing(self):
         result = validate_v3_payload({})
-        assert result["schema_version"] == 2
+        assert result["schema_version"] == 3
 
-    def test_migrates_v1_to_v2(self):
+    def test_migrates_v1_to_v3(self):
         result = validate_v3_payload({"schema_version": 1})
-        assert result["schema_version"] == 2
+        assert result["schema_version"] == 3
 
-    def test_rejects_v3(self):
+    def test_rejects_v4(self):
         from api.errors import ApiError
         with pytest.raises(ApiError):
-            validate_v3_payload({"schema_version": 3})
+            validate_v3_payload({"schema_version": 4})
 
 
 class TestFontSizeLevel:
@@ -180,13 +180,13 @@ class TestMigration:
 
     def test_slot_ratio_23_migrates_to_medium(self):
         result = validate_v3_payload(deepcopy(self._sample_v1()))
-        slot = result["regions"][0]["slots"]["left-top"]
+        slot = result["regions"][0]["slots"]["primary-start"]
         assert slot["style"]["font_size_level"] == "medium"
         assert slot["style"]["font_size_ratio"] is None
 
     def test_logo_ratio_60_migrates_to_medium(self):
         result = validate_v3_payload(deepcopy(self._sample_v1()))
-        content = result["regions"][0]["slots"]["right-logo"]["content"]
+        content = result["regions"][0]["slots"]["asset"]["content"]
         assert content["size_level"] == "medium"
         assert content["size_ratio"] is None
 
@@ -205,7 +205,7 @@ class TestMigration:
         payload["regions"][0]["slots"]["right-logo"]["content"]["size_level"] = "large"
         payload["regions"][0]["slots"]["right-logo"]["content"]["size_ratio"] = 0.72
         result = validate_v3_payload(payload)
-        content = result["regions"][0]["slots"]["right-logo"]["content"]
+        content = result["regions"][0]["slots"]["asset"]["content"]
         # size_level already set, kept
         assert content["size_level"] == "large"
         # compatible ratio (0.72 == large) dropped
@@ -214,7 +214,7 @@ class TestMigration:
 class TestRegionLayoutFields:
     def test_region_padding_and_vertical_alignment_accepted(self):
         result = validate_v3_payload({
-            "schema_version": 2,
+            "schema_version": 3,
             "regions": [
                 {
                     "id": "side-left",

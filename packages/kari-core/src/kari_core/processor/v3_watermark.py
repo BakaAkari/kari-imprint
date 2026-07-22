@@ -83,6 +83,7 @@ def _dict_to_watermark_config(data: dict):
         BorderConfig,
         CanvasConfig,
         FieldChip,
+        FlowLayoutConfig,
         LogoContent,
         MarginsConfig,
         RegionConfig,
@@ -105,6 +106,7 @@ def _dict_to_watermark_config(data: dict):
             font_family=d.get("font_family", "NotoSansCJKsc-Bold.otf"),
             bold=d.get("bold", True),
             line_height=d.get("line_height", 1.2),
+            text_direction=d.get("text_direction"),
         )
 
     def _content(d: dict | None):
@@ -127,12 +129,18 @@ def _dict_to_watermark_config(data: dict):
                 invert_mono=d.get("invert_mono", False),
                 size_ratio=d.get("size_ratio"),
                 size_level=d.get("size_level"),
+                orientation=d.get("orientation", "upright"),
+                placement=d.get("placement", "end"),
+                track=d.get("track", "span"),
             )
         if "path" in d and "invert_mono" not in d:
             return LogoContent(
                 path=d.get("path", ""),
                 size_ratio=d.get("size_ratio"),
                 size_level=d.get("size_level"),
+                orientation=d.get("orientation", "upright"),
+                placement=d.get("placement", "center"),
+                track=d.get("track", "span"),
             )
         return None
 
@@ -143,6 +151,20 @@ def _dict_to_watermark_config(data: dict):
             enabled=d.get("enabled", False),
             content=_content(d.get("content")),
             style=_style(d.get("style")),
+        )
+
+    def _flow(d: dict | None) -> FlowLayoutConfig | None:
+        if not d:
+            return None
+        ratios = d.get("track_ratios", (0.6, 0.4))
+        return FlowLayoutConfig(
+            mode=d.get("mode", "dual-track"),
+            main_alignment=d.get("main_alignment", "space-between"),
+            cross_alignment=d.get("cross_alignment", "center"),
+            track_order=d.get("track_order", "photo-outward"),
+            track_gap=d.get("track_gap", {"mode": "short_edge_ratio", "value": 0.012}),
+            item_gap=d.get("item_gap", {"mode": "short_edge_ratio", "value": 0.012}),
+            track_ratios=(float(ratios[0]), float(ratios[1])),
         )
 
     def _region(d: dict) -> RegionConfig:
@@ -157,6 +179,8 @@ def _dict_to_watermark_config(data: dict):
             alignment=d.get("alignment", "start"),
             vertical_alignment=d.get("vertical_alignment", "center"),
             padding=d.get("padding"),
+            layout=_flow(d.get("layout")),
+            text_orientation=d.get("text_orientation", "auto"),
             anchor=d.get("anchor"),
             offset_x=d.get("offset_x", 0.0),
             offset_y=d.get("offset_y", 0.0),
@@ -186,5 +210,4 @@ def _dict_to_watermark_config(data: dict):
         regions=[_region(r) for r in data.get("regions", [])],
         defaults=_style(data.get("defaults")) or StyleConfig(),
         custom_text=data.get("custom_text", ""),
-        footer_mode=data.get("footer_mode", "dual-row"),
     )

@@ -38,6 +38,20 @@
 
 ## 当前阶段
 
+### Phase D：Flow Layout 架构收敛
+
+设计文档：`docs/flow-layout-architecture.md`。
+
+目标：
+
+- 用 Canonical Slot 和单/双轨模型统一底栏、左右侧栏。
+- 保留 Footer / Side 独立几何策略，消除物理槽位命名耦合。
+- 建立 Region 默认方向、Slot 显式覆盖和资源独立方向。
+- 通过 schema v3 迁移旧配置，并建立 TS/Python Golden 一致性测试。
+- 拆分 Footer / Side 控制面，清理 `footer_mode` 等旧序列化结构。
+
+实施状态：阶段 1 已建立 schema v3、Flow 类型、Canonical Slot 与 v1/v2 兼容迁移。
+
 ### Phase C：V3 控制面收敛与布局 Guardrails
 
 设计文档：`design/v3-control-surface-guardrails.md`。

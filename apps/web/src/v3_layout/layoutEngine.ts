@@ -74,6 +74,9 @@ export interface LogoContent {
   path: string;
   size_level: SizeLevel | null;
   size_ratio: number | null;
+  orientation: string;
+  placement: string;
+  track: string;
 }
 
 export interface SignatureContent {
@@ -81,6 +84,9 @@ export interface SignatureContent {
   invert_mono: boolean;
   size_level: SizeLevel | null;
   size_ratio: number | null;
+  orientation: string;
+  placement: string;
+  track: string;
 }
 
 export type SizeLevel = 'small' | 'medium' | 'large';
@@ -98,6 +104,7 @@ export interface StyleConfig {
   font_family: string;
   bold: boolean;
   line_height: number;
+  text_direction: 'horizontal' | 'rotate-cw' | 'rotate-ccw' | 'vertical-glyphs' | null;
 }
 
 export interface SlotConfig {
@@ -106,7 +113,17 @@ export interface SlotConfig {
   style: StyleConfig | null;
 }
 
-export type RegionType = 'footer-bar' | 'side-edge' | 'free';
+export type RegionType = 'footer-bar' | 'side-bar' | 'side-edge' | 'free';
+
+export interface FlowLayoutConfig {
+  mode: 'single-track' | 'dual-track';
+  main_alignment: 'start' | 'center' | 'end' | 'space-between';
+  cross_alignment: 'start' | 'center' | 'end';
+  track_order: 'photo-outward' | 'outward-photo';
+  track_gap: { mode: 'pixel' | 'short_edge_ratio'; value: number };
+  item_gap: { mode: 'pixel' | 'short_edge_ratio'; value: number };
+  track_ratios: [number, number];
+}
 
 export interface RegionConfig {
   id: string;
@@ -118,6 +135,8 @@ export interface RegionConfig {
   alignment?: 'start' | 'center' | 'end';
   vertical_alignment?: 'start' | 'center' | 'end';
   padding?: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
+  layout?: FlowLayoutConfig;
+  text_orientation?: 'auto' | 'horizontal' | 'rotate-with-edge' | 'rotate-cw' | 'rotate-ccw' | 'vertical-glyphs';
   anchor?: string;        // 九宫格锚点
   offset_x?: number;
   offset_y?: number;
@@ -127,11 +146,10 @@ export interface RegionConfig {
 }
 
 export interface WatermarkConfig {
-  schema_version: 2;
+  schema_version: 3;
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;
-  footer_mode?: 'dual-row' | 'single-row';
 }
 
 // ── 布局结果 ────────────────────────────────────────────
@@ -187,6 +205,14 @@ export function computeLayout(config: WatermarkConfig, imageW: number, imageH: n
     }
   }
 
+  // side-bar occupies real canvas space rather than overlaying the photo.
+  for (const region of config.regions) {
+    if (!region.enabled || region.type !== 'side-bar') continue;
+    const sideWidth = resolveSideWidth(region, shortEdge);
+    if (region.edge === 'left') margins.left = Math.max(margins.left, sideWidth);
+    else margins.right = Math.max(margins.right, sideWidth);
+  }
+
   // 边框：在空白边设置 margins，底部有 footer-bar 时不额外加底边
   if (config.canvas.border?.enabled) {
     const bw = Math.max(1, Math.round(shortEdge * BORDER_WIDTH_RATIOS[config.canvas.border.width_level]));
@@ -217,11 +243,14 @@ export function computeLayout(config: WatermarkConfig, imageW: number, imageH: n
           config.defaults,
           shortEdge,
           longEdge,
-          config.footer_mode ?? 'dual-row',
+          region.layout?.mode === 'single-track' ? 'single-row' : 'dual-row',
         ));
         break;
       case 'side-edge':
         elements.push(...computeSideEdge(region, imageRect, config.defaults, shortEdge, longEdge));
+        break;
+      case 'side-bar':
+        elements.push(...computeSideBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge));
         break;
       case 'free':
         elements.push(...computeFree(region, imageRect, config.defaults, shortEdge, longEdge));
@@ -300,6 +329,57 @@ function computeFooterBar(
   return elements;
 }
 
+function resolveSideWidth(region: RegionConfig, shortEdge: number): number {
+  if (!region.width) return Math.max(40, Math.round(shortEdge * 0.12));
+  return region.width.mode === 'pixel'
+    ? Math.max(1, Math.round(region.width.value))
+    : Math.max(40, Math.round(shortEdge * region.width.value));
+}
+
+function computeSideBar(
+  region: RegionConfig,
+  imageRect: Rect,
+  canvas: Size,
+  defaults: StyleConfig,
+  shortEdge: number,
+  longEdge: number,
+): ComputedElement[] {
+  const sideWidth = resolveSideWidth(region, shortEdge);
+  const bounds = region.edge === 'left'
+    ? rect(0, 0, imageRect.x, canvas.h)
+    : rect(rectRight(imageRect), 0, canvas.w - rectRight(imageRect), canvas.h);
+  const padding = {
+    top: region.padding?.top ?? Math.round(sideWidth * 0.15),
+    right: region.padding?.right ?? Math.round(sideWidth * 0.12),
+    bottom: region.padding?.bottom ?? Math.round(sideWidth * 0.15),
+    left: region.padding?.left ?? Math.round(sideWidth * 0.12),
+  };
+  const active = Object.entries(region.slots ?? {}).filter(([, slot]) => slot.enabled && slot.content);
+  if (active.length === 0) return [];
+  const step = Math.max(1, (bounds.h - padding.top - padding.bottom) / active.length);
+  const elements: ComputedElement[] = [];
+  active.forEach(([slotId, slot], index) => {
+    if (!slot.content) return;
+    const style = mergeStyle(defaults, slot.style);
+
+    const x = bounds.x + bounds.w / 2;
+    const y = bounds.y + padding.top + step * (index + 0.5);
+    if (isTextContent(slot.content) && slot.content.chips.length > 0) {
+      const fontSize = resolveFontSize(style, bounds.w, shortEdge, longEdge);
+      elements.push({ id: `${region.id}-${slotId}`, type: 'text',
+        rect: rect(x, y, step, Math.max(1, bounds.w - padding.left - padding.right)),
+        anchor: 'middle-center', content: slot.content,
+        style: withFontSize(style, fontSize) });
+    } else if (isLogoContent(slot.content)) {
+      const logoH = resolveLogoSize(slot.content, bounds.w);
+      elements.push({ id: `${region.id}-${slotId}`, type: 'logo',
+        rect: rect(x, y, Math.max(1, bounds.w - padding.left - padding.right), logoH),
+        anchor: 'middle-center', content: slot.content, style });
+    }
+  });
+  return elements;
+}
+
 function computeSideEdge(
   region: RegionConfig,
   imageRect: Rect,
@@ -308,16 +388,7 @@ function computeSideEdge(
   longEdge: number,
 ): ComputedElement[] {
   // 区域宽度
-  let regionW: number;
-  if (region.width) {
-    if (region.width.mode === 'pixel') {
-      regionW = Math.round(region.width.value);
-    } else {
-      regionW = Math.max(40, Math.round(shortEdge * region.width.value));
-    }
-  } else {
-    regionW = Math.max(40, Math.round(shortEdge * 0.12));
-  }
+  const regionW = resolveSideWidth(region, shortEdge);
 
   // 区域位置
   const regionBounds: Rect = region.edge === 'left'
@@ -565,6 +636,7 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
       font_family: defaults.font_family,
       bold: defaults.bold,
       line_height: defaults.line_height,
+      text_direction: defaults.text_direction,
     };
   }
   return {
@@ -576,6 +648,7 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
     font_family: override.font_family || defaults.font_family,
     bold: override.bold,
     line_height: override.line_height || defaults.line_height,
+    text_direction: override.text_direction || defaults.text_direction,
   };
 }
 
@@ -589,6 +662,7 @@ function withFontSize(style: StyleConfig, fontSize: number): StyleConfig {
     font_family: style.font_family,
     bold: style.bold,
     line_height: style.line_height,
+    text_direction: style.text_direction,
   };
 }
 

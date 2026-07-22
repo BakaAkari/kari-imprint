@@ -6,6 +6,10 @@
 
 ### Added
 
+- Schema v3 Flow Layout 基础模型：Canonical Slot、单/双轨、轨道间距和方向策略。
+- v1/v2 到 v3 的配置迁移层；API 输出只保留 canonical Flow 结构。
+- `docs/flow-layout-architecture.md` 架构设计与分阶段验收标准。
+
 - V3 Region-Based Layout 架构：Region / Slot / Content 声明式配置。
 - 前端布局引擎：`web_frontend/src/v3_layout/layoutEngine.ts`。
 - 后端布局引擎：`shared/v3_layout/layout_engine.py`。

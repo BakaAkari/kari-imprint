@@ -93,10 +93,12 @@ function renderCanvas(
     // 顶部边
     if (image_rect.y > 0) ctx.fillRect(0, 0, canvas.w, image_rect.y);
     // 左边
-    if (image_rect.x > 0) ctx.fillRect(0, image_rect.y, image_rect.x, image_rect.h);
+    const hasLeftSideBar = _config.regions?.some(r => r.type === 'side-bar' && r.enabled && r.edge === 'left');
+    if (image_rect.x > 0 && !hasLeftSideBar) ctx.fillRect(0, image_rect.y, image_rect.x, image_rect.h);
     // 右边
     const rightGap = canvas.w - (image_rect.x + image_rect.w);
-    if (rightGap > 0) ctx.fillRect(image_rect.x + image_rect.w, image_rect.y, rightGap, image_rect.h);
+    const hasRightSideBar = _config.regions?.some(r => r.type === 'side-bar' && r.enabled && r.edge !== 'left');
+    if (rightGap > 0 && !hasRightSideBar) ctx.fillRect(image_rect.x + image_rect.w, image_rect.y, rightGap, image_rect.h);
     // 底部：仅当底部 margin 不是由 footer-bar 占据时才画
     const bottomGap = canvas.h - (image_rect.y + image_rect.h);
     const hasFooter = _config.regions?.some(r => r.type === 'footer-bar' && r.enabled);
@@ -157,9 +159,25 @@ function drawElement(
       ctx.save();
       ctx.font = `${fontWeight} ${fontSize}px "AkaSemiNoto", "Microsoft YaHei", sans-serif`;
       ctx.fillStyle = style.color;
-      ctx.textAlign = anchor.includes('right') ? 'right' : anchor.includes('center') ? 'center' : 'left';
-      ctx.textBaseline = anchor.includes('bottom') ? 'bottom' : anchor.includes('middle') ? 'middle' : 'top';
-      ctx.fillText(text, rect.x, rect.y);
+      const direction = style.text_direction ?? 'horizontal';
+      if (direction === 'rotate-cw' || direction === 'rotate-ccw') {
+        ctx.translate(rect.x, rect.y);
+        ctx.rotate(direction === 'rotate-cw' ? Math.PI / 2 : -Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 0, 0);
+      } else if (direction === 'vertical-glyphs') {
+        const glyphs = Array.from(text);
+        const advance = Math.round(fontSize * style.line_height);
+        const startY = rect.y - ((glyphs.length - 1) * advance) / 2;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        glyphs.forEach((glyph, index) => ctx.fillText(glyph, rect.x, startY + index * advance));
+      } else {
+        ctx.textAlign = anchor.includes('right') ? 'right' : anchor.includes('center') ? 'center' : 'left';
+        ctx.textBaseline = anchor.includes('bottom') ? 'bottom' : anchor.includes('middle') ? 'middle' : 'top';
+        ctx.fillText(text, rect.x, rect.y);
+      }
       ctx.restore();
       break;
     }

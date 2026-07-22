@@ -53,6 +53,9 @@ export interface LogoContent {
   path: string;
   size_level: SizeLevel | null;
   size_ratio: number | null;
+  orientation: AssetOrientation;
+  placement: AssetPlacement;
+  track: AssetTrack;
 }
 
 export interface SignatureContent {
@@ -60,6 +63,9 @@ export interface SignatureContent {
   invert_mono: boolean;
   size_level: SizeLevel | null;
   size_ratio: number | null;
+  orientation: AssetOrientation;
+  placement: AssetPlacement;
+  track: AssetTrack;
 }
 
 export type Content = TextContent | LogoContent | SignatureContent;
@@ -70,6 +76,13 @@ export type Anchor =
   | 'middle-left' | 'middle-center' | 'middle-right'
   | 'bottom-left' | 'bottom-center' | 'bottom-right';
 export type Alignment = 'start' | 'center' | 'end';
+export type TextDirection = 'horizontal' | 'rotate-cw' | 'rotate-ccw' | 'vertical-glyphs';
+export type TextOrientationPolicy = 'auto' | 'horizontal' | 'rotate-with-edge' | TextDirection;
+export type AssetOrientation = 'upright' | 'follow-flow' | 'rotate-cw' | 'rotate-ccw';
+export type AssetPlacement = 'start' | 'center' | 'end';
+export type AssetTrack = 'primary' | 'secondary' | 'span';
+export type FlowMode = 'single-track' | 'dual-track';
+export type FlowSlotId = 'primary-start' | 'primary-end' | 'secondary-start' | 'secondary-end' | 'asset';
 export interface PaddingConfig {
   top: number;
   right: number;
@@ -87,6 +100,7 @@ export interface StyleConfig {
   font_family: FontFamily;
   bold: boolean;
   line_height: number;
+  text_direction: TextDirection | null;
 }
 
 export interface SlotConfig {
@@ -95,7 +109,17 @@ export interface SlotConfig {
   style: StyleConfig | null;
 }
 
-export type RegionType = 'footer-bar' | 'side-edge' | 'free';
+export type RegionType = 'footer-bar' | 'side-bar' | 'side-edge' | 'free';
+
+export interface FlowLayoutConfig {
+  mode: FlowMode;
+  main_alignment: 'start' | 'center' | 'end' | 'space-between';
+  cross_alignment: Alignment;
+  track_order: 'photo-outward' | 'outward-photo';
+  track_gap: { mode: 'pixel' | 'short_edge_ratio'; value: number };
+  item_gap: { mode: 'pixel' | 'short_edge_ratio'; value: number };
+  track_ratios: [number, number];
+}
 
 export interface RegionConfig {
   id: string;
@@ -107,6 +131,8 @@ export interface RegionConfig {
   alignment?: Alignment;
   vertical_alignment?: Alignment;
   padding?: Partial<PaddingConfig>;
+  layout?: FlowLayoutConfig;
+  text_orientation?: TextOrientationPolicy;
   anchor?: Anchor;
   offset_x?: number;
   offset_y?: number;
@@ -136,15 +162,13 @@ export interface CanvasConfig {
 }
 
 export interface WatermarkConfigV3 {
-  schema_version: 2;
+  schema_version: 3;
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;
   custom_text?: string;
   /** 追踪当前应用的预设 id，用于主界面显示和重置。 */
   preset_id?: string;
-  /** 底部控制条模式：双排/单排。 */
-  footer_mode?: FooterMode;
   /** Logo 在底栏的位置：左/中/右。 */
   logo_position?: LogoPosition;
 }
@@ -167,7 +191,7 @@ export const fieldOptionsV3: { id: FieldId; label: string }[] = [
 export type SizeLevel = 'small' | 'medium' | 'large';
 export type PresetSize = SizeLevel;
 export type ColorScheme = 'dark' | 'light';
-export type FooterMode = 'dual-row' | 'single-row';
+export type FooterMode = 'dual-row' | 'single-row'; // legacy UI adapter; not serialized
 export type LogoPosition = 'left' | 'center' | 'right';
 
 export type PreviewAspectRatio = '3:2' | '4:3' | '16:9' | '1:1' | '2:3';
@@ -324,10 +348,11 @@ export const defaultStyle: StyleConfig = {
   font_family: 'NotoSansCJKsc-Bold.otf',
   bold: true,
   line_height: 1.2,
+  text_direction: null,
 };
 
 export const presetDefaultBaseV3: WatermarkConfigV3 = {
-  schema_version: 2,
+  schema_version: 3,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -369,7 +394,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', size_level: 'medium', size_ratio: null },
+          content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
           style: null,
         },
       },
@@ -380,7 +405,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
 export const presetDefaultV3: WatermarkConfigV3 = presetDefaultBaseV3;
 
 export const presetMinimalBaseV3: WatermarkConfigV3 = {
-  schema_version: 2,
+  schema_version: 3,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -422,7 +447,7 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
 export const presetMinimalV3: WatermarkConfigV3 = presetMinimalBaseV3;
 
 export const presetSoftCardBaseV3: WatermarkConfigV3 = {
-  schema_version: 2,
+  schema_version: 3,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -477,7 +502,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', size_level: 'medium', size_ratio: null },
+          content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
           style: null,
         },
       },
@@ -488,7 +513,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
 export const presetSoftCardV3: WatermarkConfigV3 = presetSoftCardBaseV3;
 
 export const presetSidesBaseV3: WatermarkConfigV3 = {
-  schema_version: 2,
+  schema_version: 3,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
@@ -563,7 +588,7 @@ export type SlotOverrides = Record<string, SlotOverride>;
  * - overrides 在 controls 变更后仍持久化
  * - 非 footer 区域（side-edge, free）不受影响
  */
-export interface RegionOverride extends Partial<Omit<RegionConfig, 'id' | 'type' | 'slots'>> {}
+export interface RegionOverride extends Partial<Omit<RegionConfig, 'id' | 'slots'>> {}
 export type RegionOverrides = Record<string, RegionOverride>;
 export interface RootOverrides {
   canvas?: Partial<Omit<CanvasConfig, 'margins'>> & { margins?: Partial<MarginsConfig> };
@@ -610,12 +635,11 @@ export function resolveConfig(
   controlSurface: ControlSurface = defaultControlSurface,
 ): WatermarkConfigV3 {
   const config = structuredClone(template);
-  config.schema_version = 2;
+  config.schema_version = 3;
   const scheme = colorSchemes[controls.scheme] ?? colorSchemes.dark;
   config.canvas.background = scheme.background;
   config.defaults.color = scheme.text;
   config.custom_text = controls.custom_text;
-  config.footer_mode = controls.footer_mode;
   config.logo_position = controls.logo_position;
   if (controlSurface.border.enabled) {
     config.canvas.border = {
@@ -645,7 +669,13 @@ export function resolveConfig(
       config.regions.push(footer);
     }
     footer.enabled = true;
-    footer.height = footerSurface.heightRatio ?? FOOTER_HEIGHT_RATIO;
+    if (footer.type === 'footer-bar') {
+      footer.height = footerSurface.heightRatio ?? FOOTER_HEIGHT_RATIO;
+    } else if (footer.type === 'side-bar') {
+      footer.height = undefined;
+      footer.edge ??= 'right';
+      footer.width ??= { mode: 'short_edge_ratio', value: 0.12 };
+    }
     footer.slots ??= {};
 
     const chipMap: Partial<Record<FooterTextSlot, FieldChip[]>> = controls.footer_mode === 'dual-row'
@@ -680,7 +710,7 @@ export function resolveConfig(
       if (logoSlot) {
         footer.slots[logoSlot] = {
           enabled: true,
-          content: { path: controls.logo_path, size_level: controls.logo_size, size_ratio: null },
+          content: { path: controls.logo_path, size_level: controls.logo_size, size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
           style: null,
         };
       }
@@ -711,7 +741,7 @@ export function resolveConfig(
     signatureRegion.slots ??= {};
     signatureRegion.slots[signatureSurface.slotId] = {
       enabled: true,
-      content: { path: controls.signature_path, invert_mono: false, size_level: controls.signature_size, size_ratio: null },
+      content: { path: controls.signature_path, invert_mono: false, size_level: controls.signature_size, size_ratio: null, orientation: 'upright', placement: 'end', track: 'span' },
       style: null,
     };
   } else if (signatureRegion && signatureSurface.enabled) {
@@ -758,7 +788,6 @@ export function createDefaultWatermarkConfigV3(): WatermarkConfigV3 {
 
 export function inferMainControls(config: WatermarkConfigV3): MainControlConfig {
   const controls = structuredClone(defaultMainControls);
-  controls.footer_mode = config.footer_mode ?? controls.footer_mode;
   controls.logo_position = config.logo_position ?? controls.logo_position;
   controls.custom_text = config.custom_text ?? '';
   return controls;

@@ -92,6 +92,9 @@ class LogoContent:
     path: str = ""           # 空表示 auto
     size_ratio: float | None = 0.6  # logo 高度占所在区域高度的比例
     size_level: str | None = None   # 'small' | 'medium' | 'large'
+    orientation: str = "upright"
+    placement: str = "center"
+    track: str = "span"
 
 
 @dataclass(slots=True)
@@ -100,6 +103,9 @@ class SignatureContent:
     invert_mono: bool = False
     size_ratio: float | None = 0.20
     size_level: str | None = None
+    orientation: str = "upright"
+    placement: str = "end"
+    track: str = "span"
 
 
 @dataclass(slots=True)
@@ -112,6 +118,7 @@ class StyleConfig:
     font_family: str = "NotoSansCJKsc-Bold.otf"
     bold: bool = True
     line_height: float = 1.2
+    text_direction: Literal["horizontal", "rotate-cw", "rotate-ccw", "vertical-glyphs"] | None = None
 
 
 @dataclass(slots=True)
@@ -122,9 +129,20 @@ class SlotConfig:
 
 
 @dataclass(slots=True)
+class FlowLayoutConfig:
+    mode: Literal["single-track", "dual-track"] = "dual-track"
+    main_alignment: Literal["start", "center", "end", "space-between"] = "space-between"
+    cross_alignment: Literal["start", "center", "end"] = "center"
+    track_order: Literal["photo-outward", "outward-photo"] = "photo-outward"
+    track_gap: dict[str, float | int | str] = field(default_factory=lambda: {"mode": "short_edge_ratio", "value": 0.012})
+    item_gap: dict[str, float | int | str] = field(default_factory=lambda: {"mode": "short_edge_ratio", "value": 0.012})
+    track_ratios: tuple[float, float] = (0.6, 0.4)
+
+
+@dataclass(slots=True)
 class RegionConfig:
     id: str = ""
-    type: str = ""  # 'footer-bar' | 'side-edge' | 'free'
+    type: str = ""  # 'footer-bar' | 'side-bar' | 'side-edge' | 'free'
     enabled: bool = False
     # footer-bar 特有
     slots: dict[str, SlotConfig] = field(default_factory=dict)
@@ -135,6 +153,8 @@ class RegionConfig:
     alignment: Literal["start", "center", "end"] = "start"
     vertical_alignment: Literal["start", "center", "end"] = "center"
     padding: dict[str, int] | None = None
+    layout: FlowLayoutConfig | None = None
+    text_orientation: str = "auto"
     # free 特有
     anchor: str | None = None  # 九宫格锚点
     offset_x: float = 0.0
@@ -148,6 +168,7 @@ class WatermarkConfig:
     regions: list[RegionConfig] = field(default_factory=list)
     defaults: StyleConfig = field(default_factory=StyleConfig)
     custom_text: str = ""
+    # Internal compatibility only. Public schema v3 no longer serializes it.
     footer_mode: Literal["dual-row", "single-row"] = "dual-row"
 
 
@@ -204,6 +225,16 @@ def compute_layout(config: WatermarkConfig, image_w: int, image_h: int) -> Layou
             margins.bottom = max(20, round(short_edge * region.height))
             has_footer = True
 
+    # side-bar occupies real canvas space rather than overlaying the photo.
+    for region in config.regions:
+        if not region.enabled or region.type != "side-bar":
+            continue
+        side_width = _resolve_side_width(region, short_edge)
+        if region.edge == "left":
+            margins.left = max(margins.left, side_width)
+        else:
+            margins.right = max(margins.right, side_width)
+
     # 边框：在空白边设置 margins，底部有 footer-bar 时不额外加底边
     border = config.canvas.border
     if border is not None and border.enabled:
@@ -236,10 +267,14 @@ def compute_layout(config: WatermarkConfig, image_w: int, image_h: int) -> Layou
                 config.defaults,
                 short_edge,
                 long_edge,
-                config.footer_mode,
+                "single-row"
+                if region.layout is not None and region.layout.mode == "single-track"
+                else config.footer_mode,
             ))
         elif region.type == "side-edge":
             elements.extend(_compute_side_edge(region, image_rect, config.defaults, short_edge, long_edge))
+        elif region.type == "side-bar":
+            elements.extend(_compute_side_bar(region, image_rect, canvas, config.defaults, short_edge, long_edge))
         elif region.type == "free":
             elements.extend(_compute_free(region, image_rect, config.defaults, short_edge, long_edge))
 
@@ -406,6 +441,61 @@ def _compute_footer_bar(
     return elements
 
 
+def _resolve_side_width(region: RegionConfig, short_edge: int) -> int:
+    if not region.width:
+        return max(40, round(short_edge * 0.12))
+    if region.width.get("mode") == "pixel":
+        return max(1, round(float(region.width["value"])))
+    return max(40, round(short_edge * float(region.width["value"])))
+
+
+def _compute_side_bar(
+    region: RegionConfig,
+    image_rect: Rect,
+    canvas: Size,
+    defaults: StyleConfig,
+    short_edge: int,
+    long_edge: int,
+) -> list[ComputedElement]:
+    side_width = _resolve_side_width(region, short_edge)
+    if region.edge == "left":
+        bounds = Rect(x=0, y=0, w=image_rect.x, h=canvas.h)
+    else:
+        bounds = Rect(x=image_rect.right, y=0, w=canvas.w - image_rect.right, h=canvas.h)
+    padding = region.padding or {}
+    pad_top = int(padding.get("top", round(side_width * 0.15)))
+    pad_right = int(padding.get("right", round(side_width * 0.12)))
+    pad_bottom = int(padding.get("bottom", round(side_width * 0.15)))
+    pad_left = int(padding.get("left", round(side_width * 0.12)))
+    active = [(slot_id, slot) for slot_id, slot in region.slots.items() if slot.enabled and slot.content is not None]
+    if not active:
+        return []
+    step = max(1.0, (bounds.h - pad_top - pad_bottom) / len(active))
+    elements: list[ComputedElement] = []
+    for index, (slot_id, slot) in enumerate(active):
+        style = _merge_style(defaults, slot.style)
+
+        x = bounds.x + bounds.w // 2
+        y = round(bounds.y + pad_top + step * (index + 0.5))
+        if isinstance(slot.content, TextContent) and slot.content.chips:
+            font_size = _resolve_font_size(style, bounds.w, short_edge, long_edge)
+            text_style = _with_font_size(style, font_size)
+
+            elements.append(ComputedElement(
+                id=f"{region.id}-{slot_id}", type="text",
+                rect=Rect(x=x, y=y, w=max(1, round(step)), h=max(1, bounds.w - pad_left - pad_right)),
+                anchor="middle-center", content=slot.content, style=text_style,
+            ))
+        elif isinstance(slot.content, LogoContent):
+            logo_h = _resolve_logo_size(slot.content, bounds.w)
+            elements.append(ComputedElement(
+                id=f"{region.id}-{slot_id}", type="logo",
+                rect=Rect(x=x, y=y, w=max(1, bounds.w - pad_left - pad_right), h=logo_h),
+                anchor="middle-center", content=slot.content, style=style,
+            ))
+    return elements
+
+
 def _compute_side_edge(
     region: RegionConfig,
     image_rect: Rect,
@@ -415,13 +505,7 @@ def _compute_side_edge(
 ) -> list[ComputedElement]:
     """图片主体垂直边缘：单行文本垂直堆叠。"""
 
-    if region.width:
-        if region.width.get("mode") == "pixel":
-            region_w = int(region.width["value"])
-        else:  # short_edge_ratio
-            region_w = max(40, round(short_edge * float(region.width["value"])))
-    else:
-        region_w = max(40, round(short_edge * 0.12))
+    region_w = _resolve_side_width(region, short_edge)
 
     if region.edge == "left":
         region_bounds = Rect(
@@ -613,6 +697,7 @@ def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleCo
             font_family=defaults.font_family,
             bold=defaults.bold,
             line_height=defaults.line_height,
+            text_direction=defaults.text_direction,
         )
     return StyleConfig(
         font_size=override.font_size if override.font_size is not None else defaults.font_size,
@@ -623,6 +708,7 @@ def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleCo
         font_family=override.font_family or defaults.font_family,
         bold=override.bold,
         line_height=override.line_height or defaults.line_height,
+        text_direction=override.text_direction or defaults.text_direction,
     )
 
 
@@ -637,6 +723,7 @@ def _with_font_size(style: StyleConfig, font_size: int) -> StyleConfig:
         font_family=style.font_family,
         bold=style.bold,
         line_height=style.line_height,
+        text_direction=style.text_direction,
     )
 
 

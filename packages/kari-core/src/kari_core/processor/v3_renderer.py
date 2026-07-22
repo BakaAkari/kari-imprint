@@ -169,6 +169,19 @@ def _render_text_element(
     font = _load_font(style.font_family, font_size)
     color = _parse_color(style.color)
 
+    direction = getattr(style, "text_direction", "horizontal")
+    if direction == "vertical-glyphs":
+        glyphs = list(text)
+        advance = max(1, round(font_size * style.line_height))
+        boxes = [font.getbbox(glyph) for glyph in glyphs]
+        width = max((max(1, int(box[2] - box[0])) for box in boxes), default=font_size)
+        img = Image.new("RGBA", (width, max(1, advance * len(glyphs))), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        for index, (glyph, box) in enumerate(zip(glyphs, boxes, strict=True)):
+            glyph_w = max(1, int(box[2] - box[0]))
+            draw.text(((width - glyph_w) // 2 - box[0], index * advance - box[1]), glyph, font=font, fill=color)
+        return img
+
     # 测量文本尺寸（getbbox 返回 (left, top, right, bottom)）
     bbox = font.getbbox(text)
     if bbox:
@@ -185,6 +198,11 @@ def _render_text_element(
     # draw.text 的坐标是文本左上角；getbbox 的 top 可能为负（ascent），
     # 因此需要向上偏移以正确对齐基线
     draw.text((0, -ascent_offset), text, font=font, fill=color)
+
+    if direction == "rotate-cw":
+        return img.rotate(-90, expand=True)
+    if direction == "rotate-ccw":
+        return img.rotate(90, expand=True)
 
     return img
 
@@ -338,10 +356,18 @@ def render_pil(
         color = _parse_color(border_cfg.color)
         if ir.y > 0:
             draw.rectangle([(0, 0), (layout.canvas.w, ir.y)], fill=color)
-        if ir.x > 0:
+        has_left_side_bar = any(
+            r.enabled and r.type == "side-bar" and r.edge == "left"
+            for r in config.regions
+        )
+        if ir.x > 0 and not has_left_side_bar:
             draw.rectangle([(0, ir.y), (ir.x, ir.y + ir.h)], fill=color)
         right_gap = layout.canvas.w - (ir.x + ir.w)
-        if right_gap > 0:
+        has_right_side_bar = any(
+            r.enabled and r.type == "side-bar" and r.edge != "left"
+            for r in config.regions
+        )
+        if right_gap > 0 and not has_right_side_bar:
             draw.rectangle([(ir.x + ir.w, ir.y), (layout.canvas.w, ir.y + ir.h)], fill=color)
         bottom_gap = layout.canvas.h - (ir.y + ir.h)
         has_footer = any(r.enabled and r.type == "footer-bar" for r in config.regions)

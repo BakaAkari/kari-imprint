@@ -127,7 +127,18 @@ export function BorderAdvancedV3({ config, onRootOverride }: Props) {
   );
 }
 
-export function LayoutAdvancedV3({ config, onRegionOverride }: Props) {
+export function LayoutAdvancedV3({ config, onRegionOverride, onSlotOverride }: Props) {
+  const setSideTextDirection = (region: RegionConfig, edge: 'left' | 'right') => {
+    Object.entries(region.slots ?? {}).forEach(([slotId, slot]) => {
+      if (!slot.content || !('chips' in slot.content)) return;
+      onSlotOverride(slotKey(region.id, slotId), {
+        style: {
+          ...(slot.style ?? config.defaults),
+          text_direction: edge === 'left' ? 'rotate-ccw' : 'rotate-cw',
+        },
+      });
+    });
+  };
   return (
     <div className="v3-category-editor">
       {config.regions.map((region) => (
@@ -137,16 +148,47 @@ export function LayoutAdvancedV3({ config, onRegionOverride }: Props) {
             <input type="checkbox" checked={region.enabled}
               onChange={(e) => onRegionOverride(region.id, { enabled: e.target.checked })} />
           </label>
+          {(region.type === 'footer-bar' || region.type === 'side-bar') && (
+            <label className="v3-form-row"><span className="text-sm">区域类型</span>
+              <select value={region.type}
+                onChange={(e) => {
+                  const type = e.target.value as RegionConfig['type'];
+                  const edge = region.edge ?? 'right';
+                  onRegionOverride(region.id, {
+                    type,
+                    height: type === 'footer-bar' ? (region.height ?? 0.09) : undefined,
+                    edge: type === 'side-bar' ? edge : region.edge,
+                    width: type === 'side-bar' ? (region.width ?? { mode: 'short_edge_ratio', value: 0.12 }) : region.width,
+                  });
+                  if (type === 'side-bar') setSideTextDirection(region, edge);
+                  if (type === 'footer-bar') {
+                    Object.entries(region.slots ?? {}).forEach(([slotId, slot]) => {
+                      if (!slot.content || !('chips' in slot.content)) return;
+                      onSlotOverride(slotKey(region.id, slotId), {
+                        style: { ...(slot.style ?? config.defaults), text_direction: 'horizontal' },
+                      });
+                    });
+                  }
+                }}>
+                <option value="footer-bar">底部水印</option>
+                <option value="side-bar">侧边水印</option>
+              </select>
+            </label>
+          )}
           {region.type === 'footer-bar' && (
             <label className="v3-form-row"><span className="text-sm">高度比例</span>
               <input type="number" min={0.02} max={0.5} step={0.01} value={region.height ?? 0.09}
                 onChange={(e) => onRegionOverride(region.id, { height: parseFloat(e.target.value) || 0.09 })} />
             </label>
           )}
-          {region.type === 'side-edge' && (
+          {(region.type === 'side-edge' || region.type === 'side-bar') && (
             <label className="v3-form-row"><span className="text-sm">边缘</span>
-              <select value={region.edge ?? 'left'}
-                onChange={(e) => onRegionOverride(region.id, { edge: e.target.value as 'left' | 'right' })}>
+              <select value={region.edge ?? 'right'}
+                onChange={(e) => {
+                  const edge = e.target.value as 'left' | 'right';
+                  onRegionOverride(region.id, { edge });
+                  if (region.type === 'side-bar') setSideTextDirection(region, edge);
+                }}>
                 <option value="left">左侧</option><option value="right">右侧</option>
               </select>
             </label>

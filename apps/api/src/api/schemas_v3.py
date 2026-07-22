@@ -23,10 +23,14 @@ Anchor = Literal[
 
 _RESOURCE_ID_PATTERN = r"^(?:[A-Za-z0-9_-]{20,64}\.(?:png|jpg|jpeg|webp))?$"
 _BUILTIN_LOGO_PATTERN = r"^builtin:[A-Za-z0-9_-]{1,64}$"
-_FOOTER_SLOT_IDS = frozenset({
-    "left-logo", "left-top", "left-bottom", "center",
-    "right-top", "right-bottom", "right-logo",
+_FLOW_SLOT_IDS = frozenset({
+    "primary-start", "primary-end", "secondary-start", "secondary-end", "asset",
 })
+_LEGACY_FLOW_SLOT_MAP = {
+    "left-top": "primary-start", "right-top": "primary-end",
+    "left-bottom": "secondary-start", "right-bottom": "secondary-end",
+    "left-logo": "asset", "center": "asset", "right-logo": "asset",
+}
 _SIDE_SLOT_RE = re.compile(r"^line[1-9][0-9]?$", re.ASCII)
 _FREE_SLOT_RE = re.compile(r"^sig[1-9][0-9]?$", re.ASCII)
 
@@ -67,6 +71,9 @@ class LogoContentPayload(StrictModel):
 
     size_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
     size_level: Literal["small", "medium", "large"] | None = None
+    orientation: Literal["upright", "follow-flow", "rotate-cw", "rotate-ccw"] = "upright"
+    placement: Literal["start", "center", "end"] = "center"
+    track: Literal["primary", "secondary", "span"] = "span"
 
     @model_validator(mode="after")
     def size_conflict(self) -> LogoContentPayload:
@@ -86,6 +93,9 @@ class SignatureContentPayload(StrictModel):
     invert_mono: bool = False
     size_ratio: float | None = Field(default=None, ge=0.01, le=1.0)
     size_level: Literal["small", "medium", "large"] | None = None
+    orientation: Literal["upright", "follow-flow", "rotate-cw", "rotate-ccw"] = "upright"
+    placement: Literal["start", "center", "end"] = "end"
+    track: Literal["primary", "secondary", "span"] = "span"
 
     @model_validator(mode="after")
     def size_conflict(self) -> SignatureContentPayload:
@@ -128,6 +138,7 @@ class StyleConfigPayload(StrictModel):
     ] = "NotoSansCJKsc-Bold.otf"
     bold: bool = True
     line_height: float = Field(default=1.2, ge=0.5, le=3.0)
+    text_direction: Literal["horizontal", "rotate-cw", "rotate-ccw", "vertical-glyphs"] | None = None
 
     @field_validator("color")
     @classmethod
@@ -164,6 +175,21 @@ class WidthPayload(StrictModel):
         return self
 
 
+class FlowLayoutPayload(StrictModel):
+    mode: Literal["single-track", "dual-track"] = "dual-track"
+    main_alignment: Literal["start", "center", "end", "space-between"] = "space-between"
+    cross_alignment: Literal["start", "center", "end"] = "center"
+    track_order: Literal["photo-outward", "outward-photo"] = "photo-outward"
+    track_gap: WidthPayload = Field(default_factory=lambda: WidthPayload(mode="short_edge_ratio", value=0.012))
+    item_gap: WidthPayload = Field(default_factory=lambda: WidthPayload(mode="short_edge_ratio", value=0.012))
+    track_ratios: list[float] = Field(default_factory=lambda: [0.6, 0.4], min_length=2, max_length=2)
+
+    @field_validator("track_ratios")
+    @classmethod
+    def valid_track_ratios(cls, value: list[float]) -> list[float]:
+        if any(v <= 0 or v > 1 for v in value) or abs(sum(value) - 1.0) > 0.001:
+            raise ValueError("track_ratios 必须为两个正数且总和为 1")
+        return value
 
 
 class PaddingPayload(StrictModel):
@@ -174,7 +200,7 @@ class PaddingPayload(StrictModel):
 
 class RegionConfigPayload(StrictModel):
     id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-    type: Literal["footer-bar", "side-edge", "free"]
+    type: Literal["footer-bar", "side-bar", "side-edge", "free"]
     enabled: bool = True
     slots: dict[str, SlotConfigPayload] = Field(default_factory=dict, max_length=12)
     height: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -183,6 +209,8 @@ class RegionConfigPayload(StrictModel):
     alignment: Literal["start", "center", "end"] | None = "start"
     vertical_alignment: Literal["start", "center", "end"] | None = "center"
     padding: PaddingPayload | None = None
+    layout: FlowLayoutPayload | None = None
+    text_orientation: Literal["auto", "horizontal", "rotate-with-edge", "rotate-cw", "rotate-ccw", "vertical-glyphs"] = "auto"
     anchor: Anchor | None = None
     offset_x: float = Field(default=0.0, ge=-2000.0, le=2000.0)
     offset_y: float = Field(default=0.0, ge=-2000.0, le=2000.0)
@@ -192,9 +220,11 @@ class RegionConfigPayload(StrictModel):
     def valid_region_shape(self) -> RegionConfigPayload:
         slot_ids = set(self.slots)
         if self.type == "footer-bar":
-            invalid = slot_ids - _FOOTER_SLOT_IDS
+            invalid = slot_ids - _FLOW_SLOT_IDS
         elif self.type == "side-edge":
             invalid = {slot_id for slot_id in slot_ids if not _SIDE_SLOT_RE.fullmatch(slot_id)}
+        elif self.type == "side-bar":
+            invalid = slot_ids - _FLOW_SLOT_IDS
         else:
             invalid = {slot_id for slot_id in slot_ids if not _FREE_SLOT_RE.fullmatch(slot_id)}
         if invalid:
@@ -244,18 +274,17 @@ class CanvasConfigPayload(StrictModel):
 
 
 class WatermarkPayloadV3(StrictModel):
-    schema_version: int = Field(default=2, ge=1, le=2)
+    schema_version: int = Field(default=3, ge=1, le=3)
     canvas: CanvasConfigPayload = Field(default_factory=CanvasConfigPayload)
     regions: list[RegionConfigPayload] = Field(default_factory=list, max_length=10)
     defaults: StyleConfigPayload = Field(default_factory=StyleConfigPayload)
     custom_text: str = Field(default="", max_length=160)
-    footer_mode: Literal["dual-row", "single-row"] = "dual-row"
     logo_position: Literal["left", "center", "right"] = "right"
 
     @model_validator(mode="before")
     @classmethod
     def migrate_v1_schema(cls, data: Any) -> Any:
-        """Migrate missing or schema_version=1 payloads to v2."""
+        """Migrate legacy v1/v2 payloads to canonical schema v3."""
         if not isinstance(data, dict):
             return data
         # Logo color/treatment were removed: always strip legacy fields so
@@ -277,10 +306,30 @@ class WatermarkPayloadV3(StrictModel):
                 sv = int(sv)
             except (ValueError, TypeError):
                 sv = 1
-        if sv >= 2:
+        if sv > 3:
             return data
-        # schema_version=1 or missing: upgrade to v2
-        data["schema_version"] = 2
+        legacy_footer_mode = data.pop("footer_mode", "dual-row")
+        data["schema_version"] = 3
+        for region in data.get("regions") or []:
+            if not isinstance(region, dict) or region.get("type") not in {"footer-bar", "side-bar"}:
+                continue
+            old_slots = region.get("slots") or {}
+            canonical: dict[str, Any] = {}
+            for old_id, slot in old_slots.items():
+                new_id = _LEGACY_FLOW_SLOT_MAP.get(old_id, old_id)
+                if new_id == "asset" and new_id in canonical and old_id != "right-logo":
+                    continue
+                canonical[new_id] = slot
+            region["slots"] = canonical
+            region.setdefault("layout", {
+                "mode": "single-track" if legacy_footer_mode == "single-row" else "dual-track",
+                "main_alignment": "space-between", "cross_alignment": "center",
+                "track_order": "photo-outward",
+                "track_gap": {"mode": "short_edge_ratio", "value": 0.012},
+                "item_gap": {"mode": "short_edge_ratio", "value": 0.012},
+                "track_ratios": [0.6, 0.4],
+            })
+            region.setdefault("text_orientation", "auto")
         # Migrate defaults.font_size_level from ratio if only ratio is set
         defaults = data.get("defaults") or {}
         if (
