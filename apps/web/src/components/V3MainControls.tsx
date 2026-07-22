@@ -39,7 +39,6 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
     return null;
   }
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [addingFor, setAddingFor] = useState<string | null>(null);
 
   const flowRegion = _config.regions.find((region) => region.type === 'footer-bar' || region.type === 'side-bar');
@@ -89,26 +88,15 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
     [rows, updateRow],
   );
 
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const path = String(reader.result ?? '');
-        onControlsChange({ logo_path: path });
-      };
-      reader.readAsDataURL(file);
-      e.target.value = '';
-    },
-    [onControlsChange],
-  );
+  // 无 Flow 水印栏（如 side-edge 档案模板）时，主控制面不渲染槽位编辑块，
+  // 避免用户编辑一组不会写入任何 Region 的空转控件。
+  if (!flowRegion) return null;
 
   return (
     <div className="v3-main-controls">
       <div className="v3-footer-bar">
         <div className="v3-footer-bar-header">
-          <div className="v3-footer-bar-title">{isSideBar ? `${flowRegion?.edge === 'left' ? '左' : '右'}侧水印栏` : '底部水印栏'}</div>
+          <div className="v3-footer-bar-title">{isSideBar ? `${flowRegion.edge === 'left' ? '左' : '右'}侧水印栏` : '底部水印栏'}</div>
           <div className="v3-footer-bar-actions">
             <button
               className="v3-btn v3-btn-sm"
@@ -181,13 +169,6 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
           ))}
         </div>
       </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="v3-hidden-input"
-        onChange={handleFileChange}
-      />
     </div>
   );
 }
