@@ -4,6 +4,7 @@
 from kari_core.shared.v3_layout.layout_engine import (
     CanvasConfig,
     FieldChip,
+    FlowLayoutConfig,
     LogoContent,
     MarginsConfig,
     Rect,
@@ -167,10 +168,10 @@ class TestFooterBarLayout:
 
     def test_fixed_footer_height_and_dual_row_corners(self):
         slots = {
-            "left-top": self._text_slot(),
-            "left-bottom": self._text_slot(),
-            "right-top": self._text_slot(),
-            "right-bottom": self._text_slot(),
+            "primary-start": self._text_slot(),
+            "secondary-start": self._text_slot(),
+            "primary-end": self._text_slot(),
+            "secondary-end": self._text_slot(),
         }
         result = compute_layout(
             WatermarkConfig(
@@ -181,7 +182,6 @@ class TestFooterBarLayout:
                     height=0.09,
                     slots=slots,
                 )],
-                footer_mode="dual-row",
             ),
             1000,
             600,
@@ -189,14 +189,14 @@ class TestFooterBarLayout:
 
         assert result.canvas.h == 654
         elements = {el.id: el for el in result.elements}
-        assert elements["footer-left-top"].anchor == "top-left"
-        assert elements["footer-left-bottom"].anchor == "bottom-left"
-        assert elements["footer-right-top"].anchor == "top-right"
-        assert elements["footer-right-bottom"].anchor == "bottom-right"
-        assert elements["footer-left-top"].rect.x < 500
-        assert elements["footer-right-top"].rect.x > 500
-        assert elements["footer-left-top"].rect.y < elements["footer-left-bottom"].rect.y
-        assert elements["footer-right-top"].rect.y < elements["footer-right-bottom"].rect.y
+        assert elements["footer-primary-start"].anchor == "middle-left"
+        assert elements["footer-secondary-start"].anchor == "middle-left"
+        assert elements["footer-primary-end"].anchor == "middle-right"
+        assert elements["footer-secondary-end"].anchor == "middle-right"
+        assert elements["footer-primary-start"].rect.x < 500
+        assert elements["footer-primary-end"].rect.x > 500
+        assert elements["footer-primary-start"].rect.y < elements["footer-secondary-start"].rect.y
+        assert elements["footer-primary-end"].rect.y < elements["footer-secondary-end"].rect.y
 
     def test_single_row_is_vertically_centered_left_and_right(self):
         result = compute_layout(
@@ -206,20 +206,20 @@ class TestFooterBarLayout:
                     type="footer-bar",
                     enabled=True,
                     height=0.09,
+                    layout=FlowLayoutConfig(mode="single-track"),
                     slots={
-                        "left-top": self._text_slot(),
-                        "right-top": self._text_slot(),
+                        "primary-start": self._text_slot(),
+                        "primary-end": self._text_slot(),
                     },
                 )],
-                footer_mode="single-row",
             ),
             1000,
             600,
         )
 
         elements = {el.id: el for el in result.elements}
-        left = elements["footer-left-top"]
-        right = elements["footer-right-top"]
+        left = elements["footer-primary-start"]
+        right = elements["footer-primary-end"]
         assert left.anchor == "middle-left"
         assert right.anchor == "middle-right"
         assert left.rect.y == right.rect.y
@@ -235,8 +235,8 @@ class TestFooterBarLayout:
                     enabled=True,
                     height=0.09,
                     slots={
-                        "left-top": self._text_slot(),
-                        "right-logo": SlotConfig(
+                        "primary-start": self._text_slot(),
+                        "asset": SlotConfig(
                             enabled=True,
                             content=LogoContent(path="logo.png"),
                         ),
@@ -248,9 +248,9 @@ class TestFooterBarLayout:
         )
 
         elements = {el.id: el for el in result.elements}
-        assert elements["footer-left-top"].rect.x < 30
-        assert elements["footer-right-logo"].anchor == "middle-right"
-        assert elements["footer-right-logo"].rect.x > 900
+        assert elements["footer-primary-start"].rect.x < 30
+        assert elements["footer-asset"].anchor == "middle-center"
+        assert elements["footer-asset"].rect.x > 400
 
 
 class TestSideEdge:

@@ -9,7 +9,8 @@
     "prebuild": "rm -rf public/fonts && mkdir -p public/fonts && if [ -d ../../assets/fonts ]; then cp -r ../../assets/fonts/* public/fonts/; fi",
     "build": "tsc -b && vite build",
     "postbuild": "rm -rf public/fonts",
-    "preview": "vite preview --host 127.0.0.1 --port 4173"
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "test:flow-fixtures": "tsx scripts/runFlowFixtures.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.0.3",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^26.0.1",
     "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3"
+    "@types/react-dom": "19.2.3",
+    "tsx": "^4.23.1"
   }
 }

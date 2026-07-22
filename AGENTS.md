@@ -39,6 +39,7 @@ deploy/                 # 部署配置
 
 ```bash
 uv run ruff check .
+uv run python scripts/verify_flow_layout_parity.py
 cd packages/kari-core && uv run pytest
 cd apps/api && uv run pytest
 cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build

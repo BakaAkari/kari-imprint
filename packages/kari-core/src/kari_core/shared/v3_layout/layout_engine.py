@@ -382,6 +382,42 @@ def _rects_overlap(a: Rect, b: Rect) -> bool:
 
 # ── 各区域类型计算 ─────────────────────────────────
 
+_FLOW_SLOT_ORDER = ("primary-start", "primary-end", "secondary-start", "secondary-end", "asset")
+
+
+def _normalize_flow_slots(slots: dict[str, SlotConfig]) -> dict[str, SlotConfig]:
+    if any(slot_id in slots for slot_id in _FLOW_SLOT_ORDER):
+        return slots
+    legacy = {
+        "left-top": "primary-start", "right-top": "primary-end",
+        "left-bottom": "secondary-start", "right-bottom": "secondary-end",
+        "left-logo": "asset", "center": "asset", "right-logo": "asset",
+    }
+    normalized: dict[str, SlotConfig] = {}
+    for slot_id, slot in slots.items():
+        target = legacy.get(slot_id, slot_id)
+        if target != "asset" or target not in normalized or slot_id == "right-logo":
+            normalized[target] = slot
+    return normalized
+
+
+def _flow_config(region: RegionConfig) -> FlowLayoutConfig:
+    return region.layout or FlowLayoutConfig()
+
+
+def _resolve_width(value: dict[str, float | int | str], short_edge: int) -> int:
+    if value.get("mode") == "pixel":
+        return round(float(value.get("value", 0)))
+    return round(short_edge * float(value.get("value", 0)))
+
+
+def _active_flow_slots(region: RegionConfig) -> dict[str, SlotConfig]:
+    slots = _normalize_flow_slots(region.slots)
+    if _flow_config(region).mode == "dual-track":
+        return slots
+    return {slot_id: slot for slot_id, slot in slots.items() if not slot_id.startswith("secondary-")}
+
+
 def _compute_footer_bar(
     region: RegionConfig,
     image_rect: Rect,
@@ -389,56 +425,10 @@ def _compute_footer_bar(
     defaults: StyleConfig,
     short_edge: int,
     long_edge: int,
-    footer_mode: Literal["dual-row", "single-row"],
+    _footer_mode: Literal["dual-row", "single-row"],
 ) -> list[ComputedElement]:
-    """底部水印条：四角文本、左右/居中 Logo，单排模式左右垂直居中。"""
-
-    region_bounds = Rect(
-        x=0,
-        y=image_rect.bottom,
-        w=canvas.w,
-        h=canvas.h - image_rect.bottom,
-    )
-
-    elements: list[ComputedElement] = []
-    slot_layouts = _compute_footer_slots(region_bounds, region.slots, footer_mode)
-
-    for slot_id, slot_bounds in slot_layouts.items():
-        slot = region.slots.get(slot_id)
-        if not slot or not slot.enabled or slot.content is None:
-            continue
-
-        style = _merge_style(defaults, slot.style)
-        font_size = _resolve_font_size(style, region_bounds.h, short_edge, long_edge)
-
-        if isinstance(slot.content, TextContent) and slot.content.chips:
-            anchor = _footer_slot_anchor(slot_id, footer_mode)
-            pos = _apply_anchor(slot_bounds, anchor)
-
-            elements.append(ComputedElement(
-                id=f"{region.id}-{slot_id}",
-                type="text",
-                rect=Rect(x=pos.x, y=pos.y, w=slot_bounds.w, h=font_size),
-                anchor=anchor,
-                content=slot.content,
-                style=_with_font_size(style, font_size),
-            ))
-
-        elif isinstance(slot.content, LogoContent):
-            logo_h = _resolve_logo_size(slot.content, region_bounds.h)
-            logo_w = min(slot_bounds.w, round(logo_h * 3))  # preserve 3:1 max aspect via contain
-            anchor = _footer_logo_anchor(slot_id)
-            pos = _apply_anchor(slot_bounds, anchor)
-            elements.append(ComputedElement(
-                id=f"{region.id}-{slot_id}",
-                type="logo",
-                rect=Rect(x=pos.x, y=pos.y, w=logo_w, h=logo_h),
-                anchor=anchor,
-                content=slot.content,
-                style=defaults,
-            ))
-
-    return elements
+    bounds = Rect(x=0, y=image_rect.bottom, w=canvas.w, h=canvas.h - image_rect.bottom)
+    return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "horizontal")
 
 
 def _resolve_side_width(region: RegionConfig, short_edge: int) -> int:
@@ -457,42 +447,97 @@ def _compute_side_bar(
     short_edge: int,
     long_edge: int,
 ) -> list[ComputedElement]:
-    side_width = _resolve_side_width(region, short_edge)
     if region.edge == "left":
         bounds = Rect(x=0, y=0, w=image_rect.x, h=canvas.h)
     else:
         bounds = Rect(x=image_rect.right, y=0, w=canvas.w - image_rect.right, h=canvas.h)
+    return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "vertical")
+
+
+def _compute_flow_region(
+    region: RegionConfig,
+    bounds: Rect,
+    defaults: StyleConfig,
+    short_edge: int,
+    long_edge: int,
+    flow: Literal["horizontal", "vertical"],
+) -> list[ComputedElement]:
+    layout = _flow_config(region)
+    slots = _active_flow_slots(region)
+    base = bounds.h if flow == "horizontal" else bounds.w
     padding = region.padding or {}
-    pad_top = int(padding.get("top", round(side_width * 0.15)))
-    pad_right = int(padding.get("right", round(side_width * 0.12)))
-    pad_bottom = int(padding.get("bottom", round(side_width * 0.15)))
-    pad_left = int(padding.get("left", round(side_width * 0.12)))
-    active = [(slot_id, slot) for slot_id, slot in region.slots.items() if slot.enabled and slot.content is not None]
-    if not active:
-        return []
-    step = max(1.0, (bounds.h - pad_top - pad_bottom) / len(active))
+    pad_top = int(padding.get("top", max(6, round(base * 0.14))))
+    pad_right = int(padding.get("right", max(8, round(base * 0.14))))
+    pad_bottom = int(padding.get("bottom", max(6, round(base * 0.14))))
+    pad_left = int(padding.get("left", max(8, round(base * 0.14))))
+    inner = Rect(
+        x=bounds.x + pad_left, y=bounds.y + pad_top,
+        w=max(1, bounds.w - pad_left - pad_right),
+        h=max(1, bounds.h - pad_top - pad_bottom),
+    )
+    track_gap = max(0, _resolve_width(layout.track_gap, short_edge))
+    item_gap = max(0, _resolve_width(layout.item_gap, short_edge))
+    ratios = (1.0, 0.0) if layout.mode == "single-track" else layout.track_ratios
+    cross_size = inner.h if flow == "horizontal" else inner.w
+    primary_size = max(1, round((cross_size - (track_gap if layout.mode == "dual-track" else 0)) * ratios[0]))
+    secondary_size = max(1, cross_size - primary_size - (track_gap if layout.mode == "dual-track" else 0))
+    primary_first = layout.track_order == "photo-outward"
+    if flow == "horizontal":
+        first_y = inner.y
+        second_y = inner.y + (primary_size if primary_first else secondary_size) + track_gap
+        primary = Rect(inner.x, first_y if primary_first else second_y, inner.w, primary_size)
+        secondary = Rect(inner.x, second_y if primary_first else first_y, inner.w, secondary_size)
+    else:
+        photo_is_left = region.edge != "left"
+        primary_on_left = photo_is_left if layout.track_order == "photo-outward" else not photo_is_left
+        first_x = inner.x
+        second_x = inner.x + (primary_size if primary_on_left else secondary_size) + track_gap
+        primary = Rect(first_x if primary_on_left else second_x, inner.y, primary_size, inner.h)
+        secondary = Rect(second_x if primary_on_left else first_x, inner.y, secondary_size, inner.h)
+    track_rects = {"primary": primary, "secondary": secondary}
     elements: list[ComputedElement] = []
-    for index, (slot_id, slot) in enumerate(active):
-        style = _merge_style(defaults, slot.style)
-
-        x = bounds.x + bounds.w // 2
-        y = round(bounds.y + pad_top + step * (index + 0.5))
-        if isinstance(slot.content, TextContent) and slot.content.chips:
-            font_size = _resolve_font_size(style, bounds.w, short_edge, long_edge)
-            text_style = _with_font_size(style, font_size)
-
-            elements.append(ComputedElement(
-                id=f"{region.id}-{slot_id}", type="text",
-                rect=Rect(x=x, y=y, w=max(1, round(step)), h=max(1, bounds.w - pad_left - pad_right)),
-                anchor="middle-center", content=slot.content, style=text_style,
-            ))
-        elif isinstance(slot.content, LogoContent):
-            logo_h = _resolve_logo_size(slot.content, bounds.w)
-            elements.append(ComputedElement(
-                id=f"{region.id}-{slot_id}", type="logo",
-                rect=Rect(x=x, y=y, w=max(1, bounds.w - pad_left - pad_right), h=logo_h),
-                anchor="middle-center", content=slot.content, style=style,
-            ))
+    for track_name in ("primary", "secondary"):
+        if track_name == "secondary" and layout.mode == "single-track":
+            continue
+        track = track_rects[track_name]
+        for endpoint in ("start", "end"):
+            slot_id = f"{track_name}-{endpoint}"
+            slot = slots.get(slot_id)
+            if slot is None or not slot.enabled or slot.content is None:
+                continue
+            style = _merge_style(defaults, slot.style)
+            ref = bounds.h if flow == "horizontal" else bounds.w
+            font_size = _resolve_font_size(style, ref, short_edge, long_edge)
+            if flow == "horizontal":
+                anchor = "middle-left" if endpoint == "start" else "middle-right"
+                slot_bounds = Rect(
+                    x=track.x if endpoint == "start" else track.x + track.w // 2 + item_gap,
+                    y=track.y, w=max(1, track.w // 2 - item_gap), h=track.h,
+                )
+            else:
+                anchor = "top-center" if endpoint == "start" else "bottom-center"
+                slot_bounds = Rect(
+                    x=track.x,
+                    y=track.y if endpoint == "start" else track.y + track.h // 2 + item_gap,
+                    w=track.w, h=max(1, track.h // 2 - item_gap),
+                )
+            pos = _apply_anchor(slot_bounds, anchor)
+            if isinstance(slot.content, TextContent) and slot.content.chips:
+                elements.append(ComputedElement(
+                    id=f"{region.id}-{slot_id}", type="text",
+                    rect=Rect(pos.x, pos.y, slot_bounds.w, slot_bounds.h),
+                    anchor=anchor, content=slot.content, style=_with_font_size(style, font_size),
+                ))
+    asset = slots.get("asset")
+    if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
+        size_ref = bounds.h if flow == "horizontal" else bounds.w
+        logo_h = _resolve_logo_size(asset.content, size_ref)
+        pos = _apply_anchor(inner, "middle-center")
+        elements.append(ComputedElement(
+            id=f"{region.id}-asset", type="logo",
+            rect=Rect(pos.x, pos.y, min(inner.w, logo_h * 3), logo_h),
+            anchor="middle-center", content=asset.content, style=defaults,
+        ))
     return elements
 
 

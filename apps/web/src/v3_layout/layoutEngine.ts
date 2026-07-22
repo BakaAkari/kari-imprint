@@ -273,60 +273,50 @@ export function computeLayoutWithDiagnostics(
 
 // ── 各区域类型计算 ─────────────────────────────────
 
-function computeFooterBar(
-  region: RegionConfig,
-  imageRect: Rect,
-  canvas: Size,
-  defaults: StyleConfig,
-  shortEdge: number,
-  longEdge: number,
-  footerMode: 'dual-row' | 'single-row',
-): ComputedElement[] {
-  const regionBounds = rect(
-    0,
-    rectBottom(imageRect),
-    canvas.w,
-    canvas.h - rectBottom(imageRect),
-  );
+const FLOW_SLOT_ORDER = ['primary-start', 'primary-end', 'secondary-start', 'secondary-end', 'asset'] as const;
+type FlowSlot = typeof FLOW_SLOT_ORDER[number];
 
-  const elements: ComputedElement[] = [];
-  const slotLayouts = computeFooterSlots(regionBounds, region.slots ?? {}, footerMode);
-
-  for (const [slotId, slotBounds] of Object.entries(slotLayouts)) {
-    const slot = region.slots?.[slotId];
-    if (!slot || !slot.enabled || !slot.content) continue;
-
-    const style = mergeStyle(defaults, slot.style);
-    const fontSize = resolveFontSize(style, regionBounds.h, shortEdge, longEdge);
-
-    if (isTextContent(slot.content) && slot.content.chips.length > 0) {
-      const anchor = footerSlotAnchor(slotId, footerMode);
-      const pos = applyAnchor(slotBounds, anchor);
-
-      elements.push({
-        id: `${region.id}-${slotId}`,
-        type: 'text',
-        rect: rect(pos.x, pos.y, slotBounds.w, fontSize),
-        anchor,
-        content: slot.content,
-        style: withFontSize(style, fontSize),
-      });
-    } else if (isLogoContent(slot.content)) {
-      const logoH = resolveLogoSize(slot.content, regionBounds.h);
-      const anchor = footerLogoAnchor(slotId);
-      const pos = applyAnchor(slotBounds, anchor);
-      elements.push({
-        id: `${region.id}-${slotId}`,
-        type: 'logo',
-        rect: rect(pos.x, pos.y, Math.min(slotBounds.w, logoH * 3), logoH),
-        anchor,
-        content: slot.content,
-        style: defaults,
-      });
-    }
+function normalizeFlowSlots(slots: Record<string, SlotConfig>): Record<string, SlotConfig> {
+  if (FLOW_SLOT_ORDER.some(id => id in slots)) return slots;
+  const legacy: Record<string, string> = {
+    'left-top': 'primary-start', 'right-top': 'primary-end',
+    'left-bottom': 'secondary-start', 'right-bottom': 'secondary-end',
+    'left-logo': 'asset', center: 'asset', 'right-logo': 'asset',
+  };
+  const normalized: Record<string, SlotConfig> = {};
+  for (const [id, slot] of Object.entries(slots)) {
+    const target = legacy[id] ?? id;
+    if (target !== 'asset' || !(target in normalized) || id === 'right-logo') normalized[target] = slot;
   }
+  return normalized;
+}
 
-  return elements;
+function flowConfig(region: RegionConfig): FlowLayoutConfig {
+  return region.layout ?? {
+    mode: 'dual-track', main_alignment: 'space-between', cross_alignment: 'center',
+    track_order: 'photo-outward',
+    track_gap: { mode: 'short_edge_ratio', value: 0.012 },
+    item_gap: { mode: 'short_edge_ratio', value: 0.012 },
+    track_ratios: [0.6, 0.4],
+  };
+}
+
+function resolveWidth(value: { mode: 'pixel' | 'short_edge_ratio'; value: number }, shortEdge: number): number {
+  return value.mode === 'pixel' ? Math.round(value.value) : Math.round(shortEdge * value.value);
+}
+
+function activeFlowSlots(region: RegionConfig): Record<string, SlotConfig> {
+  const slots = normalizeFlowSlots(region.slots ?? {});
+  if (flowConfig(region).mode === 'dual-track') return slots;
+  return Object.fromEntries(Object.entries(slots).filter(([id]) => !id.startsWith('secondary-')));
+}
+
+function computeFooterBar(
+  region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
+  shortEdge: number, longEdge: number, _footerMode: 'dual-row' | 'single-row',
+): ComputedElement[] {
+  const bounds = rect(0, rectBottom(imageRect), canvas.w, canvas.h - rectBottom(imageRect));
+  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'horizontal');
 }
 
 function resolveSideWidth(region: RegionConfig, shortEdge: number): number {
@@ -337,46 +327,87 @@ function resolveSideWidth(region: RegionConfig, shortEdge: number): number {
 }
 
 function computeSideBar(
-  region: RegionConfig,
-  imageRect: Rect,
-  canvas: Size,
-  defaults: StyleConfig,
-  shortEdge: number,
-  longEdge: number,
+  region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
+  shortEdge: number, longEdge: number,
 ): ComputedElement[] {
-  const sideWidth = resolveSideWidth(region, shortEdge);
   const bounds = region.edge === 'left'
     ? rect(0, 0, imageRect.x, canvas.h)
     : rect(rectRight(imageRect), 0, canvas.w - rectRight(imageRect), canvas.h);
-  const padding = {
-    top: region.padding?.top ?? Math.round(sideWidth * 0.15),
-    right: region.padding?.right ?? Math.round(sideWidth * 0.12),
-    bottom: region.padding?.bottom ?? Math.round(sideWidth * 0.15),
-    left: region.padding?.left ?? Math.round(sideWidth * 0.12),
-  };
-  const active = Object.entries(region.slots ?? {}).filter(([, slot]) => slot.enabled && slot.content);
-  if (active.length === 0) return [];
-  const step = Math.max(1, (bounds.h - padding.top - padding.bottom) / active.length);
-  const elements: ComputedElement[] = [];
-  active.forEach(([slotId, slot], index) => {
-    if (!slot.content) return;
-    const style = mergeStyle(defaults, slot.style);
+  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical');
+}
 
-    const x = bounds.x + bounds.w / 2;
-    const y = bounds.y + padding.top + step * (index + 0.5);
-    if (isTextContent(slot.content) && slot.content.chips.length > 0) {
-      const fontSize = resolveFontSize(style, bounds.w, shortEdge, longEdge);
-      elements.push({ id: `${region.id}-${slotId}`, type: 'text',
-        rect: rect(x, y, step, Math.max(1, bounds.w - padding.left - padding.right)),
-        anchor: 'middle-center', content: slot.content,
-        style: withFontSize(style, fontSize) });
-    } else if (isLogoContent(slot.content)) {
-      const logoH = resolveLogoSize(slot.content, bounds.w);
-      elements.push({ id: `${region.id}-${slotId}`, type: 'logo',
-        rect: rect(x, y, Math.max(1, bounds.w - padding.left - padding.right), logoH),
-        anchor: 'middle-center', content: slot.content, style });
+function computeFlowRegion(
+  region: RegionConfig, bounds: Rect, defaults: StyleConfig,
+  shortEdge: number, longEdge: number, flow: 'horizontal' | 'vertical',
+): ComputedElement[] {
+  const layout = flowConfig(region);
+  const slots = activeFlowSlots(region);
+  const padding = {
+    top: region.padding?.top ?? Math.max(6, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
+    right: region.padding?.right ?? Math.max(8, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
+    bottom: region.padding?.bottom ?? Math.max(6, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
+    left: region.padding?.left ?? Math.max(8, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
+  };
+  const inner = rect(bounds.x + padding.left, bounds.y + padding.top,
+    Math.max(1, bounds.w - padding.left - padding.right),
+    Math.max(1, bounds.h - padding.top - padding.bottom));
+  const trackGap = Math.max(0, resolveWidth(layout.track_gap, shortEdge));
+  const itemGap = Math.max(0, resolveWidth(layout.item_gap, shortEdge));
+  const ratios = layout.mode === 'single-track' ? [1, 0] : layout.track_ratios;
+  const crossSize = flow === 'horizontal' ? inner.h : inner.w;
+  const primarySize = Math.max(1, Math.round((crossSize - (layout.mode === 'dual-track' ? trackGap : 0)) * ratios[0]));
+  const secondarySize = Math.max(1, crossSize - primarySize - (layout.mode === 'dual-track' ? trackGap : 0));
+  const primaryFirst = layout.track_order === 'photo-outward';
+  let primary: Rect;
+  let secondary: Rect;
+  if (flow === 'horizontal') {
+    const firstY = inner.y;
+    const secondY = inner.y + (primaryFirst ? primarySize : secondarySize) + trackGap;
+    primary = rect(inner.x, primaryFirst ? firstY : secondY, inner.w, primarySize);
+    secondary = rect(inner.x, primaryFirst ? secondY : firstY, inner.w, secondarySize);
+  } else {
+    const photoIsLeft = region.edge !== 'left';
+    const primaryOnLeft = layout.track_order === 'photo-outward' ? photoIsLeft : !photoIsLeft;
+    const firstX = inner.x;
+    const secondX = inner.x + (primaryOnLeft ? primarySize : secondarySize) + trackGap;
+    primary = rect(primaryOnLeft ? firstX : secondX, inner.y, primarySize, inner.h);
+    secondary = rect(primaryOnLeft ? secondX : firstX, inner.y, secondarySize, inner.h);
+  }
+  const trackRects: Record<'primary' | 'secondary', Rect> = { primary, secondary };
+  const elements: ComputedElement[] = [];
+  for (const trackName of ['primary', 'secondary'] as const) {
+    if (trackName === 'secondary' && layout.mode === 'single-track') continue;
+    const track = trackRects[trackName];
+    for (const endpoint of ['start', 'end'] as const) {
+      const slotId = `${trackName}-${endpoint}` as FlowSlot;
+      const slot = slots[slotId];
+      if (!slot?.enabled || !slot.content) continue;
+      const style = mergeStyle(defaults, slot.style);
+      const ref = flow === 'horizontal' ? bounds.h : bounds.w;
+      const fontSize = resolveFontSize(style, ref, shortEdge, longEdge);
+      const anchor = flow === 'horizontal'
+        ? (endpoint === 'start' ? 'middle-left' : 'middle-right')
+        : (endpoint === 'start' ? 'top-center' : 'bottom-center');
+      const slotBounds = flow === 'horizontal'
+        ? rect(track.x + (endpoint === 'start' ? 0 : Math.floor(track.w / 2) + itemGap), track.y,
+            Math.max(1, Math.floor(track.w / 2) - itemGap), track.h)
+        : rect(track.x, track.y + (endpoint === 'start' ? 0 : Math.floor(track.h / 2) + itemGap),
+            track.w, Math.max(1, Math.floor(track.h / 2) - itemGap));
+      const pos = applyAnchor(slotBounds, anchor);
+      if (isTextContent(slot.content) && slot.content.chips.length > 0) {
+        elements.push({ id: `${region.id}-${slotId}`, type: 'text', rect: rect(pos.x, pos.y, slotBounds.w, slotBounds.h),
+          anchor, content: slot.content, style: withFontSize(style, fontSize) });
+      }
     }
-  });
+  }
+  const asset = slots.asset;
+  if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
+    const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
+    const logoH = resolveLogoSize(asset.content, sizeRef);
+    const pos = applyAnchor(inner, 'middle-center');
+    elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, logoH * 3), logoH),
+      anchor: 'middle-center', content: asset.content, style: defaults });
+  }
   return elements;
 }
 
@@ -765,9 +796,9 @@ function isTextContent(c: Content): c is TextContent {
 }
 
 function isLogoContent(c: Content): c is LogoContent {
-  return 'path' in c && 'color' in c;
+  return 'path' in c && !('invert_mono' in c);
 }
 
 function isSignatureContent(c: Content): c is SignatureContent {
-  return 'path' in c && 'size_ratio' in c;
+  return 'path' in c && 'invert_mono' in c;
 }

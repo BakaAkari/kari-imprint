@@ -50,7 +50,7 @@
 - 通过 schema v3 迁移旧配置，并建立 TS/Python Golden 一致性测试。
 - 拆分 Footer / Side 控制面，清理 `footer_mode` 等旧序列化结构。
 
-实施状态：阶段 1 已建立 schema v3、Flow 类型、Canonical Slot 与 v1/v2 兼容迁移。
+实施状态：阶段 1 已建立 schema v3、Flow 类型、Canonical Slot 与 v1/v2 兼容迁移；阶段 2 已完成 Footer / Side Flow 策略和跨语言 Fixture 一致性校验。
 
 ### Phase C：V3 控制面收敛与布局 Guardrails
 

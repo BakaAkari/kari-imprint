@@ -1,0 +1,54 @@
+[
+  {
+    "id": "footer-dual",
+    "image": [1000, 600],
+    "config": {
+      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
+      "regions": [{
+        "id": "flow", "type": "footer-bar", "enabled": true, "height": 0.1,
+        "layout": {"mode": "dual-track"},
+        "slots": {
+          "primary-start": {"enabled": true, "text": "make"},
+          "primary-end": {"enabled": true, "text": "iso"},
+          "secondary-start": {"enabled": true, "text": "camera_model"},
+          "secondary-end": {"enabled": true, "text": "shutter"}
+        }
+      }]
+    }
+  },
+  {
+    "id": "side-right-dual",
+    "image": [800, 600],
+    "config": {
+      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
+      "regions": [{
+        "id": "flow", "type": "side-bar", "enabled": true, "edge": "right",
+        "width": {"mode": "pixel", "value": 140},
+        "layout": {"mode": "dual-track"},
+        "slots": {
+          "primary-start": {"enabled": true, "text": "make"},
+          "primary-end": {"enabled": true, "text": "iso"},
+          "secondary-start": {"enabled": true, "text": "camera_model"},
+          "secondary-end": {"enabled": true, "text": "shutter"}
+        }
+      }]
+    }
+  },
+  {
+    "id": "side-left-single",
+    "image": [600, 900],
+    "config": {
+      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
+      "regions": [{
+        "id": "flow", "type": "side-bar", "enabled": true, "edge": "left",
+        "width": {"mode": "short_edge_ratio", "value": 0.15},
+        "layout": {"mode": "single-track"},
+        "slots": {
+          "primary-start": {"enabled": true, "text": "make"},
+          "primary-end": {"enabled": true, "text": "iso"},
+          "secondary-start": {"enabled": true, "text": "camera_model"}
+        }
+      }]
+    }
+  }
+]
