@@ -530,7 +530,12 @@ def _compute_flow_region(
     if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)
-        pos = _apply_anchor(inner, "middle-center")
+        anchor = (
+            ("middle-left" if asset.content.placement == "start" else "middle-right" if asset.content.placement == "end" else "middle-center")
+            if flow == "horizontal"
+            else ("top-center" if asset.content.placement == "start" else "bottom-center" if asset.content.placement == "end" else "middle-center")
+        )
+        pos = _apply_anchor(inner, anchor)
         content = replace(
             asset.content,
             orientation=_resolve_asset_orientation(region, asset.content.orientation),
@@ -538,7 +543,7 @@ def _compute_flow_region(
         elements.append(ComputedElement(
             id=f"{region.id}-asset", type="logo",
             rect=Rect(pos.x, pos.y, min(inner.w, logo_h * 3), logo_h),
-            anchor="middle-center", content=content, style=defaults,
+            anchor=anchor, content=content, style=defaults,
         ))
     return elements
 

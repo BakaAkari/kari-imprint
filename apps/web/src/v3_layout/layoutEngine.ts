@@ -409,10 +409,13 @@ function computeFlowRegion(
   if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoH = resolveLogoSize(asset.content, sizeRef);
-    const pos = applyAnchor(inner, 'middle-center');
+    const anchor = flow === 'horizontal'
+      ? (asset.content.placement === 'start' ? 'middle-left' : asset.content.placement === 'end' ? 'middle-right' : 'middle-center')
+      : (asset.content.placement === 'start' ? 'top-center' : asset.content.placement === 'end' ? 'bottom-center' : 'middle-center');
+    const pos = applyAnchor(inner, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
     elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, logoH * 3), logoH),
-      anchor: 'middle-center', content, style: defaults });
+      anchor, content, style: defaults });
   }
   return elements;
 }

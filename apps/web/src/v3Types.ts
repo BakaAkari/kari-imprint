@@ -723,7 +723,14 @@ export function resolveConfig(
       if (logoSlot) {
         footer.slots[logoSlot] = {
           enabled: true,
-          content: { path: controls.logo_path, size_level: controls.logo_size, size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
+          content: {
+            path: controls.logo_path,
+            size_level: controls.logo_size,
+            size_ratio: null,
+            orientation: 'upright',
+            placement: controls.logo_position === 'left' ? 'start' : controls.logo_position === 'right' ? 'end' : 'center',
+            track: 'span',
+          },
           style: null,
         };
       }

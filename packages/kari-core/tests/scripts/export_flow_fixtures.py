@@ -11,6 +11,7 @@ from kari_core.shared.v3_layout.layout_engine import (  # noqa: E402
     CanvasConfig,
     FieldChip,
     FlowLayoutConfig,
+    LogoContent,
     MarginsConfig,
     RegionConfig,
     SlotConfig,
@@ -25,6 +26,12 @@ FIXTURES = Path(__file__).parents[1] / "fixtures" / "v3_flow_layout_cases.json"
 
 def build(case: dict) -> WatermarkConfig:
     raw = case["config"]["regions"][0]
+
+    def slot_content(value: dict):
+        if "logo" in value:
+            return LogoContent(path=value["logo"], placement=value.get("placement", "center"))
+        return TextContent(chips=[FieldChip(field_id=value["text"])])
+
     region = RegionConfig(
         id=raw["id"], type=raw["type"], enabled=True,
         height=raw.get("height"), edge=raw.get("edge"), width=raw.get("width"),
@@ -32,7 +39,7 @@ def build(case: dict) -> WatermarkConfig:
         slots={
             slot_id: SlotConfig(
                 enabled=value["enabled"],
-                content=TextContent(chips=[FieldChip(field_id=value["text"])]),
+                content=slot_content(value),
                 style=StyleConfig(font_size=16),
             )
             for slot_id, value in raw["slots"].items()

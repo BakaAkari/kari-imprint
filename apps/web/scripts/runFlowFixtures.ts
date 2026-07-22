@@ -15,7 +15,9 @@ const output = cases.map((entry) => {
   const raw = entry.config.regions[0];
   const slots = Object.fromEntries(Object.entries(raw.slots).map(([id, value]: [string, any]) => [id, {
     enabled: value.enabled,
-    content: { chips: [{ field_id: value.text }], separator: ' ' },
+    content: value.logo !== undefined
+      ? { path: value.logo, size_level: 'medium', size_ratio: null, orientation: 'upright', placement: value.placement ?? 'center', track: 'span' }
+      : { chips: [{ field_id: value.text }], separator: ' ' },
     style: defaultStyle,
   } satisfies SlotConfig]));
   const region: RegionConfig = {

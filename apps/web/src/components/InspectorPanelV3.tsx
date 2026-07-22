@@ -297,7 +297,7 @@ function FooterBarEditor({
             slot={slot}
             hasErrors={slotErrors.length > 0}
             onUpdate={(patch) => onUpdateSlot(slotId, patch)}
-            defaultContentType={slotId.includes('logo') ? 'logo' : 'text'}
+            defaultContentType={slotId === 'asset' ? 'logo' : 'text'}
           />
         );
       })}

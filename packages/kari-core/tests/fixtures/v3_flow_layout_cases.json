@@ -11,7 +11,8 @@
           "primary-start": {"enabled": true, "text": "make"},
           "primary-end": {"enabled": true, "text": "iso"},
           "secondary-start": {"enabled": true, "text": "camera_model"},
-          "secondary-end": {"enabled": true, "text": "shutter"}
+          "secondary-end": {"enabled": true, "text": "shutter"},
+          "asset": {"enabled": true, "logo": "brand.png", "placement": "start"}
         }
       }]
     }
@@ -29,7 +30,8 @@
           "primary-start": {"enabled": true, "text": "make"},
           "primary-end": {"enabled": true, "text": "iso"},
           "secondary-start": {"enabled": true, "text": "camera_model"},
-          "secondary-end": {"enabled": true, "text": "shutter"}
+          "secondary-end": {"enabled": true, "text": "shutter"},
+          "asset": {"enabled": true, "logo": "brand.png", "placement": "end"}
         }
       }]
     }
