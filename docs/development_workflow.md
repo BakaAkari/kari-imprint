@@ -2,6 +2,8 @@
 
 本文件固化 V3 水印工具的需求、设计、实现、验证、部署和提交流程。
 
+**一致性与安全约束详见 `docs/consistency-contract.md`，本文件引用其核心规则。**
+
 ## 核心流程
 
 ```text
@@ -38,10 +40,10 @@
 至少运行：
 
 ```bash
-cd web_frontend && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
 ```
 
-部署后用浏览器截图检查。
+涉及 CSS Grid/Flexbox 的布局改动必须用浏览器截图验证。
 
 ### 后端 / 配置 / 处理管线
 
@@ -61,23 +63,21 @@ curl -sS https://baka-akari.zone/tools/watermark-v3/api/health
 curl -sS -o /dev/null -w '%{http_code}\n' https://baka-akari.zone/tools/watermark-v3/
 ```
 
-并检查旧入口：
-
-```bash
-curl -sS -o /dev/null -w 'v1_api:%{http_code}\n' https://baka-akari.zone/tools/watermark/api/health
-curl -sS -o /dev/null -w 'v2:%{http_code}\n' https://baka-akari.zone/tools/watermark-v2/
-curl -sS -o /dev/null -w 'v3_v2:%{http_code}\n' https://baka-akari.zone/tools/watermark-v3/v2
-```
-
-期望：V1 API `410`，V2 `404`，V3 `/v2` `404`。
+并检查旧入口（期望 V1 API `410`，V2 `404`，V3 `/v2` `404`）。
 
 ## 实现原则
 
-- **CSS-JSX 类名必须同源**：
-  当 JSX 通过模板字符串动态拼接 CSS 类名（如 `v3-footer-bar-rows-${controls.flow_mode}`），
-  CSS 端必须使用完全相同的 token 作为类名后缀，不得独立定义另一套命名。
-  禁止出现 JSX 生成 `*-dual-track` 但 CSS 定义为 `*-dual-row` 的情况。
-  grid-area 名称也必须与 JSX 传入的 `position` / `slotId` 等标识符一致，使用同一套 canonical token。
+### 一致性（详见 `docs/consistency-contract.md`）
+
+- TS 类型 ↔ Python 类型必须同步修改。
+- 设计 token 在 `designTokens.ts` 和 `layout_engine.py` 两端同时更新。
+- CSS 类名必须与 JSX 动态拼接的 token 完全一致。
+- 布局引擎修改后必须更新 Golden Fixtures 并运行 `verify_flow_layout_parity.py`。
+- API schema 变更必须搜索前端所有引用并同步更新。
+- 删除功能时必须 `rg '关键词'` 全局搜索清理所有残留。
+
+### 安全与架构
+
 - V3 只接受 Region / Slot / Content 配置。
 - 不恢复 V1/V2 四角配置模型。
 - 不把用户文本送入 Jinja 或动态模板执行器。
@@ -85,40 +85,34 @@ curl -sS -o /dev/null -w 'v3_v2:%{http_code}\n' https://baka-akari.zone/tools/wa
 - 普通用户 UI 走模板驱动，高级结构编辑默认收起。
 - 大范围控制面改造前先更新 `design/v3-control-surface-guardrails.md`。
 
-### CSS/JSX 类名耦合自检
-
-引入或修改动态类名时，必须执行：
-
-```bash
-# 搜索 JSX 中的动态类名拼接模式
-rg 'className=\{.*\$\{' apps/web/src --type tsx
-# 对每个拼接变量，在 CSS 中搜索对应类名，确保完全一致
-```
-
-新增 CSS Grid 布局后，必须用浏览器截图验证 grid-area 生效，不能仅凭 `tsc` 和 `build` 通过就判定正确。
-
 ## 提交前检查
 
 ```bash
-git status --short
-git diff --stat
+# 完整检查
+uv run ruff check .
+uv run python scripts/verify_flow_layout_parity.py
+cd packages/kari-core && uv run pytest
+cd apps/api && uv run pytest
+cd apps/web && npx tsc -b --pretty false
+cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
 git diff --check
+
+# 残留引用搜索（功能删除后必做）
+rg '<已删除关键词>' apps packages --type-add 'code:*.{ts,tsx,py}' --glob '!**/__pycache__/**'
+
+# CSS-JSX 类名一致性检查
+rg 'className=\{.*\$\{' apps/web/src --type tsx
 ```
 
-提交信息使用 Conventional Commits：
-
-```text
-feat: add layout guardrails
-fix: prevent v3 resource path injection
-docs: refresh v3 roadmap
-chore: remove legacy watermark files
-```
+提交信息使用 Conventional Commits。
 
 ## 文档组织
 
 - `README.md`：当前项目入口。
 - `docs/roadmap.md`：当前路线图。
+- `docs/consistency-contract.md`：**最高优先级一致性开发契约**。
+- `docs/development_workflow.md`：本文件。
 - `design/v3-region-based-layout.md`：当前 V3 架构说明。
-- `design/v3-control-surface-guardrails.md`：下一阶段控制面设计。
+- `design/v3-control-surface-guardrails.md`：控制面设计（下一阶段）。
 - `deploy/README.md`：线上部署和验证。
 - `docs/archive/`：历史设计，仅作背景，不作为当前待办。

@@ -444,7 +444,7 @@ def _resolve_text_direction(region: RegionConfig, style: StyleConfig) -> str:
 def _resolve_asset_orientation(region: RegionConfig, orientation: str) -> str:
     if orientation != "follow-flow":
         return orientation
-    if region.type in {"side-bar", "side-edge"}:
+    if region.type == "side-bar":
         return "rotate-ccw" if region.edge == "left" else "rotate-cw"
     return "upright"
 

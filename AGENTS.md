@@ -31,18 +31,18 @@ deploy/                 # 部署配置
 - 图片处理必须限制上传大小、解码像素、并发和文件保留时间。
 - 不向客户端返回内部路径、异常堆栈或敏感 EXIF 日志。
 
-## 前端开发硬约束
+## 一致性契约
 
-- **CSS 类名必须与 JSX 动态拼接的 token 一致**：
-  当 JSX 使用 `className={`v3-footer-bar-rows-${controls.flow_mode}`}` 时，
-  CSS 必须定义 `v3-footer-bar-rows-dual-track`（而非 `-dual-row`）。
-  `flow_mode`、`position`、`slotId` 等配置枚举值与 CSS 后缀是一一映射的，
-  不得独立发明新命名。
-- **grid-area 名称必须与 JSX 传入的标识符完全一致**：
-  例如 JSX 传入 `row.position === 'primary-start'` 拼接为 `v3-footer-row-primary-start`，
-  CSS 的 `grid-area` 必须用 `primary-start`，不得用 `top-left`。
-- 新增或修改动态 CSS 类名后，必须用浏览器截图验证实际布局，
-  因为 `tsc` 和 `Vite build` 不会检测类名不匹配导致的布局失效。
+**任何涉及 TS/Python 双语言共享类型的改动，必须遵守 `docs/consistency-contract.md`。**
+
+核心原则：
+- TS 类型 ↔ Python 类型必须同步修改。
+- 设计 token 必须在 `designTokens.ts` 和 `layout_engine.py` 两端同时更新。
+- CSS 类名必须与 JSX 动态拼接的 token 完全一致（禁止独立发明命名）。
+- 布局引擎修改后必须更新 Golden Fixtures 并运行 `verify_flow_layout_parity.py`。
+- API schema 变更必须搜索前端所有引用并同步更新类型。
+- 删除功能时必须全局搜索 `rg '关键词'` 清理所有残留（代码、测试、文档、注释）。
+- CSS Grid/Flexbox 布局改动必须用浏览器截图验证，`tsc` + `build` 不足以检测类名不匹配。
 
 ## 工作流
 
@@ -55,7 +55,9 @@ uv run ruff check .
 uv run python scripts/verify_flow_layout_parity.py
 cd packages/kari-core && uv run pytest
 cd apps/api && uv run pytest
+cd apps/web && npx tsc -b --pretty false
 cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
+git diff --check
 ```
 
 提交信息使用 Conventional Commits。

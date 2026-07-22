@@ -527,7 +527,7 @@ export type SlotOverrides = Record<string, SlotOverride>;
  * - template 的 per-slot style 被保留（如 font_size_ratio）
  * - controls 只控制 chips 列表、高度、颜色主题、logo 位置
  * - overrides 在 controls 变更后仍持久化
- * - 非 footer 区域（side-edge, free）不受影响
+ * - 非 footer 区域（free）不受影响
  */
 export interface RegionOverride extends Partial<Omit<RegionConfig, 'id' | 'slots'>> {}
 export type RegionOverrides = Record<string, RegionOverride>;

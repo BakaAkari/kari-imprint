@@ -89,7 +89,7 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
     [rows, updateRow],
   );
 
-  // 无 Flow 水印栏（如 side-edge 档案模板）时，主控制面不渲染槽位编辑块，
+  // 无 Flow 水印栏时，主控制面不渲染槽位编辑块，
   // 避免用户编辑一组不会写入任何 Region 的空转控件。
   if (!flowRegion) return null;
 
