@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { V3AppContext } from '../V3HomePage';
+import { uploadResourceV3 } from '../apiV3';
 import {
   type FieldChip,
   type FieldId,
@@ -184,14 +185,21 @@ export function V3LogoControls({
 }) {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   const handleLogoChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => onChange({ logo_path: String(reader.result ?? '') });
-      reader.readAsDataURL(file);
+      setUploadStatus('上传中...');
+      void uploadResourceV3(file, 'logo')
+        .then((result) => {
+          onChange({ logo_path: result.resource_id });
+          setUploadStatus('');
+        })
+        .catch((error: unknown) => {
+          setUploadStatus(error instanceof Error ? error.message : '上传失败');
+        });
       e.target.value = '';
     },
     [onChange],
@@ -214,6 +222,7 @@ export function V3LogoControls({
             )}
             <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
           </div>
+          {uploadStatus && <div className="v3-control-note">{uploadStatus}</div>}
         </div>
         <div className="v3-form-row">
           <label>大小</label>
@@ -308,14 +317,21 @@ export function V3SignatureControls({
 }) {
   const sigInputRef = useRef<HTMLInputElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   const handleSignatureChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => onChange({ signature_path: String(reader.result ?? '') });
-      reader.readAsDataURL(file);
+      setUploadStatus('上传中...');
+      void uploadResourceV3(file, 'signature')
+        .then((result) => {
+          onChange({ signature_path: result.resource_id });
+          setUploadStatus('');
+        })
+        .catch((error: unknown) => {
+          setUploadStatus(error instanceof Error ? error.message : '上传失败');
+        });
       e.target.value = '';
     },
     [onChange],
@@ -338,6 +354,7 @@ export function V3SignatureControls({
             )}
             <input ref={sigInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleSignatureChange} />
           </div>
+          {uploadStatus && <div className="v3-control-note">{uploadStatus}</div>}
         </div>
         {controls.signature_path && (
           <div className="v3-form-row">
