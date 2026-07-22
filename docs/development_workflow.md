@@ -73,12 +73,29 @@ curl -sS -o /dev/null -w 'v3_v2:%{http_code}\n' https://baka-akari.zone/tools/wa
 
 ## 实现原则
 
+- **CSS-JSX 类名必须同源**：
+  当 JSX 通过模板字符串动态拼接 CSS 类名（如 `v3-footer-bar-rows-${controls.flow_mode}`），
+  CSS 端必须使用完全相同的 token 作为类名后缀，不得独立定义另一套命名。
+  禁止出现 JSX 生成 `*-dual-track` 但 CSS 定义为 `*-dual-row` 的情况。
+  grid-area 名称也必须与 JSX 传入的 `position` / `slotId` 等标识符一致，使用同一套 canonical token。
 - V3 只接受 Region / Slot / Content 配置。
 - 不恢复 V1/V2 四角配置模型。
 - 不把用户文本送入 Jinja 或动态模板执行器。
 - 上传资源只能用服务端不透明 ID。
 - 普通用户 UI 走模板驱动，高级结构编辑默认收起。
 - 大范围控制面改造前先更新 `design/v3-control-surface-guardrails.md`。
+
+### CSS/JSX 类名耦合自检
+
+引入或修改动态类名时，必须执行：
+
+```bash
+# 搜索 JSX 中的动态类名拼接模式
+rg 'className=\{.*\$\{' apps/web/src --type tsx
+# 对每个拼接变量，在 CSS 中搜索对应类名，确保完全一致
+```
+
+新增 CSS Grid 布局后，必须用浏览器截图验证 grid-area 生效，不能仅凭 `tsc` 和 `build` 通过就判定正确。
 
 ## 提交前检查
 

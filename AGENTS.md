@@ -31,6 +31,19 @@ deploy/                 # 部署配置
 - 图片处理必须限制上传大小、解码像素、并发和文件保留时间。
 - 不向客户端返回内部路径、异常堆栈或敏感 EXIF 日志。
 
+## 前端开发硬约束
+
+- **CSS 类名必须与 JSX 动态拼接的 token 一致**：
+  当 JSX 使用 `className={`v3-footer-bar-rows-${controls.flow_mode}`}` 时，
+  CSS 必须定义 `v3-footer-bar-rows-dual-track`（而非 `-dual-row`）。
+  `flow_mode`、`position`、`slotId` 等配置枚举值与 CSS 后缀是一一映射的，
+  不得独立发明新命名。
+- **grid-area 名称必须与 JSX 传入的标识符完全一致**：
+  例如 JSX 传入 `row.position === 'primary-start'` 拼接为 `v3-footer-row-primary-start`，
+  CSS 的 `grid-area` 必须用 `primary-start`，不得用 `top-left`。
+- 新增或修改动态 CSS 类名后，必须用浏览器截图验证实际布局，
+  因为 `tsc` 和 `Vite build` 不会检测类名不匹配导致的布局失效。
+
 ## 工作流
 
 较大改动遵循：设计文档 → 用户确认 → 小步实现 → 自动验证 → 部署验证 → 提交/推送。
