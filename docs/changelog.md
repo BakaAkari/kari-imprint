@@ -13,6 +13,10 @@
 - Region 级文字方向策略与 Slot 显式覆盖；Logo/签名使用独立资源方向，不再在切换侧栏时批量重写样式。
 - 主控制面按 Region 动态显示底栏“单双排”或侧栏“内外单双列”，Inspector 拆分 Footer / Side 编辑器并使用方向化槽位文案。
 - 预设迁移到 canonical slot；运行时布局引擎移除旧物理槽位和 `footer_mode` 依赖，仅 API schema 保留历史 payload 迁移入口。
+- Logo/签名上传统一为服务端资源（`upload-resource` → opaque id），Canvas 预览通过 `GET /api/resources/{kind}/{id}` 读取，不再把 dataURL 写入配置。
+- Logo 来源三态（自动按 EXIF / 内置品牌 / 上传）下沉到主控制面，内置品牌下拉 + 预览。
+- Logo 位置左/中/右通过 `asset` 槽 `placement: start/center/end` 沿 Flow 主轴映射锚点；签名在 Canvas 绘制真实图像而非灰色占位。
+- 无 Flow 水印栏的模板（如 side-edge 档案模板）不再渲染空转的槽位编辑块。
 
 - V3 Region-Based Layout 架构：Region / Slot / Content 声明式配置。
 - 前端布局引擎：`web_frontend/src/v3_layout/layoutEngine.ts`。
