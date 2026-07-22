@@ -27,7 +27,7 @@ SAMPLE_V3_CONFIG = {
             "type": "footer-bar",
             "enabled": True,
             "slots": {
-                "left-top": {
+                "primary-start": {
                     "enabled": True,
                     "content": {
                         "chips": [{"field_id": "make"}, {"field_id": "camera_model"}],
@@ -43,7 +43,7 @@ SAMPLE_V3_CONFIG = {
                         "line_height": 1.2,
                     },
                 },
-                "left-bottom": {
+                "secondary-start": {
                     "enabled": True,
                     "content": {
                         "chips": [
@@ -64,9 +64,9 @@ SAMPLE_V3_CONFIG = {
                         "line_height": 1.2,
                     },
                 },
-                "right-logo": {
+                "asset": {
                     "enabled": True,
-                    "content": {"path": "", "color": "#D8D8D6", "size_ratio": 0.6},
+                    "content": {"path": "", "size_ratio": 0.6},
                     "style": None,
                 },
             },
@@ -82,8 +82,6 @@ SAMPLE_V3_CONFIG = {
         "line_height": 1.2,
     },
     "custom_text": "",
-    "footer_mode": "dual-row",
-    "logo_position": "right",
 }
 
 
@@ -95,8 +93,8 @@ class TestV3PayloadValidation:
         assert result["canvas"]["background"] == "#FFFFFF"
         assert len(result["regions"]) == 1
         assert result["regions"][0]["id"] == "footer"
-        assert result["footer_mode"] == "dual-row"
-        assert result["logo_position"] == "right"
+        assert result["schema_version"] == 3
+        assert "footer_mode" not in result
 
     def test_logo_with_size_ratio_remains_logo(self):
         from kari_core.processor.v3_watermark import _dict_to_watermark_config
@@ -104,7 +102,7 @@ class TestV3PayloadValidation:
 
         config = validate_v3_payload(SAMPLE_V3_CONFIG)
         parsed = _dict_to_watermark_config(config)
-        logo = parsed.regions[0].slots["right-logo"].content
+        logo = parsed.regions[0].slots["asset"].content
         assert isinstance(logo, LogoContent)
         # v2 migration: size_ratio=0.6 is token "medium" → size_level="medium", size_ratio=None
         assert logo.size_level == "medium"
@@ -134,7 +132,7 @@ class TestV3PayloadValidation:
         [
             (("defaults", "font_family"), "/etc/passwd"),
             (("regions", 0, "anchor"), "not-an-anchor"),
-            (("regions", 0, "slots", "right-logo", "content", "path"), "/etc/passwd"),
+            (("regions", 0, "slots", "asset", "content", "path"), "/etc/passwd"),
         ],
     )
     def test_server_paths_and_unknown_anchors_rejected(self, patch_path, value):
@@ -213,7 +211,7 @@ class TestV3Assembler:
     def test_nested_config_preserved(self):
         processors = v3_config_to_processors(SAMPLE_V3_CONFIG)
         v3_config = processors[0]["v3_config"]
-        assert v3_config["regions"][0]["slots"]["left-top"]["enabled"] is True
+        assert v3_config["regions"][0]["slots"]["primary-start"]["enabled"] is True
 
 
 class TestV3ResourceResolution:
@@ -236,13 +234,13 @@ class TestV3ResourceResolution:
             assets_dir=tmp_path / "assets",
         )
         config = deepcopy(SAMPLE_V3_CONFIG)
-        config["regions"][0]["slots"]["right-logo"]["content"]["path"] = resource_id
+        config["regions"][0]["slots"]["asset"]["content"]["path"] = resource_id
         validated = validate_v3_payload(config)
 
         resolved = _resolve_v3_resources(validated, settings)
 
-        assert resolved["regions"][0]["slots"]["right-logo"]["content"]["path"] == str(logo_dir / resource_id)
-        assert validated["regions"][0]["slots"]["right-logo"]["content"]["path"] == resource_id
+        assert resolved["regions"][0]["slots"]["asset"]["content"]["path"] == str(logo_dir / resource_id)
+        assert validated["regions"][0]["slots"]["asset"]["content"]["path"] == resource_id
 
 
 class TestV3EndToEndProcessing:
@@ -325,7 +323,7 @@ class TestV3EndToEndProcessing:
         assert layout.image_rect.y >= 0
         # Should have text elements
         text_elements = [e for e in layout.elements if e.type == "text"]
-        assert len(text_elements) >= 2  # left-top + left-bottom
+        assert len(text_elements) >= 2  # primary-start + secondary-start
 
     def test_v3_portrait_layout(self):
         """Verify 9:16 portrait orientation is handled correctly."""

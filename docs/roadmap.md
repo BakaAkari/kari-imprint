@@ -5,7 +5,7 @@
 ## 产品目标
 
 - 面向普通摄影用户，稳定生成高级感、品牌级摄影水印。
-- 用 V3 Region-Based Layout 保持排版能力灵活，同时通过产品层限制避免布局失控。
+- 用 V3 Flow Layout 保持排版能力灵活，同时通过产品层限制避免布局失控。
 - 前端预览与后端输出保持一致。
 - 线上部署可验证、可回滚、无 V1/V2 旧功能入口。
 
@@ -50,7 +50,7 @@
 - 通过 schema v3 迁移旧配置，并建立 TS/Python Golden 一致性测试。
 - 拆分 Footer / Side 控制面，清理 `footer_mode` 等旧序列化结构。
 
-实施状态：阶段 1 已建立 schema v3、Flow 类型、Canonical Slot 与 v1/v2 兼容迁移；阶段 2 已完成 Footer / Side Flow 策略和跨语言 Fixture 一致性校验；阶段 3 已完成 Region / Slot / Asset 方向解析并清理切换时的样式批量改写；阶段 4 已完成 Footer / Side 控制面拆分和单/双轨功能关联。
+实施状态：阶段 1 已建立 schema v3、Flow 类型、Canonical Slot 与 v1/v2 兼容迁移；阶段 2 已完成 Footer / Side Flow 策略和跨语言 Fixture 一致性校验；阶段 3 已完成 Region / Slot / Asset 方向解析并清理切换时的样式批量改写；阶段 4 已完成 Footer / Side 控制面拆分和单/双轨功能关联；阶段 5 已完成预设迁移、旧运行时结构清理和文档收口。
 
 ### Phase C：V3 控制面收敛与布局 Guardrails
 

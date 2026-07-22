@@ -191,7 +191,6 @@ export const fieldOptionsV3: { id: FieldId; label: string }[] = [
 export type SizeLevel = 'small' | 'medium' | 'large';
 export type PresetSize = SizeLevel;
 export type ColorScheme = 'dark' | 'light';
-export type FooterMode = 'dual-row' | 'single-row'; // legacy UI adapter; not serialized
 export type LogoPosition = 'left' | 'center' | 'right';
 
 export type PreviewAspectRatio = '3:2' | '4:3' | '16:9' | '1:1' | '2:3';
@@ -211,9 +210,9 @@ export const PREVIEW_ASPECT_RATIOS: AspectRatioOption[] = [
   { id: '2:3', label: '2:3', width: 600, height: 900 },
 ];
 
-export const FOOTER_MODE_LABELS: Record<FooterMode, string> = {
-  'dual-row': '左右双排',
-  'single-row': '左右单排',
+export const FLOW_MODE_LABELS: Record<FlowMode, string> = {
+  'dual-track': '左右双排',
+  'single-track': '左右单排',
 };
 
 export const LOGO_POSITION_LABELS: Record<LogoPosition, string> = {
@@ -227,7 +226,7 @@ export type FooterTextSizes = Record<FooterTextSlot, SizeLevel>;
 
 export interface MainControlConfig {
   scheme: ColorScheme;
-  footer_mode: FooterMode;
+  flow_mode: FlowMode;
   logo_position: LogoPosition;
   text_sizes: FooterTextSizes;
   logo_size: SizeLevel;
@@ -361,9 +360,11 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
       id: 'footer',
       type: 'footer-bar',
       enabled: true,
+      layout: defaultFlowLayout(),
+      text_orientation: 'auto',
       // height 由 applyMainControls 统一计算，不在预设中硬编码
       slots: {
-        'left-top': {
+        'primary-start': {
           enabled: true,
           content: {
             chips: [{ field_id: 'make' }, { field_id: 'camera_model' }],
@@ -371,7 +372,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#222222' },
         },
-        'left-bottom': {
+        'secondary-start': {
           enabled: true,
           content: {
             chips: [
@@ -384,11 +385,9 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#222222' },
         },
-        'right-top': { enabled: false, content: null, style: null },
-        'right-bottom': { enabled: false, content: null, style: null },
-        'center': { enabled: false, content: null, style: null },
-        'left-logo': { enabled: false, content: null, style: null },
-        'right-logo': {
+        'primary-end': { enabled: false, content: null, style: null },
+        'secondary-end': { enabled: false, content: null, style: null },
+        'asset': {
           enabled: true,
           content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
           style: null,
@@ -414,12 +413,14 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
       id: 'footer',
       type: 'footer-bar',
       enabled: true,
+      layout: defaultFlowLayout(),
+      text_orientation: 'auto',
       // height 由 applyMainControls 统一计算，不在预设中硬编码
       slots: {
-        'left-top': { enabled: false, content: null, style: null },
-        'left-bottom': { enabled: false, content: null, style: null },
-        'right-top': { enabled: false, content: null, style: null },
-        'right-bottom': {
+        'primary-start': { enabled: false, content: null, style: null },
+        'secondary-start': { enabled: false, content: null, style: null },
+        'primary-end': { enabled: false, content: null, style: null },
+        'secondary-end': {
           enabled: true,
           content: {
             chips: [
@@ -432,9 +433,7 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#2C2C2C' },
         },
-        'center': { enabled: false, content: null, style: null },
-        'left-logo': { enabled: false, content: null, style: null },
-        'right-logo': { enabled: false, content: null, style: null },
+        'asset': { enabled: false, content: null, style: null },
       },
     },
   ],
@@ -456,9 +455,11 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
       id: 'footer',
       type: 'footer-bar',
       enabled: true,
+      layout: defaultFlowLayout(),
+      text_orientation: 'auto',
       // height 由 applyMainControls 统一计算，不在预设中硬编码
       slots: {
-        'left-top': {
+        'primary-start': {
           enabled: true,
           content: {
             chips: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
@@ -466,7 +467,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
         },
-        'left-bottom': {
+        'secondary-start': {
           enabled: true,
           content: {
             chips: [{ field_id: 'datetime' }],
@@ -474,7 +475,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
         },
-        'right-top': {
+        'primary-end': {
           enabled: true,
           content: {
             chips: [{ field_id: 'camera_model' }],
@@ -482,7 +483,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
         },
-        'right-bottom': {
+        'secondary-end': {
           enabled: true,
           content: {
             chips: [
@@ -494,9 +495,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
           },
           style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
         },
-        'center': { enabled: false, content: null, style: null },
-        'left-logo': { enabled: false, content: null, style: null },
-        'right-logo': {
+        'asset': {
           enabled: true,
           content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
           style: null,
@@ -522,21 +521,22 @@ export const presetSidesBaseV3: WatermarkConfigV3 = {
       id: 'footer',
       type: 'footer-bar',
       enabled: true,
+      layout: defaultFlowLayout(),
+      text_orientation: 'auto',
       // height 由 applyMainControls 统一计算，不在预设中硬编码
       slots: {
-        'left-top': { enabled: false, content: null, style: null },
-        'left-bottom': { enabled: false, content: null, style: null },
-        'right-top': { enabled: false, content: null, style: null },
-        'right-bottom': { enabled: false, content: null, style: null },
-        'center': { enabled: false, content: null, style: null },
-        'left-logo': { enabled: false, content: null, style: null },
-        'right-logo': { enabled: false, content: null, style: null },
+        'primary-start': { enabled: false, content: null, style: null },
+        'secondary-start': { enabled: false, content: null, style: null },
+        'primary-end': { enabled: false, content: null, style: null },
+        'secondary-end': { enabled: false, content: null, style: null },
+        'asset': { enabled: false, content: null, style: null },
       },
     },
     {
       id: 'side-left',
       type: 'side-edge',
       enabled: true,
+      text_orientation: 'rotate-with-edge',
       edge: 'left',
       alignment: 'start',
       slots: {
@@ -564,7 +564,7 @@ export const presetSidesV3: WatermarkConfigV3 = presetSidesBaseV3;
 
 /**
  * SlotOverride — 记录用户在高级编辑中对某个 slot 的手动修改。
- * key 格式为 "regionId:slotId"（如 "footer:left-top"）。
+ * key 格式为 "regionId:slotId"（如 "footer:primary-start"）。
  * 这些 overrides 在 controls 变更后仍被保留。
  */
 export interface SlotOverride {
@@ -692,7 +692,7 @@ export function resolveConfig(
     };
     footer.layout = {
       ...(footer.layout ?? defaultFlowLayout()),
-      mode: controls.footer_mode === 'single-row' ? 'single-track' : 'dual-track',
+      mode: controls.flow_mode === 'single-track' ? 'single-track' : 'dual-track',
     };
     const controlledSlotIds = new Set<string>([
       ...Object.values(footerSurface.slots).filter((slotId): slotId is string => Boolean(slotId)),
@@ -783,7 +783,7 @@ export function resolveConfig(
  */
 // 主界面控制的缺省值
 export const defaultMainControls: MainControlConfig = {
-  scheme: 'dark', footer_mode: 'dual-row', logo_position: 'right',
+  scheme: 'dark', flow_mode: 'dual-track', logo_position: 'right',
   text_sizes: { primary_start: 'medium', primary_end: 'medium', secondary_start: 'medium', secondary_end: 'medium' },
   logo_size: 'medium', signature_size: 'medium',
   border_enabled: false, border_width_level: 'medium',

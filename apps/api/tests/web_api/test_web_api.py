@@ -34,7 +34,7 @@ def _minimal_v3_config(custom_text: str = "V3 WEB") -> dict:
                 "type": "footer-bar",
                 "enabled": True,
                 "slots": {
-                    "left-top": {
+                    "primary-start": {
                         "enabled": True,
                         "content": {
                             "chips": [{"field_id": "custom_text", "custom_text": custom_text}],
@@ -255,7 +255,7 @@ def test_v3_custom_text_is_never_evaluated_as_jinja(tmp_path: Path, monkeypatch)
     )
 
     assert response.status_code == 200
-    chips = captured["data"][0]["v3_config"]["regions"][0]["slots"]["left-top"]["content"]["chips"]
+    chips = captured["data"][0]["v3_config"]["regions"][0]["slots"]["primary-start"]["content"]["chips"]
     assert chips[0]["custom_text"] == "probe={{ 7 * 7 }}"
 
 
@@ -299,8 +299,8 @@ def test_rejects_non_finite_and_oversized_config(tmp_path: Path) -> None:
 def test_rejects_arbitrary_server_resource_path(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "path.jpg")
     config = _minimal_v3_config()
-    slot = config["regions"][0]["slots"]["left-top"]
-    slot["content"] = {"path": "/etc/passwd", "color": "#D8D8D6"}
+    slot = config["regions"][0]["slots"].setdefault("asset", {"enabled": True, "style": None})
+    slot["content"] = {"path": "/etc/passwd", "size_level": "medium"}
 
     response = _post_image(f"{API_PREFIX}/process", image_path, config)
 

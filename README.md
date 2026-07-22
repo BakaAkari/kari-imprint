@@ -2,7 +2,7 @@
 
 Kari Imprint 是公开的摄影水印工具集，支持 Web、APP 和微信小程序。代码由 `aka-semi-utils` 迁移重命名，与旧仓库最终版本 `v0.9.0-final` 做了完整切割。
 
-当前主线是 **V3 Region-Based Layout**：用声明式 Region / Slot / Content 配置生成水印，前端 Canvas 与后端 PIL 共享同一套布局语义。
+当前主线是 **V3 Flow Layout**：用声明式 Region / Canonical Slot / Content 配置生成水印，底栏与左右侧栏共享单/双轨排版模型，前端 Canvas 与后端 PIL 通过同一组 Golden Fixture 保持布局语义一致。
 
 ## 目录结构
 
@@ -41,6 +41,7 @@ VITE_API_BASE=/tools/watermark-v3 npm run dev
 
 ```bash
 uv run ruff check .
+uv run python scripts/verify_flow_layout_parity.py
 cd packages/kari-core && uv run pytest
 cd apps/api && uv run pytest
 cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build

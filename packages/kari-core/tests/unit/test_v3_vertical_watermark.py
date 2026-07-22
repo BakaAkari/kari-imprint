@@ -30,7 +30,7 @@ def test_right_side_bar_expands_canvas_and_rotates_default_text():
         regions=[RegionConfig(
             id="side", type="side-bar", enabled=True, edge="right",
             width={"mode": "pixel", "value": 120},
-            slots={"left-top": _text_slot("rotate-cw")},
+            slots={"primary-start": _text_slot("rotate-cw")},
         )],
     )
     result = compute_layout(config, 800, 600)
@@ -46,7 +46,7 @@ def test_left_side_bar_moves_image_and_rotates_counterclockwise():
         regions=[RegionConfig(
             id="side", type="side-bar", enabled=True, edge="left",
             width={"mode": "short_edge_ratio", "value": 0.1},
-            slots={"left-top": _text_slot("rotate-ccw")},
+            slots={"primary-start": _text_slot("rotate-ccw")},
         )],
     )
     result = compute_layout(config, 800, 600)
@@ -62,7 +62,7 @@ def test_side_bar_keeps_explicit_horizontal_direction():
         regions=[RegionConfig(
             id="side", type="side-bar", enabled=True, edge="right",
             width={"mode": "pixel", "value": 100},
-            slots={"left-top": _text_slot("horizontal")},
+            slots={"primary-start": _text_slot("horizontal")},
         )],
     )
     result = compute_layout(config, 800, 600)
@@ -119,7 +119,7 @@ def test_side_bar_is_rendered_outside_photo_area():
         regions=[RegionConfig(
             id="side", type="side-bar", enabled=True, edge="right",
             width={"mode": "pixel", "value": 100},
-            slots={"left-top": _text_slot("vertical-glyphs")},
+            slots={"primary-start": _text_slot("vertical-glyphs")},
         )],
     )
     layout = compute_layout(config, 200, 120)

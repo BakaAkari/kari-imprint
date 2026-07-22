@@ -243,7 +243,6 @@ export function computeLayout(config: WatermarkConfig, imageW: number, imageH: n
           config.defaults,
           shortEdge,
           longEdge,
-          region.layout?.mode === 'single-track' ? 'single-row' : 'dual-row',
         ));
         break;
       case 'side-edge':
@@ -276,21 +275,6 @@ export function computeLayoutWithDiagnostics(
 const FLOW_SLOT_ORDER = ['primary-start', 'primary-end', 'secondary-start', 'secondary-end', 'asset'] as const;
 type FlowSlot = typeof FLOW_SLOT_ORDER[number];
 
-function normalizeFlowSlots(slots: Record<string, SlotConfig>): Record<string, SlotConfig> {
-  if (FLOW_SLOT_ORDER.some(id => id in slots)) return slots;
-  const legacy: Record<string, string> = {
-    'left-top': 'primary-start', 'right-top': 'primary-end',
-    'left-bottom': 'secondary-start', 'right-bottom': 'secondary-end',
-    'left-logo': 'asset', center: 'asset', 'right-logo': 'asset',
-  };
-  const normalized: Record<string, SlotConfig> = {};
-  for (const [id, slot] of Object.entries(slots)) {
-    const target = legacy[id] ?? id;
-    if (target !== 'asset' || !(target in normalized) || id === 'right-logo') normalized[target] = slot;
-  }
-  return normalized;
-}
-
 function flowConfig(region: RegionConfig): FlowLayoutConfig {
   return region.layout ?? {
     mode: 'dual-track', main_alignment: 'space-between', cross_alignment: 'center',
@@ -306,14 +290,14 @@ function resolveWidth(value: { mode: 'pixel' | 'short_edge_ratio'; value: number
 }
 
 function activeFlowSlots(region: RegionConfig): Record<string, SlotConfig> {
-  const slots = normalizeFlowSlots(region.slots ?? {});
+  const slots = region.slots ?? {};
   if (flowConfig(region).mode === 'dual-track') return slots;
   return Object.fromEntries(Object.entries(slots).filter(([id]) => !id.startsWith('secondary-')));
 }
 
 function computeFooterBar(
   region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
-  shortEdge: number, longEdge: number, _footerMode: 'dual-row' | 'single-row',
+  shortEdge: number, longEdge: number,
 ): ComputedElement[] {
   const bounds = rect(0, rectBottom(imageRect), canvas.w, canvas.h - rectBottom(imageRect));
   return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'horizontal');
@@ -744,72 +728,6 @@ function applyAnchor(bounds: Rect, anchor: string): Point {
   }
 
   return { x: ax, y: ay };
-}
-
-function footerSlotAnchor(slotId: string, footerMode: 'dual-row' | 'single-row'): string {
-  if (footerMode === 'single-row') {
-    if (slotId === 'left-top') return 'middle-left';
-    if (slotId === 'right-top') return 'middle-right';
-  }
-  const mapping: Record<string, string> = {
-    'left-logo': 'middle-left',
-    'left-top': 'top-left',
-    'left-bottom': 'bottom-left',
-    'center': 'middle-center',
-    'right-top': 'top-right',
-    'right-bottom': 'bottom-right',
-    'right-logo': 'middle-right',
-  };
-  return mapping[slotId] ?? 'middle-center';
-}
-
-function footerLogoAnchor(slotId: string): string {
-  if (slotId === 'left-logo') return 'middle-left';
-  if (slotId === 'right-logo') return 'middle-right';
-  return 'middle-center';
-}
-
-function computeFooterSlots(
-  regionBounds: Rect,
-  slots: Record<string, SlotConfig>,
-  footerMode: 'dual-row' | 'single-row',
-): Record<string, Rect> {
-  const results: Record<string, Rect> = {};
-
-  // 所有位置以底栏真实边界为基准。Logo 只在启用的一侧预留安全区，
-  // 不再永久侵占左右各 15% 的文本空间。
-  const padX = Math.max(12, Math.round(regionBounds.h * 0.28));
-  const padY = Math.max(6, Math.round(regionBounds.h * 0.14));
-  const centerGap = Math.max(12, Math.round(regionBounds.h * 0.22));
-  const logoReserve = Math.max(48, Math.round(regionBounds.h * 2.05));
-  const leftLogoEnabled = Boolean(slots['left-logo']?.enabled && slots['left-logo']?.content);
-  const rightLogoEnabled = Boolean(slots['right-logo']?.enabled && slots['right-logo']?.content);
-
-  const innerLeft = regionBounds.x + padX;
-  const innerRight = rectRight(regionBounds) - padX;
-  const textLeft = innerLeft + (leftLogoEnabled ? logoReserve : 0);
-  const textRight = innerRight - (rightLogoEnabled ? logoReserve : 0);
-  const middle = Math.floor((textLeft + textRight) / 2);
-  const rowH = Math.max(1, Math.floor((regionBounds.h - padY * 2) / 2));
-  const leftW = Math.max(0, middle - centerGap - textLeft);
-  const rightX = middle + centerGap;
-  const rightW = Math.max(0, textRight - rightX);
-
-  results['left-logo'] = rect(innerLeft, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
-  results['right-logo'] = rect(innerRight - logoReserve, regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
-  results['center'] = rect(Math.floor((innerLeft + innerRight - logoReserve) / 2), regionBounds.y + padY, logoReserve, regionBounds.h - padY * 2);
-  results['left-top'] = rect(textLeft, regionBounds.y + padY, leftW, rowH);
-  results['left-bottom'] = rect(textLeft, rectBottom(regionBounds) - padY - rowH, leftW, rowH);
-  results['right-top'] = rect(rightX, regionBounds.y + padY, rightW, rowH);
-  results['right-bottom'] = rect(rightX, rectBottom(regionBounds) - padY - rowH, rightW, rowH);
-
-  if (footerMode === 'single-row') {
-    const fullH = regionBounds.h - padY * 2;
-    results['left-top'] = rect(textLeft, regionBounds.y + padY, leftW, fullH);
-    results['right-top'] = rect(rightX, regionBounds.y + padY, rightW, fullH);
-  }
-
-  return results;
 }
 
 // ── 类型守卫 ────────────────────────────────────────────

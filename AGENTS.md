@@ -8,7 +8,7 @@ version: 1.0.0
 
 ## 项目定位
 
-公开摄影水印工具集，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **V3 Region-Based Layout**。
+公开摄影水印工具集，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **V3 Flow Layout**：Region / Canonical Slot / Content，底栏与左右侧栏共享单/双轨排版模型。
 
 ## Monorepo 结构
 

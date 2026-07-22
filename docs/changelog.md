@@ -12,6 +12,7 @@
 - Footer / Side 独立 Flow 几何策略，并用共享 JSON Fixture 校验 TS/Python 布局输出一致。
 - Region 级文字方向策略与 Slot 显式覆盖；Logo/签名使用独立资源方向，不再在切换侧栏时批量重写样式。
 - 主控制面按 Region 动态显示底栏“单双排”或侧栏“内外单双列”，Inspector 拆分 Footer / Side 编辑器并使用方向化槽位文案。
+- 预设迁移到 canonical slot；运行时布局引擎移除旧物理槽位和 `footer_mode` 依赖，仅 API schema 保留历史 payload 迁移入口。
 
 - V3 Region-Based Layout 架构：Region / Slot / Content 声明式配置。
 - 前端布局引擎：`web_frontend/src/v3_layout/layoutEngine.ts`。
@@ -23,6 +24,8 @@
 - 下一阶段设计入口：`design/v3-control-surface-guardrails.md`。
 
 ### Changed
+
+- V3 主线从 Region-Based Layout 收敛为 Flow Layout：`primary-start` / `primary-end` / `secondary-start` / `secondary-end` / `asset` 成为底栏和侧栏共享槽位。
 
 - 项目主线从 Web MVP/V1-V2 迁移到 V3。
 - 线上 V3 固定入口：`/tools/watermark-v3/`。
@@ -41,7 +44,7 @@
 
 ### Security
 
-- API 只接受 V3 payload；旧 config 返回 `410 legacy_config_removed`。
+- API 输出 schema v3 canonical 配置；旧 v1/v2 payload 仅通过显式迁移层读取，不再进入运行时布局引擎。
 - V3 resource path 只接受不透明资源 ID。
 - 禁止 NaN / Infinity 等非有限数值。
 - 配置 JSON 大小限制为 64KB。

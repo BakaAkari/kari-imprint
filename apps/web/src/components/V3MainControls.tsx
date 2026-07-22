@@ -3,13 +3,13 @@ import { V3AppContext } from '../V3HomePage';
 import {
   type FieldChip,
   type FieldId,
-  type FooterMode,
+  type FlowMode,
   type LogoPosition,
   type MainControlConfig,
   type ColorScheme,
   type SizeLevel,
   type WatermarkConfigV3,
-  FOOTER_MODE_LABELS,
+  FLOW_MODE_LABELS,
   LOGO_POSITION_LABELS,
   fieldOptionsV3,
   getFieldLabel,
@@ -44,7 +44,7 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
 
   const flowRegion = _config.regions.find((region) => region.type === 'footer-bar' || region.type === 'side-bar');
   const isSideBar = flowRegion?.type === 'side-bar';
-  const isDual = controls.footer_mode === 'dual-row';
+  const isDual = controls.flow_mode === 'dual-track';
   const labels = isSideBar
     ? { primary_start: '内列上方', primary_end: '内列下方', secondary_start: '外列上方', secondary_end: '外列下方' }
     : { primary_start: '第一排左侧', primary_end: '第一排右侧', secondary_start: '第二排左侧', secondary_end: '第二排右侧' };
@@ -114,16 +114,16 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
               className="v3-btn v3-btn-sm"
               onClick={() =>
                 onControlsChange({
-                  footer_mode: controls.footer_mode === 'dual-row' ? 'single-row' : 'dual-row',
+                  flow_mode: controls.flow_mode === 'dual-track' ? 'single-track' : 'dual-track',
                 })
               }
               title={isSideBar ? "切换单列/双列" : "切换单排/双排"}
             >
-              {isSideBar ? (isDual ? '内外双列' : '单列') : FOOTER_MODE_LABELS[controls.footer_mode]}
+              {isSideBar ? (isDual ? '内外双列' : '单列') : FLOW_MODE_LABELS[controls.flow_mode]}
             </button>
           </div>
         </div>
-        <div className={`v3-footer-bar-rows v3-footer-bar-rows-${controls.footer_mode}`}>
+        <div className={`v3-footer-bar-rows v3-footer-bar-rows-${controls.flow_mode}`}>
           {rows.map(row => (
             <div key={row.id} className={`v3-footer-row v3-footer-row-${row.position}`}>
               <div className="v3-footer-row-label">{row.label}</div>
@@ -424,4 +424,4 @@ export function V3BorderControls({
   );
 }
 
-export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, ColorScheme, SizeLevel };
+export type { FieldChip, FieldId, FlowMode, LogoPosition, MainControlConfig, ColorScheme, SizeLevel };

@@ -168,8 +168,6 @@ class WatermarkConfig:
     regions: list[RegionConfig] = field(default_factory=list)
     defaults: StyleConfig = field(default_factory=StyleConfig)
     custom_text: str = ""
-    # Internal compatibility only. Public schema v3 no longer serializes it.
-    footer_mode: Literal["dual-row", "single-row"] = "dual-row"
 
 
 # ── 布局结果 ─────────────────────────────────
@@ -267,9 +265,6 @@ def compute_layout(config: WatermarkConfig, image_w: int, image_h: int) -> Layou
                 config.defaults,
                 short_edge,
                 long_edge,
-                "single-row"
-                if region.layout is not None and region.layout.mode == "single-track"
-                else config.footer_mode,
             ))
         elif region.type == "side-edge":
             elements.extend(_compute_side_edge(region, image_rect, config.defaults, short_edge, long_edge))
@@ -385,22 +380,6 @@ def _rects_overlap(a: Rect, b: Rect) -> bool:
 _FLOW_SLOT_ORDER = ("primary-start", "primary-end", "secondary-start", "secondary-end", "asset")
 
 
-def _normalize_flow_slots(slots: dict[str, SlotConfig]) -> dict[str, SlotConfig]:
-    if any(slot_id in slots for slot_id in _FLOW_SLOT_ORDER):
-        return slots
-    legacy = {
-        "left-top": "primary-start", "right-top": "primary-end",
-        "left-bottom": "secondary-start", "right-bottom": "secondary-end",
-        "left-logo": "asset", "center": "asset", "right-logo": "asset",
-    }
-    normalized: dict[str, SlotConfig] = {}
-    for slot_id, slot in slots.items():
-        target = legacy.get(slot_id, slot_id)
-        if target != "asset" or target not in normalized or slot_id == "right-logo":
-            normalized[target] = slot
-    return normalized
-
-
 def _flow_config(region: RegionConfig) -> FlowLayoutConfig:
     return region.layout or FlowLayoutConfig()
 
@@ -412,7 +391,7 @@ def _resolve_width(value: dict[str, float | int | str], short_edge: int) -> int:
 
 
 def _active_flow_slots(region: RegionConfig) -> dict[str, SlotConfig]:
-    slots = _normalize_flow_slots(region.slots)
+    slots = region.slots
     if _flow_config(region).mode == "dual-track":
         return slots
     return {slot_id: slot for slot_id, slot in slots.items() if not slot_id.startswith("secondary-")}
@@ -425,7 +404,6 @@ def _compute_footer_bar(
     defaults: StyleConfig,
     short_edge: int,
     long_edge: int,
-    _footer_mode: Literal["dual-row", "single-row"],
 ) -> list[ComputedElement]:
     bounds = Rect(x=0, y=image_rect.bottom, w=canvas.w, h=canvas.h - image_rect.bottom)
     return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "horizontal")
@@ -834,79 +812,3 @@ def _apply_anchor(bounds: Rect, anchor: str) -> Point:
         ay = bounds.center_y if "middle" in anchor else bounds.bottom
 
     return Point(x=ax, y=ay)
-
-
-def _footer_slot_anchor(slot_id: str, footer_mode: Literal["dual-row", "single-row"]) -> str:
-    """footer-bar 各文本槽位的锚点。"""
-    if footer_mode == "single-row":
-        if slot_id == "left-top":
-            return "middle-left"
-        if slot_id == "right-top":
-            return "middle-right"
-    mapping = {
-        "left-logo": "middle-left",
-        "left-top": "top-left",
-        "left-bottom": "bottom-left",
-        "center": "middle-center",
-        "right-top": "top-right",
-        "right-bottom": "bottom-right",
-        "right-logo": "middle-right",
-    }
-    return mapping.get(slot_id, "middle-center")
-
-
-def _footer_logo_anchor(slot_id: str) -> str:
-    if slot_id == "left-logo":
-        return "middle-left"
-    if slot_id == "right-logo":
-        return "middle-right"
-    return "middle-center"
-
-
-def _compute_footer_slots(
-    region_bounds: Rect,
-    slots: dict[str, SlotConfig],
-    footer_mode: Literal["dual-row", "single-row"],
-) -> dict[str, Rect]:
-    """以底栏边界为基准计算四角文本和 Logo 的稳定槽位。"""
-    results: dict[str, Rect] = {}
-
-    pad_x = max(12, round(region_bounds.h * 0.28))
-    pad_y = max(6, round(region_bounds.h * 0.14))
-    center_gap = max(12, round(region_bounds.h * 0.22))
-    logo_reserve = max(48, round(region_bounds.h * 2.05))
-    left_logo_enabled = bool(
-        slots.get("left-logo")
-        and slots["left-logo"].enabled
-        and slots["left-logo"].content is not None
-    )
-    right_logo_enabled = bool(
-        slots.get("right-logo")
-        and slots["right-logo"].enabled
-        and slots["right-logo"].content is not None
-    )
-
-    inner_left = region_bounds.x + pad_x
-    inner_right = region_bounds.right - pad_x
-    text_left = inner_left + (logo_reserve if left_logo_enabled else 0)
-    text_right = inner_right - (logo_reserve if right_logo_enabled else 0)
-    middle = (text_left + text_right) // 2
-    row_h = max(1, (region_bounds.h - pad_y * 2) // 2)
-    left_w = max(0, middle - center_gap - text_left)
-    right_x = middle + center_gap
-    right_w = max(0, text_right - right_x)
-
-    results["left-logo"] = Rect(inner_left, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
-    results["right-logo"] = Rect(inner_right - logo_reserve, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
-    results["center"] = Rect((inner_left + inner_right - logo_reserve) // 2, region_bounds.y + pad_y, logo_reserve, region_bounds.h - pad_y * 2)
-    results["left-top"] = Rect(text_left, region_bounds.y + pad_y, left_w, row_h)
-    results["left-bottom"] = Rect(text_left, region_bounds.bottom - pad_y - row_h, left_w, row_h)
-    results["right-top"] = Rect(right_x, region_bounds.y + pad_y, right_w, row_h)
-    results["right-bottom"] = Rect(right_x, region_bounds.bottom - pad_y - row_h, right_w, row_h)
-
-    if footer_mode == "single-row":
-        full_h = region_bounds.h - pad_y * 2
-        results["left-top"] = Rect(text_left, region_bounds.y + pad_y, left_w, full_h)
-        results["right-top"] = Rect(right_x, region_bounds.y + pad_y, right_w, full_h)
-
-    return results

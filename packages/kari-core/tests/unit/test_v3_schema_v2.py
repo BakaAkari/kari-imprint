@@ -28,7 +28,7 @@ class TestDictConversionCarriesNewFields:
                     "type": "footer-bar",
                     "enabled": True,
                     "slots": {
-                        "left-top": {
+                        "primary-start": {
                             "enabled": True,
                             "content": {
                                 "chips": [{"field_id": "make"}],
@@ -41,7 +41,7 @@ class TestDictConversionCarriesNewFields:
             ],
         })
         assert config.defaults.font_size_level == "medium"
-        slot = config.regions[0].slots["left-top"]
+        slot = config.regions[0].slots["primary-start"]
         assert slot.style is not None
         assert slot.style.font_size_level == "small"
 
@@ -55,7 +55,7 @@ class TestDictConversionCarriesNewFields:
                     "type": "footer-bar",
                     "enabled": True,
                     "slots": {
-                        "right-logo": {
+                        "asset": {
                             "enabled": True,
                             "content": {
                                 "path": "logo.png",
@@ -67,7 +67,7 @@ class TestDictConversionCarriesNewFields:
                 }
             ],
         })
-        slot = config.regions[0].slots["right-logo"]
+        slot = config.regions[0].slots["asset"]
         assert slot.content is not None
         assert isinstance(slot.content, LogoContent)
         assert slot.content.size_level == "large"

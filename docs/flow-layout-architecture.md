@@ -133,7 +133,20 @@ Region 策略只负责：
 - 轨道物理顺序；
 - 对应的锚点和尺寸基准。
 
-## 阶段
+## 实施状态
+
+已完成：
+
+- Schema v3、Flow 类型、Canonical Slot 和 v1/v2 兼容迁移。
+- Footer / Side 独立 Flow 策略。
+- TS / Python 共享 JSON Fixture 一致性校验。
+- Region 默认文字方向、Slot 显式覆盖和资源独立方向。
+- Footer / Side 控制面拆分与单/双轨交互关联。
+- 预设迁移到 canonical slot；运行时布局引擎已移除旧物理槽位和 `footer_mode` 依赖。
+
+保留边界：API schema 层仍保留历史 payload 迁移入口，用于读取旧配置；迁移后的内部结构和输出均为 schema v3 canonical Flow Layout。
+
+## 阶段记录
 
 1. Schema v3、Flow 类型、Canonical Slot、兼容迁移。
 2. TS/Python Flow 策略与 Golden Fixtures。

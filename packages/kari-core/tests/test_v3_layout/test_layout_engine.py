@@ -58,7 +58,7 @@ class TestFontSize:
                         type="footer-bar",
                         enabled=True,
                         slots={
-                            "left-top": SlotConfig(
+                            "primary-start": SlotConfig(
                                 enabled=True,
                                 content=TextContent(chips=[_make_chip()]),
                                 style=style,
@@ -84,7 +84,7 @@ class TestFontSize:
                         type="footer-bar",
                         enabled=True,
                         slots={
-                            "left-top": SlotConfig(
+                            "primary-start": SlotConfig(
                                 enabled=True,
                                 content=TextContent(chips=[_make_chip()]),
                                 style=style,
@@ -110,7 +110,7 @@ class TestFontSize:
                     type="footer-bar",
                     enabled=True,
                     slots={
-                        "left-top": SlotConfig(
+                        "primary-start": SlotConfig(
                             enabled=True,
                             content=TextContent(chips=[_make_chip()]),
                             style=style,
@@ -139,7 +139,7 @@ class TestFontSize:
                         type="footer-bar",
                         enabled=True,
                         slots={
-                            "left-top": SlotConfig(
+                            "primary-start": SlotConfig(
                                 enabled=True,
                                 content=TextContent(chips=[_make_chip()]),
                                 style=style,
