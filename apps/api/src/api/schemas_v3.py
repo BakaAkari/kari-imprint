@@ -31,7 +31,6 @@ _LEGACY_FLOW_SLOT_MAP = {
     "left-bottom": "secondary-start", "right-bottom": "secondary-end",
     "left-logo": "asset", "center": "asset", "right-logo": "asset",
 }
-_SIDE_SLOT_RE = re.compile(r"^line[1-9][0-9]?$", re.ASCII)
 _FREE_SLOT_RE = re.compile(r"^sig[1-9][0-9]?$", re.ASCII)
 
 
@@ -200,7 +199,7 @@ class PaddingPayload(StrictModel):
 
 class RegionConfigPayload(StrictModel):
     id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-    type: Literal["footer-bar", "side-bar", "side-edge", "free"]
+    type: Literal["footer-bar", "side-bar", "free"]
     enabled: bool = True
     slots: dict[str, SlotConfigPayload] = Field(default_factory=dict, max_length=12)
     height: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -219,11 +218,7 @@ class RegionConfigPayload(StrictModel):
     @model_validator(mode="after")
     def valid_region_shape(self) -> RegionConfigPayload:
         slot_ids = set(self.slots)
-        if self.type == "footer-bar":
-            invalid = slot_ids - _FLOW_SLOT_IDS
-        elif self.type == "side-edge":
-            invalid = {slot_id for slot_id in slot_ids if not _SIDE_SLOT_RE.fullmatch(slot_id)}
-        elif self.type == "side-bar":
+        if self.type in {"footer-bar", "side-bar"}:
             invalid = slot_ids - _FLOW_SLOT_IDS
         else:
             invalid = {slot_id for slot_id in slot_ids if not _FREE_SLOT_RE.fullmatch(slot_id)}

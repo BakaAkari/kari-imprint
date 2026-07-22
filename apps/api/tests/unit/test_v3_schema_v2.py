@@ -218,14 +218,14 @@ class TestRegionLayoutFields:
             "regions": [
                 {
                     "id": "side-left",
-                    "type": "side-edge",
+                    "type": "side-bar",
                     "enabled": True,
                     "edge": "left",
                     "alignment": "start",
                     "vertical_alignment": "end",
                     "padding": {"top": 24, "right": 12, "bottom": 30, "left": 12},
                     "slots": {
-                        "line1": {
+                        "primary-start": {
                             "enabled": True,
                             "content": {"chips": [{"field_id": "make"}], "separator": " / "},
                             "style": {"font_size_level": "small"},

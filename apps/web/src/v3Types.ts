@@ -109,7 +109,7 @@ export interface SlotConfig {
   style: StyleConfig | null;
 }
 
-export type RegionType = 'footer-bar' | 'side-bar' | 'side-edge' | 'free';
+export type RegionType = 'footer-bar' | 'side-bar' | 'free';
 
 export interface FlowLayoutConfig {
   mode: FlowMode;
@@ -506,61 +506,6 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
 };
 
 export const presetSoftCardV3: WatermarkConfigV3 = presetSoftCardBaseV3;
-
-export const presetSidesBaseV3: WatermarkConfigV3 = {
-  schema_version: 3,
-  canvas: {
-    margins: { top: 0, right: 0, bottom: 0, left: 0 },
-    background: '#FFFFFF',
-    border_radius: 0,
-    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
-  },
-  defaults: defaultStyle,
-  regions: [
-    {
-      id: 'footer',
-      type: 'footer-bar',
-      enabled: true,
-      layout: defaultFlowLayout(),
-      text_orientation: 'auto',
-      // height 由 applyMainControls 统一计算，不在预设中硬编码
-      slots: {
-        'primary-start': { enabled: false, content: null, style: null },
-        'secondary-start': { enabled: false, content: null, style: null },
-        'primary-end': { enabled: false, content: null, style: null },
-        'secondary-end': { enabled: false, content: null, style: null },
-        'asset': { enabled: false, content: null, style: null },
-      },
-    },
-    {
-      id: 'side-left',
-      type: 'side-edge',
-      enabled: true,
-      text_orientation: 'rotate-with-edge',
-      edge: 'left',
-      alignment: 'start',
-      slots: {
-        line1: {
-          enabled: true,
-          content: {
-            chips: [
-              { field_id: 'make' },
-              { field_id: 'camera_model' },
-              { field_id: 'focal_length' },
-              { field_id: 'aperture' },
-              { field_id: 'shutter' },
-              { field_id: 'iso' },
-            ],
-            separator: ' / ',
-          },
-          style: { ...defaultStyle, font_size_level: null, font_size_ratio: 0.05, size_reference: 'short_edge' },
-        },
-      },
-    },
-  ],
-};
-
-export const presetSidesV3: WatermarkConfigV3 = presetSidesBaseV3;
 
 /**
  * SlotOverride — 记录用户在高级编辑中对某个 slot 的手动修改。

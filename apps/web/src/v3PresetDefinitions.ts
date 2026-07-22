@@ -3,7 +3,6 @@ import {
   defaultMainControls,
   presetDefaultBaseV3,
   presetMinimalBaseV3,
-  presetSidesBaseV3,
   presetSoftCardBaseV3,
   type ControlSurface,
   type MainControlConfig,
@@ -14,13 +13,6 @@ const cloneControls = (controls: MainControlConfig): MainControlConfig => struct
 const cloneSurface = (surface: ControlSurface): ControlSurface => structuredClone(surface);
 
 export const footerControlSurface: ControlSurface = cloneSurface(defaultControlSurface);
-
-export const archiveControlSurface: ControlSurface = {
-  ...cloneSurface(defaultControlSurface),
-  footer: { ...cloneSurface(defaultControlSurface).footer, enabled: false },
-  logo: { enabled: false },
-  signature: { ...cloneSurface(defaultControlSurface).signature, enabled: false },
-};
 
 export const layoutTemplatesV3: Record<string, LayoutTemplateV3> = {
   brandFooter: {
@@ -43,13 +35,6 @@ export const layoutTemplatesV3: Record<string, LayoutTemplateV3> = {
     description: '暖白纸边 + 底部信息模板',
     config: presetSoftCardBaseV3,
     controlSurface: footerControlSurface,
-  },
-  archiveSide: {
-    id: 'archiveSide',
-    name: '档案侧边模板',
-    description: '由模板自身声明 side-edge，不受 footer controls 强制改写',
-    config: presetSidesBaseV3,
-    controlSurface: archiveControlSurface,
   },
 };
 
@@ -103,17 +88,6 @@ export const productPresetsV3: ProductPresetV3[] = [
       primary_end: [{ field_id: 'camera_model' }],
       secondary_end: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'iso' }],
       custom_text: 'AKARI PHOTO',
-    },
-  },
-  {
-    id: 'sides',
-    name: '画廊档案',
-    description: '侧边档案式器材信息',
-    category: 'archive',
-    template: layoutTemplatesV3.archiveSide,
-    mainControls: {
-      ...cloneControls(baseControls),
-      logo_position: 'left',
     },
   },
 ];

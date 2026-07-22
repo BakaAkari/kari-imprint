@@ -213,7 +213,6 @@ function RegionEditor({
   const typeLabel =
     region.type === 'footer-bar' ? '底部水印条' :
     region.type === 'side-bar' ? '侧边水印条' :
-    region.type === 'side-edge' ? '垂直边缘' :
     '自由定位';
 
   const regionErrors = diagnostics.filter((d) =>
@@ -256,9 +255,6 @@ function RegionEditor({
           )}
           {region.type === 'side-bar' && (
             <SideBarEditor region={region} diagnostics={diagnostics} onUpdate={onUpdate} onUpdateSlot={onUpdateSlot} />
-          )}
-          {region.type === 'side-edge' && (
-            <SideEdgeEditor region={region} onUpdate={onUpdate} onUpdateSlot={onUpdateSlot} />
           )}
           {region.type === 'free' && (
             <FreeEditor region={region} onUpdate={onUpdate} onUpdateSlot={onUpdateSlot} />
@@ -346,81 +342,6 @@ function SideBarEditor({
           hasErrors={diagnostics.some(d => d.elementIds?.includes(`${region.id}-${slotId}`))}
           onUpdate={(patch) => onUpdateSlot(slotId, patch)} defaultContentType={slotId === 'asset' ? 'logo' : 'text'} />;
       })}
-    </div>
-  );
-}
-
-// ── Side Edge Editor ───────────────────────────────────
-
-function SideEdgeEditor({
-  region,
-  onUpdate,
-  onUpdateSlot,
-}: {
-  region: RegionConfig;
-  onUpdate: (patch: Partial<RegionConfig>) => void;
-  onUpdateSlot: (slotId: string, patch: Partial<SlotConfig>) => void;
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div className="form-row" style={{ gap: 8 }}>
-        <label>
-          边缘
-          <select value={region.edge ?? 'left'} onChange={(e) => onUpdate({ edge: e.target.value as 'left' | 'right' })}>
-            <option value="left">左侧</option>
-            <option value="right">右侧</option>
-          </select>
-        </label>
-        <label>
-          对齐
-          <select value={region.alignment ?? 'start'} onChange={(e) => onUpdate({ alignment: e.target.value as 'start' | 'center' | 'end' })}>
-            <option value="start">靠边缘</option>
-            <option value="center">居中</option>
-            <option value="end">远离边缘</option>
-          </select>
-        </label>
-      </div>
-      <label>
-        区域宽度
-        <div className="form-row" style={{ gap: 8 }}>
-          <select
-            value={region.width?.mode ?? 'short_edge_ratio'}
-            onChange={(e) =>
-              onUpdate({
-                width: { mode: e.target.value as 'pixel' | 'short_edge_ratio', value: region.width?.value ?? 0.12 },
-              })
-            }
-          >
-            <option value="short_edge_ratio">短边比例</option>
-            <option value="pixel">固定像素</option>
-          </select>
-          <input
-            type="number"
-            min={0}
-            max={region.width?.mode === 'pixel' ? 500 : 0.5}
-            step={region.width?.mode === 'pixel' ? 1 : 0.01}
-            value={region.width?.value ?? 0.12}
-            onChange={(e) =>
-              onUpdate({
-                width: { mode: region.width?.mode ?? 'short_edge_ratio', value: parseFloat(e.target.value) || 0 },
-              })
-            }
-          />
-        </div>
-      </label>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {Object.entries(region.slots ?? {}).map(([slotId, slot]) => (
-          <SlotRow
-            key={slotId}
-            label={slotId}
-            slot={slot}
-            hasErrors={false}
-            onUpdate={(patch) => onUpdateSlot(slotId, patch)}
-            defaultContentType="text"
-          />
-        ))}
-      </div>
     </div>
   );
 }

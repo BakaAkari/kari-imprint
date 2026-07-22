@@ -4,7 +4,7 @@
  * 与 V2 的区别：
  * - 不内联计算坐标，全部委托给 computeLayout()
  * - 按 LayoutResult 的顺序绘制元素
- * - 支持 footer-bar / side-edge / free 三种区域类型
+ * - 支持 footer-bar / side-bar / free 三种区域类型
  *
  * 显示策略：
  * - canvas 内部逻辑分辨率始终等于布局像素，保证输出质量。

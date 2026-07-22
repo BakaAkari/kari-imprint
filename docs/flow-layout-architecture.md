@@ -114,7 +114,6 @@ footer_mode=dual-row   → layout.mode=dual-track
 ```text
 FooterBarLayoutStrategy
 SideBarLayoutStrategy
-SideEdgeLayoutStrategy
 FreeLayoutStrategy
 ```
 

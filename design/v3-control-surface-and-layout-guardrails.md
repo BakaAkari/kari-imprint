@@ -97,7 +97,7 @@
 | 空内容 | `empty-enabled-slot` | warning | slot 启用但内容为空 |
 | 缺资源 | `missing-resource` | warning | 自定义 logo/签名未上传 |
 | 字号过大 | `font-too-large` | warning | 字号超过 slot 高度 |
-| 区域溢出 | `region-overflow` | warning | side-edge 超过短边 50% |
+| 区域溢出 | `region-overflow` | warning | side-bar 超过短边 50% |
 | 进入主体 | `covers-image-body` | warning | free region 签名落在图片主体区域 |
 
 ### 诊断响应

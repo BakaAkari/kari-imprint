@@ -16,7 +16,7 @@
 - Logo/签名上传统一为服务端资源（`upload-resource` → opaque id），Canvas 预览通过 `GET /api/resources/{kind}/{id}` 读取，不再把 dataURL 写入配置。
 - Logo 来源三态（自动按 EXIF / 内置品牌 / 上传）下沉到主控制面，内置品牌下拉 + 预览。
 - Logo 位置左/中/右通过 `asset` 槽 `placement: start/center/end` 沿 Flow 主轴映射锚点；签名在 Canvas 绘制真实图像而非灰色占位。
-- 无 Flow 水印栏的模板（如 side-edge 档案模板）不再渲染空转的槽位编辑块。
+- 无 Flow 水印栏的模板不再渲染空转的槽位编辑块。
 - 内置 Logo 改为通过 `/api/builtin-logos/{name}` 按 stem 安全解析，支持 png/jpg/jpeg/webp；无 assets 的干净环境降级为占位预览和禁用内置品牌，不再请求硬编码 `fujifilm.png`。
 
 - V3 Region-Based Layout 架构：Region / Slot / Content 声明式配置。

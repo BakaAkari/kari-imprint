@@ -142,12 +142,12 @@ class FlowLayoutConfig:
 @dataclass(slots=True)
 class RegionConfig:
     id: str = ""
-    type: str = ""  # 'footer-bar' | 'side-bar' | 'side-edge' | 'free'
+    type: str = ""  # 'footer-bar' | 'side-bar' | 'free'
     enabled: bool = False
     # footer-bar 特有
     slots: dict[str, SlotConfig] = field(default_factory=dict)
     height: float | None = None  # 占图片短边的比例，由布局引擎解析为实际像素高度
-    # side-edge 特有
+    # side-bar 特有
     edge: Literal["left", "right"] | None = None
     width: dict[str, float | int | str] | None = None  # {"mode": "pixel"|"short_edge_ratio", "value": ...}
     alignment: Literal["start", "center", "end"] = "start"
@@ -266,8 +266,6 @@ def compute_layout(config: WatermarkConfig, image_w: int, image_h: int) -> Layou
                 short_edge,
                 long_edge,
             ))
-        elif region.type == "side-edge":
-            elements.extend(_compute_side_edge(region, image_rect, config.defaults, short_edge, long_edge))
         elif region.type == "side-bar":
             elements.extend(_compute_side_bar(region, image_rect, canvas, config.defaults, short_edge, long_edge))
         elif region.type == "free":
@@ -437,7 +435,7 @@ def _resolve_text_direction(region: RegionConfig, style: StyleConfig) -> str:
         return style.text_direction
     policy = region.text_orientation or "auto"
     if policy in {"auto", "rotate-with-edge"}:
-        if region.type in {"side-bar", "side-edge"}:
+        if region.type == "side-bar":
             return "rotate-ccw" if region.edge == "left" else "rotate-cw"
         return "horizontal"
     return policy
@@ -545,81 +543,6 @@ def _compute_flow_region(
             rect=Rect(pos.x, pos.y, min(inner.w, logo_h * 3), logo_h),
             anchor=anchor, content=content, style=defaults,
         ))
-    return elements
-
-
-def _compute_side_edge(
-    region: RegionConfig,
-    image_rect: Rect,
-    defaults: StyleConfig,
-    short_edge: int,
-    long_edge: int,
-) -> list[ComputedElement]:
-    """图片主体垂直边缘：单行文本垂直堆叠。"""
-
-    region_w = _resolve_side_width(region, short_edge)
-
-    if region.edge == "left":
-        region_bounds = Rect(
-            x=image_rect.x,
-            y=image_rect.y,
-            w=region_w,
-            h=image_rect.h,
-        )
-    else:  # right
-        region_bounds = Rect(
-            x=image_rect.right - region_w,
-            y=image_rect.y,
-            w=region_w,
-            h=image_rect.h,
-        )
-
-    padding = region.padding or {}
-    pad_top = int(padding.get("top", 8))
-    pad_right = int(padding.get("right", 8))
-    pad_bottom = int(padding.get("bottom", 8))
-    pad_left = int(padding.get("left", 8))
-    elements: list[ComputedElement] = []
-    cursor_y = region_bounds.y + pad_top
-
-    if region.slots:
-        for slot_id, slot in region.slots.items():
-            if not slot.enabled or slot.content is None:
-                continue
-
-            style = _merge_style(defaults, slot.style)
-            style.text_direction = _resolve_text_direction(region, style)
-            font_size = _resolve_font_size(style, region_bounds.h, short_edge, long_edge)
-
-            if isinstance(slot.content, TextContent) and slot.content.chips:
-                line_h = round(font_size * style.line_height)
-                if region.vertical_alignment == "start":
-                    start_y = cursor_y
-                    cursor_y += line_h
-                elif region.vertical_alignment == "end":
-                    start_y = region_bounds.bottom - pad_bottom - line_h
-                else:
-                    start_y = region_bounds.y + (region_bounds.h - line_h) // 2
-
-                if region.alignment == "start":
-                    x = region_bounds.x + pad_left
-                    anchor = "middle-left"
-                elif region.alignment == "end":
-                    x = region_bounds.right - pad_right
-                    anchor = "middle-right"
-                else:
-                    x = region_bounds.center_x
-                    anchor = "middle-center"
-
-                elements.append(ComputedElement(
-                    id=f"{region.id}-{slot_id}",
-                    type="text",
-                    rect=Rect(x=x, y=start_y, w=max(1, region_bounds.w - pad_left - pad_right), h=line_h),
-                    anchor=anchor,
-                    content=slot.content,
-                    style=_with_font_size(style, font_size),
-                ))
-
     return elements
 
 

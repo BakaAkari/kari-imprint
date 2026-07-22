@@ -153,7 +153,7 @@ class TestV3PayloadValidation:
         config = deepcopy(SAMPLE_V3_CONFIG)
         config["regions"] = [{
             "id": "side-left",
-            "type": "side-edge",
+            "type": "side-bar",
             "enabled": True,
             "edge": "left",
             "width": {"mode": "pixel", "value": 240.0},
@@ -169,7 +169,7 @@ class TestV3PayloadValidation:
         config = deepcopy(SAMPLE_V3_CONFIG)
         config["regions"] = [{
             "id": "side-left",
-            "type": "side-edge",
+            "type": "side-bar",
             "enabled": True,
             "edge": "left",
             "width": {"mode": "short_edge_ratio", "value": 1.1},

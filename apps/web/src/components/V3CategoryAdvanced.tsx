@@ -161,7 +161,7 @@ export function LayoutAdvancedV3({ config, onRegionOverride, onSlotOverride }: P
                 onChange={(e) => onRegionOverride(region.id, { height: parseFloat(e.target.value) || 0.09 })} />
             </label>
           )}
-          {(region.type === 'side-edge' || region.type === 'side-bar') && (
+          {region.type === 'side-bar' && (
             <label className="v3-form-row"><span className="text-sm">边缘</span>
               <select value={region.edge ?? 'right'}
                 onChange={(e) => {

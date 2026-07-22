@@ -13,7 +13,6 @@ WatermarkConfigV3
   └─ regions[]
        ├─ footer-bar
        ├─ side-bar
-       ├─ side-edge
        └─ free
             └─ slots{}
                  └─ content + style

@@ -113,7 +113,7 @@ export interface SlotConfig {
   style: StyleConfig | null;
 }
 
-export type RegionType = 'footer-bar' | 'side-bar' | 'side-edge' | 'free';
+export type RegionType = 'footer-bar' | 'side-bar' | 'free';
 
 export interface FlowLayoutConfig {
   mode: 'single-track' | 'dual-track';
@@ -245,9 +245,6 @@ export function computeLayout(config: WatermarkConfig, imageW: number, imageH: n
           longEdge,
         ));
         break;
-      case 'side-edge':
-        elements.push(...computeSideEdge(region, imageRect, config.defaults, shortEdge, longEdge));
-        break;
       case 'side-bar':
         elements.push(...computeSideBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge));
         break;
@@ -324,7 +321,7 @@ function resolveTextDirection(region: RegionConfig, style: StyleConfig): NonNull
   if (style.text_direction) return style.text_direction;
   const policy = region.text_orientation ?? 'auto';
   if (policy === 'rotate-with-edge' || policy === 'auto') {
-    if (region.type === 'side-bar' || region.type === 'side-edge') {
+    if (region.type === 'side-bar') {
       return region.edge === 'left' ? 'rotate-ccw' : 'rotate-cw';
     }
     return 'horizontal';
@@ -334,7 +331,7 @@ function resolveTextDirection(region: RegionConfig, style: StyleConfig): NonNull
 
 function resolveAssetOrientation(region: RegionConfig, orientation: string): string {
   if (orientation !== 'follow-flow') return orientation;
-  if (region.type === 'side-bar' || region.type === 'side-edge') {
+  if (region.type === 'side-bar') {
     return region.edge === 'left' ? 'rotate-ccw' : 'rotate-cw';
   }
   return 'upright';
@@ -417,78 +414,6 @@ function computeFlowRegion(
     elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, logoH * 3), logoH),
       anchor, content, style: defaults });
   }
-  return elements;
-}
-
-function computeSideEdge(
-  region: RegionConfig,
-  imageRect: Rect,
-  defaults: StyleConfig,
-  shortEdge: number,
-  longEdge: number,
-): ComputedElement[] {
-  // 区域宽度
-  const regionW = resolveSideWidth(region, shortEdge);
-
-  // 区域位置
-  const regionBounds: Rect = region.edge === 'left'
-    ? rect(imageRect.x, imageRect.y, regionW, imageRect.h)
-    : rect(rectRight(imageRect) - regionW, imageRect.y, regionW, imageRect.h);
-
-  const padding = {
-    top: region.padding?.top ?? 8,
-    right: region.padding?.right ?? 8,
-    bottom: region.padding?.bottom ?? 8,
-    left: region.padding?.left ?? 8,
-  };
-  const elements: ComputedElement[] = [];
-  let cursorY = regionBounds.y + padding.top;
-
-  if (region.slots) {
-    for (const [slotId, slot] of Object.entries(region.slots)) {
-      if (!slot.enabled || !slot.content) continue;
-
-      const style = mergeStyle(defaults, slot.style);
-      style.text_direction = resolveTextDirection(region, style);
-      const fontSize = resolveFontSize(style, regionBounds.h, shortEdge, longEdge);
-
-      if (isTextContent(slot.content) && slot.content.chips.length > 0) {
-        const lineH = Math.round(fontSize * style.line_height);
-        let startY: number;
-        if (region.vertical_alignment === 'start') {
-          startY = cursorY;
-          cursorY += lineH;
-        } else if (region.vertical_alignment === 'end') {
-          startY = rectBottom(regionBounds) - padding.bottom - lineH;
-        } else {
-          startY = regionBounds.y + Math.floor((regionBounds.h - lineH) / 2);
-        }
-
-        let x: number;
-        let anchor: string;
-        if (region.alignment === 'start') {
-          x = regionBounds.x + padding.left;
-          anchor = 'middle-left';
-        } else if (region.alignment === 'end') {
-          x = rectRight(regionBounds) - padding.right;
-          anchor = 'middle-right';
-        } else {
-          x = rectCenterX(regionBounds);
-          anchor = 'middle-center';
-        }
-
-        elements.push({
-          id: `${region.id}-${slotId}`,
-          type: 'text',
-          rect: rect(x, startY, Math.max(1, regionBounds.w - padding.left - padding.right), lineH),
-          anchor,
-          content: slot.content,
-          style: withFontSize(style, fontSize),
-        });
-      }
-    }
-  }
-
   return elements;
 }
 
