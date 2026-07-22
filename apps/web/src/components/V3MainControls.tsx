@@ -42,20 +42,21 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [addingFor, setAddingFor] = useState<string | null>(null);
 
+  const flowRegion = _config.regions.find((region) => region.type === 'footer-bar' || region.type === 'side-bar');
+  const isSideBar = flowRegion?.type === 'side-bar';
+  const isDual = controls.footer_mode === 'dual-row';
+  const labels = isSideBar
+    ? { primary_start: '内列上方', primary_end: '内列下方', secondary_start: '外列上方', secondary_end: '外列下方' }
+    : { primary_start: '第一排左侧', primary_end: '第一排右侧', secondary_start: '第二排左侧', secondary_end: '第二排右侧' };
   const rows = useMemo(() => {
-    const isDual = controls.footer_mode === 'dual-row';
-    return isDual
-      ? [
-          { id: 'top_left', label: '左上', chips: controls.top_left, position: 'top-left' },
-          { id: 'top_right', label: '右上', chips: controls.top_right, position: 'top-right' },
-          { id: 'bottom_left', label: '左下', chips: controls.bottom_left, position: 'bottom-left' },
-          { id: 'bottom_right', label: '右下', chips: controls.bottom_right, position: 'bottom-right' },
-        ]
-      : [
-          { id: 'left_row', label: '左排', chips: controls.left_row, position: 'left' },
-          { id: 'right_row', label: '右排', chips: controls.right_row, position: 'right' },
-        ];
-  }, [controls]);
+    const all = [
+      { id: 'primary_start', label: labels.primary_start, chips: controls.primary_start, position: 'primary-start' },
+      { id: 'primary_end', label: labels.primary_end, chips: controls.primary_end, position: 'primary-end' },
+      { id: 'secondary_start', label: labels.secondary_start, chips: controls.secondary_start, position: 'secondary-start' },
+      { id: 'secondary_end', label: labels.secondary_end, chips: controls.secondary_end, position: 'secondary-end' },
+    ];
+    return isDual ? all : all.filter(row => row.id.startsWith('primary_'));
+  }, [controls, isDual, isSideBar]);
 
   const updateRow = useCallback(
     (rowId: string, chips: FieldChip[]) => {
@@ -107,7 +108,7 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
     <div className="v3-main-controls">
       <div className="v3-footer-bar">
         <div className="v3-footer-bar-header">
-          <div className="v3-footer-bar-title">底部水印栏</div>
+          <div className="v3-footer-bar-title">{isSideBar ? `${flowRegion?.edge === 'left' ? '左' : '右'}侧水印栏` : '底部水印栏'}</div>
           <div className="v3-footer-bar-actions">
             <button
               className="v3-btn v3-btn-sm"
@@ -116,9 +117,9 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
                   footer_mode: controls.footer_mode === 'dual-row' ? 'single-row' : 'dual-row',
                 })
               }
-              title="切换左右双排/单排"
+              title={isSideBar ? "切换单列/双列" : "切换单排/双排"}
             >
-              {FOOTER_MODE_LABELS[controls.footer_mode]}
+              {isSideBar ? (isDual ? '内外双列' : '单列') : FOOTER_MODE_LABELS[controls.footer_mode]}
             </button>
           </div>
         </div>

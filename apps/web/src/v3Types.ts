@@ -222,7 +222,7 @@ export const LOGO_POSITION_LABELS: Record<LogoPosition, string> = {
   right: '右',
 };
 
-export type FooterTextSlot = 'top_left' | 'bottom_left' | 'top_right' | 'bottom_right' | 'left_row' | 'right_row';
+export type FooterTextSlot = 'primary_start' | 'primary_end' | 'secondary_start' | 'secondary_end';
 export type FooterTextSizes = Record<FooterTextSlot, SizeLevel>;
 
 export interface MainControlConfig {
@@ -232,12 +232,10 @@ export interface MainControlConfig {
   text_sizes: FooterTextSizes;
   logo_size: SizeLevel;
   signature_size: SizeLevel;
-  top_left: FieldChip[];
-  bottom_left: FieldChip[];
-  top_right: FieldChip[];
-  bottom_right: FieldChip[];
-  left_row: FieldChip[];
-  right_row: FieldChip[];
+  primary_start: FieldChip[];
+  primary_end: FieldChip[];
+  secondary_start: FieldChip[];
+  secondary_end: FieldChip[];
   custom_text: string;
   logo_path: string;
   signature_path: string;
@@ -292,14 +290,12 @@ export const defaultControlSurface: ControlSurface = {
     regionId: 'footer',
     heightRatio: FOOTER_HEIGHT_RATIO,
     slots: {
-      top_left: 'left-top',
-      bottom_left: 'left-bottom',
-      top_right: 'right-top',
-      bottom_right: 'right-bottom',
-      left_row: 'left-top',
-      right_row: 'right-top',
+      primary_start: 'primary-start',
+      primary_end: 'primary-end',
+      secondary_start: 'secondary-start',
+      secondary_end: 'secondary-end',
     },
-    logoSlots: { left: 'left-logo', center: 'center', right: 'right-logo' },
+    logoSlots: { left: 'asset', center: 'asset', right: 'asset' },
   },
   logo: { enabled: true },
   signature: {
@@ -626,6 +622,16 @@ function mergeSlotOverride(slot: SlotConfig, override: SlotOverride): SlotConfig
   return next;
 }
 
+export function defaultFlowLayout(): FlowLayoutConfig {
+  return {
+    mode: 'dual-track', main_alignment: 'space-between', cross_alignment: 'center',
+    track_order: 'photo-outward',
+    track_gap: { mode: 'short_edge_ratio', value: 0.012 },
+    item_gap: { mode: 'short_edge_ratio', value: 0.012 },
+    track_ratios: [0.6, 0.4],
+  };
+}
+
 export function resolveConfig(
   template: WatermarkConfigV3,
   controls: MainControlConfig,
@@ -678,9 +684,16 @@ export function resolveConfig(
     }
     footer.slots ??= {};
 
-    const chipMap: Partial<Record<FooterTextSlot, FieldChip[]>> = controls.footer_mode === 'dual-row'
-      ? { top_left: controls.top_left, bottom_left: controls.bottom_left, top_right: controls.top_right, bottom_right: controls.bottom_right }
-      : { left_row: controls.left_row, right_row: controls.right_row };
+    const chipMap: Partial<Record<FooterTextSlot, FieldChip[]>> = {
+      primary_start: controls.primary_start,
+      primary_end: controls.primary_end,
+      secondary_start: controls.secondary_start,
+      secondary_end: controls.secondary_end,
+    };
+    footer.layout = {
+      ...(footer.layout ?? defaultFlowLayout()),
+      mode: controls.footer_mode === 'single-row' ? 'single-track' : 'dual-track',
+    };
     const controlledSlotIds = new Set<string>([
       ...Object.values(footerSurface.slots).filter((slotId): slotId is string => Boolean(slotId)),
       ...Object.values(footerSurface.logoSlots).filter((slotId): slotId is string => Boolean(slotId)),
@@ -771,14 +784,13 @@ export function resolveConfig(
 // 主界面控制的缺省值
 export const defaultMainControls: MainControlConfig = {
   scheme: 'dark', footer_mode: 'dual-row', logo_position: 'right',
-  text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
+  text_sizes: { primary_start: 'medium', primary_end: 'medium', secondary_start: 'medium', secondary_end: 'medium' },
   logo_size: 'medium', signature_size: 'medium',
   border_enabled: false, border_width_level: 'medium',
-  top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
-  bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
-  top_right: [], bottom_right: [],
-  left_row: [{ field_id: 'make' }, { field_id: 'camera_model' }, { field_id: 'focal_length' }, { field_id: 'aperture' }],
-  right_row: [{ field_id: 'shutter' }, { field_id: 'iso' }],
+  primary_start: [{ field_id: 'make' }, { field_id: 'camera_model' }],
+  primary_end: [],
+  secondary_start: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
+  secondary_end: [],
   custom_text: '', logo_path: '', signature_path: '',
 };
 

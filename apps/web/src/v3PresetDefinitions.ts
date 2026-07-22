@@ -55,12 +55,10 @@ export const layoutTemplatesV3: Record<string, LayoutTemplateV3> = {
 
 const baseControls: MainControlConfig = {
   ...cloneControls(defaultMainControls),
-  top_left: [],
-  bottom_left: [],
-  top_right: [],
-  bottom_right: [],
-  left_row: [],
-  right_row: [],
+  primary_start: [],
+  secondary_start: [],
+  primary_end: [],
+  secondary_end: [],
   custom_text: '',
   logo_path: '',
   signature_path: '',
@@ -75,10 +73,9 @@ export const productPresetsV3: ProductPresetV3[] = [
     template: layoutTemplatesV3.brandFooter,
     mainControls: {
       ...cloneControls(baseControls),
-      top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
-      bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
-      left_row: [{ field_id: 'make' }, { field_id: 'camera_model' }, { field_id: 'focal_length' }, { field_id: 'aperture' }],
-      right_row: [{ field_id: 'shutter' }, { field_id: 'iso' }],
+      primary_start: [{ field_id: 'make' }, { field_id: 'camera_model' }],
+      secondary_start: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
+      primary_end: [{ field_id: 'shutter' }, { field_id: 'iso' }],
     },
   },
   {
@@ -89,8 +86,8 @@ export const productPresetsV3: ProductPresetV3[] = [
     template: layoutTemplatesV3.minimalFooter,
     mainControls: {
       ...cloneControls(baseControls),
-      bottom_right: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
-      right_row: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
+      secondary_end: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
+      primary_end: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
     },
   },
   {
@@ -101,12 +98,10 @@ export const productPresetsV3: ProductPresetV3[] = [
     template: layoutTemplatesV3.polaroidFooter,
     mainControls: {
       ...cloneControls(baseControls),
-      top_left: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
-      bottom_left: [{ field_id: 'datetime' }],
-      top_right: [{ field_id: 'camera_model' }],
-      bottom_right: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'iso' }],
-      left_row: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
-      right_row: [{ field_id: 'camera_model' }, { field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'iso' }],
+      primary_start: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
+      secondary_start: [{ field_id: 'datetime' }],
+      primary_end: [{ field_id: 'camera_model' }],
+      secondary_end: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'iso' }],
       custom_text: 'AKARI PHOTO',
     },
   },

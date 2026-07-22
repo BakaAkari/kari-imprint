@@ -11,6 +11,7 @@
 - `docs/flow-layout-architecture.md` 架构设计与分阶段验收标准。
 - Footer / Side 独立 Flow 几何策略，并用共享 JSON Fixture 校验 TS/Python 布局输出一致。
 - Region 级文字方向策略与 Slot 显式覆盖；Logo/签名使用独立资源方向，不再在切换侧栏时批量重写样式。
+- 主控制面按 Region 动态显示底栏“单双排”或侧栏“内外单双列”，Inspector 拆分 Footer / Side 编辑器并使用方向化槽位文案。
 
 - V3 Region-Based Layout 架构：Region / Slot / Content 声明式配置。
 - 前端布局引擎：`web_frontend/src/v3_layout/layoutEngine.ts`。

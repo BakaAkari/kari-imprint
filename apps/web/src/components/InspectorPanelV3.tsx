@@ -23,8 +23,9 @@ import type {
   FieldChip,
   RegionType,
   FieldId,
+  FlowLayoutConfig,
 } from '../v3Types';
-import { fieldOptionsV3, defaultStyle } from '../v3Types';
+import { fieldOptionsV3, defaultFlowLayout, defaultStyle } from '../v3Types';
 
 // ── 类型守卫 ────────────────────────────────────────────
 
@@ -57,13 +58,11 @@ function defaultSignatureContent(): SignatureContent {
 // ── Slot 标签 ──────────────────────────────────────────────
 
 const FOOTER_SLOT_LABELS: Record<string, string> = {
-  'left-logo': '左 Logo',
-  'left-top': '左上文本',
-  'left-bottom': '左下文本',
-  'center': '中间文本',
-  'right-top': '右上文本',
-  'right-bottom': '右下文本',
-  'right-logo': '右 Logo',
+  'primary-start': '第一排左侧',
+  'primary-end': '第一排右侧',
+  'secondary-start': '第二排左侧',
+  'secondary-end': '第二排右侧',
+  asset: 'Logo / 资源',
 };
 
 const ANCHOR_LABELS: Record<string, string> = {
@@ -252,8 +251,11 @@ function RegionEditor({
 
       {expanded && (
         <>
-          {(region.type === 'footer-bar' || region.type === 'side-bar') && (
+          {region.type === 'footer-bar' && (
             <FooterBarEditor region={region} diagnostics={diagnostics} onUpdateSlot={onUpdateSlot} />
+          )}
+          {region.type === 'side-bar' && (
+            <SideBarEditor region={region} diagnostics={diagnostics} onUpdate={onUpdate} onUpdateSlot={onUpdateSlot} />
           )}
           {region.type === 'side-edge' && (
             <SideEdgeEditor region={region} onUpdate={onUpdate} onUpdateSlot={onUpdateSlot} />
@@ -278,7 +280,7 @@ function FooterBarEditor({
   diagnostics: DiagnosticItem[];
   onUpdateSlot: (slotId: string, patch: Partial<SlotConfig>) => void;
 }) {
-  const slotOrder = ['left-logo', 'left-top', 'left-bottom', 'center', 'right-top', 'right-bottom', 'right-logo'];
+  const slotOrder = ['primary-start', 'primary-end', 'secondary-start', 'secondary-end', 'asset'];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -298,6 +300,51 @@ function FooterBarEditor({
             defaultContentType={slotId.includes('logo') ? 'logo' : 'text'}
           />
         );
+      })}
+    </div>
+  );
+}
+
+function SideBarEditor({
+  region,
+  diagnostics,
+  onUpdate,
+  onUpdateSlot,
+}: {
+  region: RegionConfig;
+  diagnostics: DiagnosticItem[];
+  onUpdate: (patch: Partial<RegionConfig>) => void;
+  onUpdateSlot: (slotId: string, patch: Partial<SlotConfig>) => void;
+}) {
+  const layout = region.layout ?? defaultFlowLayout();
+  const slotLabels: Record<string, string> = {
+    'primary-start': '内列上方',
+    'primary-end': '内列下方',
+    'secondary-start': '外列上方',
+    'secondary-end': '外列下方',
+    asset: 'Logo / 资源',
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="form-row" style={{ gap: 8 }}>
+        <label>边缘<select value={region.edge ?? 'right'} onChange={(e) => onUpdate({ edge: e.target.value as 'left' | 'right' })}>
+          <option value="left">左侧</option><option value="right">右侧</option>
+        </select></label>
+        <label>轨道<select value={layout.mode} onChange={(e) => onUpdate({ layout: { ...layout, mode: e.target.value as FlowLayoutConfig['mode'] } })}>
+          <option value="single-track">单列</option><option value="dual-track">内外双列</option>
+        </select></label>
+      </div>
+      <label>自动文字方向<select value={region.text_orientation ?? 'auto'} onChange={(e) => onUpdate({ text_orientation: e.target.value as RegionConfig['text_orientation'] })}>
+        <option value="auto">跟随侧边</option><option value="horizontal">横向</option>
+        <option value="rotate-cw">顺时针</option><option value="rotate-ccw">逆时针</option>
+        <option value="vertical-glyphs">逐字纵排</option>
+      </select></label>
+      {['primary-start', 'primary-end', 'secondary-start', 'secondary-end', 'asset'].map((slotId) => {
+        const slot = region.slots?.[slotId];
+        if (!slot) return null;
+        return <SlotRow key={slotId} label={slotLabels[slotId]} slot={slot}
+          hasErrors={diagnostics.some(d => d.elementIds?.includes(`${region.id}-${slotId}`))}
+          onUpdate={(patch) => onUpdateSlot(slotId, patch)} defaultContentType={slotId === 'asset' ? 'logo' : 'text'} />;
       })}
     </div>
   );
