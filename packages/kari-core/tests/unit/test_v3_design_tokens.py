@@ -47,11 +47,10 @@ def test_frontend_backend_size_tokens_stay_in_sync():
     assert API_SIGNATURE_SIZE_LEVEL_RATIOS == _SIGNATURE_SIZE_LEVEL_RATIOS
 
 
-def test_v3_presets_have_product_categories_and_logo_treatment_defaults():
+def test_v3_presets_have_product_categories():
     source = (REPO_ROOT / "apps/web/src/v3PresetDefinitions.ts").read_text()
     for category in ["brand", "minimal", "polaroid", "archive"]:
         assert f"category: '{category}'" in source
-    assert "logo_treatment: 'mono-scheme'" in (REPO_ROOT / "apps/web/src/v3Types.ts").read_text()
     assert "archiveControlSurface" in source
     assert "品牌底栏" in source
     assert "拍立得白边" in source

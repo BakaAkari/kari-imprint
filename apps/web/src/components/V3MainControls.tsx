@@ -5,7 +5,6 @@ import {
   type FieldId,
   type FooterMode,
   type LogoPosition,
-  type LogoTreatment,
   type MainControlConfig,
   type ColorScheme,
   type SizeLevel,
@@ -195,11 +194,14 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
 export function V3LogoControls({
   controls,
   onChange,
+  advancedContent,
 }: {
   controls: MainControlConfig;
   onChange: (patch: Partial<MainControlConfig>) => void;
+  advancedContent?: React.ReactNode;
 }) {
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleLogoChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,20 +260,14 @@ export function V3LogoControls({
             ))}
           </div>
         </div>
-        <div className="v3-form-row">
-          <label>外观</label>
-          <div className="v3-segmented-group">
-            {(['mono-scheme', 'original'] as LogoTreatment[]).map(t => (
-              <button
-                key={t}
-                className={`v3-segment ${controls.logo_treatment === t ? 'active' : ''}`}
-                onClick={() => onChange({ logo_treatment: t })}
-              >
-                {t === 'mono-scheme' ? '跟随方案' : '保持原色'}
-              </button>
-            ))}
-          </div>
-        </div>
+        {advancedContent && (
+          <>
+            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
+              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+            </button>
+            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
+          </>
+        )}
       </div>
     </div>
   );
@@ -280,10 +276,13 @@ export function V3LogoControls({
 export function V3AppearanceControls({
   controls,
   onChange,
+  advancedContent,
 }: {
   controls: MainControlConfig;
   onChange: (patch: Partial<MainControlConfig>) => void;
+  advancedContent?: React.ReactNode;
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   return (
     <div className="v3-right-section">
       <div className="v3-right-section-title">整体外观</div>
@@ -302,20 +301,31 @@ export function V3AppearanceControls({
             ))}
           </div>
         </div>
-        <div className="v3-control-note">影响文字、水印条背景、边框与默认 Logo 色；不是单独的 Logo 配色。</div>
+        <div className="v3-control-note">影响文字、水印条背景与边框；Logo 始终保留原始颜色和透明通道。</div>
+        {advancedContent && (
+          <>
+            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
+              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+            </button>
+            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-export function V3OutputControls({
+export function V3SignatureControls({
   controls,
   onChange,
+  advancedContent,
 }: {
   controls: MainControlConfig;
   onChange: (patch: Partial<MainControlConfig>) => void;
+  advancedContent?: React.ReactNode;
 }) {
   const sigInputRef = useRef<HTMLInputElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleSignatureChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -331,7 +341,7 @@ export function V3OutputControls({
 
   return (
     <div className="v3-right-section">
-      <div className="v3-right-section-title">输出与高级</div>
+      <div className="v3-right-section-title">签名</div>
       <div className="v3-right-section-body">
         <div className="v3-form-row">
           <label>资源</label>
@@ -349,7 +359,7 @@ export function V3OutputControls({
         </div>
         {controls.signature_path && (
           <div className="v3-form-row">
-            <label>签名大小</label>
+            <label>大小</label>
             <select value={controls.signature_size} onChange={(e) => onChange({ signature_size: e.target.value as SizeLevel })}>
               {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
                 <option key={s} value={s}>{s === 'small' ? '小' : s === 'medium' ? '中' : '大'}</option>
@@ -357,21 +367,13 @@ export function V3OutputControls({
             </select>
           </div>
         )}
-        <label className="v3-form-row v3-checkbox-row">
-          <input type="checkbox" checked={controls.border_enabled}
-            onChange={(e) => onChange({ border_enabled: e.target.checked })} />
-          <span className="text-sm">启用边框</span>
-        </label>
-        {controls.border_enabled && (
-          <div className="v3-form-row">
-            <label>边框宽度</label>
-            <select value={controls.border_width_level}
-              onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
-              <option value="small">小</option>
-              <option value="medium">中</option>
-              <option value="large">大</option>
-            </select>
-          </div>
+        {advancedContent && (
+          <>
+            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
+              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+            </button>
+            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
+          </>
         )}
       </div>
     </div>
@@ -381,10 +383,13 @@ export function V3OutputControls({
 export function V3BorderControls({
   controls,
   onChange,
+  advancedContent,
 }: {
   controls: MainControlConfig;
   onChange: (patch: Partial<MainControlConfig>) => void;
+  advancedContent?: React.ReactNode;
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   return (
     <div className="v3-right-section">
       <div className="v3-right-section-title">边框</div>
@@ -395,16 +400,22 @@ export function V3BorderControls({
           <span className="text-sm">启用边框</span>
         </label>
         {controls.border_enabled && (
+          <div className="v3-form-row">
+            <label>宽度</label>
+            <select value={controls.border_width_level}
+              onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
+              <option value="small">小</option>
+              <option value="medium">中</option>
+              <option value="large">大</option>
+            </select>
+          </div>
+        )}
+        {advancedContent && (
           <>
-            <div className="v3-form-row">
-              <label>宽度</label>
-              <select value={controls.border_width_level}
-                onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
-                <option value="small">小</option>
-                <option value="medium">中</option>
-                <option value="large">大</option>
-              </select>
-            </div>
+            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
+              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+            </button>
+            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
           </>
         )}
       </div>
@@ -412,4 +423,4 @@ export function V3BorderControls({
   );
 }
 
-export type { FieldChip, FieldId, FooterMode, LogoPosition, LogoTreatment, MainControlConfig, ColorScheme, SizeLevel };
+export type { FieldChip, FieldId, FooterMode, LogoPosition, MainControlConfig, ColorScheme, SizeLevel };

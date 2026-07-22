@@ -72,8 +72,6 @@ export interface TextContent {
 
 export interface LogoContent {
   path: string;
-  color: string;
-  treatment?: 'original' | 'mono-scheme';
   size_level: SizeLevel | null;
   size_ratio: number | null;
 }

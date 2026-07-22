@@ -51,8 +51,6 @@ export interface TextContent {
 
 export interface LogoContent {
   path: string;
-  color: string;
-  treatment: LogoTreatment;
   size_level: SizeLevel | null;
   size_ratio: number | null;
 }
@@ -171,7 +169,6 @@ export type PresetSize = SizeLevel;
 export type ColorScheme = 'dark' | 'light';
 export type FooterMode = 'dual-row' | 'single-row';
 export type LogoPosition = 'left' | 'center' | 'right';
-export type LogoTreatment = 'original' | 'mono-scheme';
 
 export type PreviewAspectRatio = '3:2' | '4:3' | '16:9' | '1:1' | '2:3';
 
@@ -210,7 +207,6 @@ export interface MainControlConfig {
   logo_position: LogoPosition;
   text_sizes: FooterTextSizes;
   logo_size: SizeLevel;
-  logo_treatment: LogoTreatment;
   signature_size: SizeLevel;
   top_left: FieldChip[];
   bottom_left: FieldChip[];
@@ -312,9 +308,9 @@ export function chipKey(chip: FieldChip): string {
     : chip.field_id;
 }
 
-export const colorSchemes: Record<ColorScheme, { text: string; logo: string; background: string; border: string }> = {
-  dark: { text: '#222222', logo: '#D8D8D6', background: '#FFFFFF', border: '#FFFFFF' },
-  light: { text: '#F5F5F5', logo: '#FFFFFF', background: '#1A1A1A', border: '#1A1A1A' },
+export const colorSchemes: Record<ColorScheme, { text: string; background: string; border: string }> = {
+  dark: { text: '#222222', background: '#FFFFFF', border: '#FFFFFF' },
+  light: { text: '#F5F5F5', background: '#1A1A1A', border: '#1A1A1A' },
 };
 
 // ── 预设配置 ────────────────────────────────────────────
@@ -373,7 +369,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', color: '#D8D8D6', treatment: 'mono-scheme', size_level: 'medium', size_ratio: null },
+          content: { path: '', size_level: 'medium', size_ratio: null },
           style: null,
         },
       },
@@ -481,7 +477,7 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
         'left-logo': { enabled: false, content: null, style: null },
         'right-logo': {
           enabled: true,
-          content: { path: '', color: '#D8D8D6', treatment: 'mono-scheme', size_level: 'medium', size_ratio: null },
+          content: { path: '', size_level: 'medium', size_ratio: null },
           style: null,
         },
       },
@@ -638,7 +634,6 @@ export function resolveConfig(
     if (!region.slots) continue;
     for (const slot of Object.values(region.slots)) {
       if (slot.style) slot.style.color = scheme.text;
-      if (slot.content && 'color' in slot.content) slot.content.color = scheme.logo;
     }
   }
 
@@ -685,7 +680,7 @@ export function resolveConfig(
       if (logoSlot) {
         footer.slots[logoSlot] = {
           enabled: true,
-          content: { path: controls.logo_path, color: scheme.logo, treatment: controls.logo_treatment, size_level: controls.logo_size, size_ratio: null },
+          content: { path: controls.logo_path, size_level: controls.logo_size, size_ratio: null },
           style: null,
         };
       }
@@ -747,7 +742,7 @@ export function resolveConfig(
 export const defaultMainControls: MainControlConfig = {
   scheme: 'dark', footer_mode: 'dual-row', logo_position: 'right',
   text_sizes: { top_left: 'medium', bottom_left: 'medium', top_right: 'medium', bottom_right: 'medium', left_row: 'medium', right_row: 'medium' },
-  logo_size: 'medium', logo_treatment: 'mono-scheme', signature_size: 'medium',
+  logo_size: 'medium', signature_size: 'medium',
   border_enabled: false, border_width_level: 'medium',
   top_left: [{ field_id: 'make' }, { field_id: 'camera_model' }],
   bottom_left: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],

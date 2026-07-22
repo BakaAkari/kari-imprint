@@ -141,10 +141,7 @@ def process(key: str, page: str, force: bool) -> dict:
         row["status"] = f"fail:{src}"
         return row
     try:
-        if url.lower().endswith(".svg"):
-            raw = commons_render_png(url)
-        else:
-            raw = fetch(url)
+        raw = commons_render_png(url) if url.lower().endswith(".svg") else fetch(url)
         img = Image.open(io.BytesIO(raw))
         img.load()
     except Exception as exc:

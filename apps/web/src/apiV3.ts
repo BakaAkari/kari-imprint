@@ -98,6 +98,17 @@ export async function processImageV3(
   return payload;
 }
 
+export async function fetchLogosV3(): Promise<string[]> {
+  const response = await fetch(`${API_BASE}/api/logos`);
+  const payload = (await response.json()) as { ok: true; logos: string[] } | ApiErrorResponse;
+  if (!response.ok || !payload.ok) return [];
+  return payload.logos;
+}
+
+export function builtinLogoUrl(name: string): string {
+  return `${API_BASE}/api/logos/${encodeURIComponent(name)}.png`;
+}
+
 export async function fetchRuntimeCapabilitiesV3(): Promise<RuntimeCapabilities> {
   const response = await fetch(`${API_BASE}/api/capabilities`);
   const payload = (await response.json()) as CapabilitiesResponse | ApiErrorResponse;

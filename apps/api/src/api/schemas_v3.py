@@ -22,6 +22,7 @@ Anchor = Literal[
 ]
 
 _RESOURCE_ID_PATTERN = r"^(?:[A-Za-z0-9_-]{20,64}\.(?:png|jpg|jpeg|webp))?$"
+_BUILTIN_LOGO_PATTERN = r"^builtin:[A-Za-z0-9_-]{1,64}$"
 _FOOTER_SLOT_IDS = frozenset({
     "left-logo", "left-top", "left-bottom", "center",
     "right-top", "right-bottom", "right-logo",
@@ -51,16 +52,21 @@ class TextContentPayload(StrictModel):
 
 
 class LogoContentPayload(StrictModel):
-    path: ResourceId = Field(default="", max_length=128, pattern=_RESOURCE_ID_PATTERN)
-    color: Color = "#D8D8D6"
-    treatment: Literal["original", "mono-scheme"] = "mono-scheme"
+    path: ResourceId = Field(default="", max_length=128)
+
+    @field_validator("path")
+    @classmethod
+    def _validate_logo_path(cls, value: str) -> str:
+        if value == "":
+            return value
+        if re.match(_RESOURCE_ID_PATTERN, value):
+            return value
+        if re.match(_BUILTIN_LOGO_PATTERN, value):
+            return value
+        raise ValueError("logo path must be an opaque resource id or builtin:<name>")
+
     size_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
     size_level: Literal["small", "medium", "large"] | None = None
-
-    @field_validator("color")
-    @classmethod
-    def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
 
     @model_validator(mode="after")
     def size_conflict(self) -> LogoContentPayload:
@@ -252,6 +258,19 @@ class WatermarkPayloadV3(StrictModel):
         """Migrate missing or schema_version=1 payloads to v2."""
         if not isinstance(data, dict):
             return data
+        # Logo color/treatment were removed: always strip legacy fields so
+        # saved V2 configs remain loadable without retaining recoloring behavior.
+        for region in data.get("regions") or []:
+            if not isinstance(region, dict):
+                continue
+            for slot in (region.get("slots") or {}).values():
+                if not isinstance(slot, dict):
+                    continue
+                content = slot.get("content")
+                if isinstance(content, dict) and "path" in content and "invert_mono" not in content:
+                    content.pop("color", None)
+                    content.pop("treatment", None)
+
         sv = data.get("schema_version", 1)
         if isinstance(sv, str):
             try:
@@ -296,7 +315,7 @@ class WatermarkPayloadV3(StrictModel):
                 if isinstance(content, dict):
                     ratio_value = content.get("size_ratio")
                     level_value = content.get("size_level")
-                    ratios = _LOGO_SIZE_LEVEL_RATIOS if "color" in content else _SIGNATURE_SIZE_LEVEL_RATIOS
+                    ratios = _SIGNATURE_SIZE_LEVEL_RATIOS if "invert_mono" in content else _LOGO_SIZE_LEVEL_RATIOS
                     if ratio_value is not None and level_value is None:
                         for level, ratio in ratios.items():
                             if abs(ratio_value - ratio) < 0.001:

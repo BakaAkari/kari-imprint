@@ -90,8 +90,6 @@ class TextContent:
 @dataclass(slots=True)
 class LogoContent:
     path: str = ""           # 空表示 auto
-    color: str = "#D8D8D6"
-    treatment: str = "mono-scheme"  # 'original' | 'mono-scheme'
     size_ratio: float | None = 0.6  # logo 高度占所在区域高度的比例
     size_level: str | None = None   # 'small' | 'medium' | 'large'
 

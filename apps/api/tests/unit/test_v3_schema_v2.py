@@ -105,9 +105,6 @@ class TestLogoSizeLevel:
         assert p.size_ratio == 0.6
         assert p.size_level is None
 
-    def test_logo_treatment_accepted(self):
-        p = LogoContentPayload(path=self.VALID_PATH, treatment="original")
-        assert p.treatment == "original"
 
 
 class TestSignatureSizeLevel:

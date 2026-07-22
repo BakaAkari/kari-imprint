@@ -7,8 +7,8 @@
  * - 隐藏新增 Region / 删除 Region / 新增 Slot/Line/Signature 等危险入口。
  */
 
-import { useCallback, useRef, useState } from 'react';
-import { uploadResourceV3 } from '../apiV3';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { uploadResourceV3, fetchLogosV3, builtinLogoUrl } from '../apiV3';
 import type {
   WatermarkConfigV3,
   RegionConfig,
@@ -33,11 +33,11 @@ function isTextContent(c: Content): c is TextContent {
 }
 
 function isLogoContent(c: Content): c is LogoContent {
-  return 'path' in c && 'color' in c && !('chips' in c);
+  return 'path' in c && !('chips' in c) && !('invert_mono' in c);
 }
 
 function isSignatureContent(c: Content): c is SignatureContent {
-  return 'path' in c && 'size_ratio' in c && !('chips' in c);
+  return 'path' in c && 'invert_mono' in c;
 }
 
 // ── 默认 Slot 内容工厂 ─────────────────────────────────
@@ -47,7 +47,7 @@ function defaultTextContent(): TextContent {
 }
 
 function defaultLogoContent(): LogoContent {
-  return { path: '', color: '#D8D8D6', treatment: 'mono-scheme', size_level: 'medium', size_ratio: null };
+  return { path: '', size_level: 'medium', size_ratio: null };
 }
 
 function defaultSignatureContent(): SignatureContent {
@@ -512,6 +512,138 @@ function SlotRow({
   );
 }
 
+// ── Logo Content Editor ──────────────────────────────────
+
+function LogoContentEditor({
+  content,
+  onUpdateContent,
+}: {
+  content: LogoContent;
+  onUpdateContent: (c: LogoContent) => void;
+}) {
+  const [logos, setLogos] = useState<string[]>([]);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [resourceStatus, setResourceStatus] = useState('');
+
+  useEffect(() => {
+    void fetchLogosV3().then(setLogos);
+  }, []);
+
+  const isAuto = !content.path;
+  const isBuiltin = content.path.startsWith('builtin:');
+  const isCustom = !isAuto && !isBuiltin;
+  const currentBuiltin = isBuiltin ? content.path.split(':', 2)[1] : '';
+  const previewSrc = isBuiltin
+    ? builtinLogoUrl(currentBuiltin)
+    : isAuto
+      ? builtinLogoUrl('default')
+      : null;
+
+  const uploadLogo = async (file: File) => {
+    setResourceStatus('上传中...');
+    try {
+      const result = await uploadResourceV3(file, 'logo');
+      onUpdateContent({ ...content, path: result.resource_id });
+      setResourceStatus('上传完成');
+    } catch (error) {
+      setResourceStatus(error instanceof Error ? error.message : '上传失败');
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Logo source selector */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span className="text-sm">Logo 来源</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            className={`small ${isAuto ? 'primary' : ''}`}
+            onClick={() => onUpdateContent({ ...content, path: '' })}
+          >
+            自动（按 EXIF）
+          </button>
+          <button
+            className={`small ${isBuiltin ? 'primary' : ''}`}
+            onClick={() => {
+              if (logos.length > 0) onUpdateContent({ ...content, path: `builtin:${logos[0]}` });
+            }}
+          >
+            内置
+          </button>
+          <button className={`small ${isCustom ? 'primary' : ''}`} onClick={() => logoInputRef.current?.click()}>
+            上传
+          </button>
+        </div>
+      </div>
+
+      {/* Builtin picker */}
+      {isBuiltin && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <select
+            value={currentBuiltin}
+            onChange={(e) => onUpdateContent({ ...content, path: `builtin:${e.target.value}` })}
+          >
+            {logos.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {previewSrc && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img
+            src={previewSrc}
+            alt="logo"
+            style={{ maxHeight: 40, maxWidth: 120, objectFit: 'contain', background: '#333', padding: 4, borderRadius: 4 }}
+          />
+          <span className="text-tertiary text-xs">始终保留原始颜色与透明通道</span>
+        </div>
+      )}
+
+      {/* Size */}
+      <label className="inline" style={{ flexDirection: 'row', gap: 8 }}>
+        <span className="text-sm" style={{ minWidth: 60 }}>大小比例</span>
+        <input
+          type="number"
+          min={0.01}
+          max={1}
+          step={0.01}
+          value={content.size_ratio ?? ''}
+          placeholder={content.size_level ?? 'medium'}
+          onChange={(e) => onUpdateContent({
+            ...content,
+            size_level: null,
+            size_ratio: parseFloat(e.target.value) || 0.6,
+          })}
+          style={{ width: 100 }}
+        />
+      </label>
+
+      {/* Custom upload */}
+      <div className="resource-upload-row">
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void uploadLogo(file);
+            event.target.value = '';
+          }}
+        />
+        {isCustom && (
+          <button className="small ghost" onClick={() => onUpdateContent({ ...content, path: '' })}>
+            换回自动
+          </button>
+        )}
+        {resourceStatus && <span className="text-tertiary text-xs">{resourceStatus}</span>}
+      </div>
+    </div>
+  );
+}
+
 // ── Content Editor ───────────────────────────────────────
 
 function ContentEditor({
@@ -558,66 +690,8 @@ function ContentEditor({
     );
   }
 
-  if (isLogoContent(content)) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label className="inline">
-          <span className="text-sm" style={{ minWidth: 60 }}>
-            颜色
-          </span>
-          <input
-            type="color"
-            value={content.color}
-            onChange={(e) => onUpdateContent({ ...content, color: e.target.value })}
-            style={{ width: 60, height: 32, padding: 2 }}
-          />
-        </label>
-        <label className="inline" style={{ flexDirection: 'row', gap: 8 }}>
-          <span className="text-sm" style={{ minWidth: 60 }}>
-            大小比例
-          </span>
-          <input
-            type="number"
-            min={0.01}
-            max={1}
-            step={0.01}
-            value={content.size_ratio ?? ''}
-            placeholder={content.size_level ?? 'medium'}
-            onChange={(e) => onUpdateContent({
-              ...content,
-              size_level: null,
-              size_ratio: parseFloat(e.target.value) || 0.6,
-            })}
-            style={{ width: 100 }}
-          />
-        </label>
-        <div className="resource-upload-row">
-          <input
-            ref={logoInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void uploadResource(file, 'logo');
-              event.target.value = '';
-            }}
-          />
-          <button className="small" onClick={() => logoInputRef.current?.click()}>
-            {content.path ? '替换自定义 Logo' : '上传自定义 Logo'}
-          </button>
-          {content.path && (
-            <button className="small ghost" onClick={() => onUpdateContent({ ...content, path: '' })}>
-              使用自动 Logo
-            </button>
-          )}
-          {resourceStatus && <span className="text-tertiary text-xs">{resourceStatus}</span>}
-        </div>
-      </div>
-    );
-  }
-
   if (isSignatureContent(content)) {
+    const signature = content as SignatureContent;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div className="resource-upload-row">
@@ -633,10 +707,10 @@ function ContentEditor({
             }}
           />
           <button className="small" onClick={() => signatureInputRef.current?.click()}>
-            {content.path ? '替换签名' : '上传签名'}
+            {signature.path ? '替换签名' : '上传签名'}
           </button>
-          {content.path && (
-            <button className="small ghost" onClick={() => onUpdateContent({ ...content, path: '' })}>
+          {signature.path && (
+            <button className="small ghost" onClick={() => onUpdateContent({ ...signature, path: '' })}>
               清除
             </button>
           )}
@@ -645,8 +719,8 @@ function ContentEditor({
         <label className="inline">
           <input
             type="checkbox"
-            checked={content.invert_mono}
-            onChange={(e) => onUpdateContent({ ...content, invert_mono: e.target.checked })}
+            checked={signature.invert_mono}
+            onChange={(e) => onUpdateContent({ ...signature, invert_mono: e.target.checked })}
           />
           <span className="text-sm">反色（白底）</span>
         </label>
@@ -659,13 +733,17 @@ function ContentEditor({
             min={0.01}
             max={1}
             step={0.01}
-            value={content.size_ratio ?? ''}
-            onChange={(e) => onUpdateContent({ ...content, size_level: null, size_ratio: parseFloat(e.target.value) || 0.2 })}
+            value={signature.size_ratio ?? ''}
+            onChange={(e) => onUpdateContent({ ...signature, size_level: null, size_ratio: parseFloat(e.target.value) || 0.2 })}
             style={{ width: 100 }}
           />
         </label>
       </div>
     );
+  }
+
+  if (isLogoContent(content)) {
+    return <LogoContentEditor content={content} onUpdateContent={onUpdateContent} />;
   }
 
   return null;

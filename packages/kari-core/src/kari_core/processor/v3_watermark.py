@@ -128,11 +128,9 @@ def _dict_to_watermark_config(data: dict):
                 size_ratio=d.get("size_ratio"),
                 size_level=d.get("size_level"),
             )
-        if "path" in d and "color" in d:
+        if "path" in d and "invert_mono" not in d:
             return LogoContent(
                 path=d.get("path", ""),
-                color=d.get("color", "#D8D8D6"),
-                treatment=d.get("treatment", "mono-scheme"),
                 size_ratio=d.get("size_ratio"),
                 size_level=d.get("size_level"),
             )

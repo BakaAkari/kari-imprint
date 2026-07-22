@@ -35,9 +35,12 @@ def resolve_auto_logo(exif: dict, brand: str | None = None) -> str | None:
     tokens = [t for t in brand.replace("-", " ").split() if len(t) > 2]
 
     def _matches_stem(stem: str) -> bool:
-        """Return True when *any* brand token appears inside the logo filename stem."""
-        stem_lower = stem.lower()
-        return any(token in stem_lower for token in tokens)
+        """Match whole brand tokens, never arbitrary substrings such as ``not`` → ``nothing``."""
+        stem_tokens = {
+            token for token in stem.lower().replace("-", " ").replace("_", " ").split()
+            if token
+        }
+        return any(token in stem_tokens for token in tokens)
 
     def _is_valid_logo(f: Path) -> bool:
         """Skip hidden files, AppleDouble artefacts, and non-image extensions."""

@@ -193,6 +193,10 @@ def _resolve_auto_logo_path(
     content: LogoContent, field_values: dict[str, str]
 ) -> str | None:
     """解析 auto logo 路径。"""
+    if content.path.startswith("builtin:"):
+        key = content.path.split(":", 1)[1]
+        builtin = LOGOS_DIR / f"{key}.png"
+        return str(builtin.absolute()) if builtin.is_file() else None
     if content.path:
         return content.path
 
@@ -206,8 +210,11 @@ def _resolve_auto_logo_path(
     tokens = [t for t in brand.replace("-", " ").split() if len(t) > 2]
 
     def _matches_stem(stem: str) -> bool:
-        stem_lower = stem.lower()
-        return any(token in stem_lower for token in tokens)
+        stem_tokens = {
+            token for token in stem.lower().replace("-", " ").replace("_", " ").split()
+            if token
+        }
+        return any(token in stem_tokens for token in tokens)
 
     def _is_valid_logo(f: Path) -> bool:
         if f.name.startswith(".") or f.name.startswith("._"):
@@ -260,13 +267,6 @@ def _render_logo_element(
         new_w = max(1, round(lw * scale))
         new_h = max(1, round(lh * scale))
         logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-    if getattr(content, "treatment", "mono-scheme") == "mono-scheme":
-        color = _parse_color(content.color)
-        alpha = logo.getchannel("A")
-        tinted = Image.new("RGBA", logo.size, color)
-        tinted.putalpha(alpha)
-        logo = tinted
 
     return logo
 

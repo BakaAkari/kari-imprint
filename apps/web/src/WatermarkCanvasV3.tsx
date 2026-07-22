@@ -18,7 +18,13 @@ import { PLACEHOLDER_EXIF, PREVIEW_ASPECT_RATIOS } from './v3Types';
 import { computeLayout } from './v3_layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './v3_layout/layoutEngine';
 import { API_BASE } from './env';
+import { builtinLogoUrl } from './apiV3';
 import type { ExifFieldValues, RuntimeCapabilities } from './apiV3';
+
+function resolveLogoSrc(path: string): string {
+  if (path.startsWith('builtin:')) return builtinLogoUrl(path.split(':', 2)[1]);
+  return path || `${API_BASE}/api/logos/fujifilm.png`;
+}
 
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
 
@@ -160,12 +166,11 @@ function drawElement(
 
     case 'logo': {
       if (!('path' in content)) return;
-      const logoPath = content.path || `${API_BASE}/api/logos/fujifilm.png`;
+      const logoPath = resolveLogoSrc(content.path);
       const img = logos.get(logoPath);
       if (img) {
         const origin = anchorOrigin(rect, anchor);
-        const logoContent = content as { treatment?: string; color?: string };
-        drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor, logoContent.treatment, logoContent.color);
+        drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor);
       } else {
         // 加载中/失败占位
         const origin = anchorOrigin(rect, anchor);
@@ -193,8 +198,6 @@ function drawImageContain(
   w: number,
   h: number,
   anchor: string,
-  treatment = 'original',
-  color = '#D8D8D6',
 ) {
   const imgRatio = img.naturalWidth / img.naturalHeight;
   const boxRatio = w / h;
@@ -224,20 +227,6 @@ function drawImageContain(
     drawY = y + (h - drawH) / 2;
   }
 
-  if (treatment === 'mono-scheme') {
-    const mask = document.createElement('canvas');
-    mask.width = Math.max(1, Math.round(drawW));
-    mask.height = Math.max(1, Math.round(drawH));
-    const maskCtx = mask.getContext('2d');
-    if (maskCtx) {
-      maskCtx.drawImage(img, 0, 0, mask.width, mask.height);
-      maskCtx.globalCompositeOperation = 'source-in';
-      maskCtx.fillStyle = color;
-      maskCtx.fillRect(0, 0, mask.width, mask.height);
-      ctx.drawImage(mask, drawX, drawY, drawW, drawH);
-      return;
-    }
-  }
   ctx.drawImage(img, drawX, drawY, drawW, drawH);
 }
 
@@ -360,7 +349,7 @@ export function WatermarkCanvasV3({
     const logoPaths: string[] = [];
     for (const el of layout.elements) {
       if (el.type === 'logo' && 'path' in el.content) {
-        const path = el.content.path || `${API_BASE}/api/logos/fujifilm.png`;
+        const path = resolveLogoSrc(el.content.path);
         if (!logoImages.has(path)) {
           logoPaths.push(path);
         }

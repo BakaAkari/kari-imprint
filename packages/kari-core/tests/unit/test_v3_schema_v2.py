@@ -91,35 +91,6 @@ class TestDictConversionCarriesNewFields:
         assert config.canvas.border.width_level == "large"
         assert config.canvas.border.color == "#ABCDEF"
 
-    def test_logo_treatment_carried(self):
-        from kari_core.processor.v3_watermark import _dict_to_watermark_config
-
-        config = _dict_to_watermark_config({
-            "regions": [
-                {
-                    "id": "footer",
-                    "type": "footer-bar",
-                    "enabled": True,
-                    "slots": {
-                        "right-logo": {
-                            "enabled": True,
-                            "content": {
-                                "path": "logo.png",
-                                "color": "#123456",
-                                "treatment": "original",
-                                "size_level": "large",
-                            },
-                        },
-                    },
-                }
-            ],
-        })
-
-        slot = config.regions[0].slots["right-logo"]
-        assert isinstance(slot.content, LogoContent)
-        assert slot.content.treatment == "original"
-        assert slot.content.color == "#123456"
-
     def test_signature_size_level_carried(self):
         from kari_core.processor.v3_watermark import _dict_to_watermark_config
 
@@ -227,48 +198,6 @@ class TestRendererLogoContain:
             assert result.size == (100, 8)
             Path(f.name).unlink()
 
-
-    def test_logo_mono_scheme_tints_alpha_mask(self):
-        """mono-scheme recolors non-transparent logo pixels to content.color."""
-        import tempfile
-        from pathlib import Path
-
-        logo_img = Image.new("RGBA", (20, 20), (255, 0, 0, 255))
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            logo_img.save(f.name)
-            el = ComputedElement(
-                id="test-logo",
-                type="logo",
-                rect=Rect(x=0, y=0, w=40, h=40),
-                anchor="middle-left",
-                content=LogoContent(path=f.name, color="#00FF00", treatment="mono-scheme"),
-                style=StyleConfig(),
-            )
-            result = _render_logo_element(el, {})
-            assert result is not None
-            assert result.getpixel((0, 0)) == (0, 255, 0, 255)
-            Path(f.name).unlink()
-
-    def test_logo_original_preserves_pixel_color(self):
-        """original treatment keeps uploaded logo colors."""
-        import tempfile
-        from pathlib import Path
-
-        logo_img = Image.new("RGBA", (20, 20), (255, 0, 0, 255))
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            logo_img.save(f.name)
-            el = ComputedElement(
-                id="test-logo",
-                type="logo",
-                rect=Rect(x=0, y=0, w=40, h=40),
-                anchor="middle-left",
-                content=LogoContent(path=f.name, color="#00FF00", treatment="original"),
-                style=StyleConfig(),
-            )
-            result = _render_logo_element(el, {})
-            assert result is not None
-            assert result.getpixel((0, 0)) == (255, 0, 0, 255)
-            Path(f.name).unlink()
 
     def test_logo_no_path_returns_placeholder(self):
         """Empty logo path produces a transparent placeholder."""

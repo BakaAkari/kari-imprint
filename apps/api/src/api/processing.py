@@ -109,7 +109,7 @@ def _resolve_v3_resources(
             if not isinstance(content, dict):
                 continue
             resource_id = content.get("path", "")
-            if not resource_id:
+            if not resource_id or resource_id.startswith("builtin:"):
                 continue
             kind = "signature" if "invert_mono" in content else "logo"
             content["path"] = str(resolve_resource(resource_id, kind, settings))

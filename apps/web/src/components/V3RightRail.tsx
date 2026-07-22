@@ -1,9 +1,20 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import { V3AppContext } from '../V3HomePage';
 import { type RegionConfig, type RootOverrides, type SlotOverride, type WatermarkConfigV3 } from '../v3Types';
 import type { RuntimeCapabilities } from '../apiV3';
-import { InspectorPanelV3 } from './InspectorPanelV3';
-import { V3AppearanceControls, V3LogoControls, V3OutputControls } from './V3MainControls';
+import {
+  AppearanceAdvancedV3,
+  BorderAdvancedV3,
+  LayoutAdvancedV3,
+  LogoAdvancedV3,
+  SignatureAdvancedV3,
+} from './V3CategoryAdvanced';
+import {
+  V3AppearanceControls,
+  V3BorderControls,
+  V3LogoControls,
+  V3SignatureControls,
+} from './V3MainControls';
 
 interface V3RightRailProps {
   config: WatermarkConfigV3;
@@ -22,55 +33,46 @@ export type DiagnosticItem = {
   elementIds?: string[];
 };
 
-export function V3RightRail({ config, onRegionOverride, onRootOverride, onSlotOverride, diagnostics: _diagnostics, runtimeCaps: _runtimeCaps }: V3RightRailProps) {
+function CategorySection({ title, children }: { title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="v3-right-section">
+      <div className="v3-right-section-title">{title}</div>
+      <div className="v3-right-section-body">
+        <button className="v3-section-advanced-toggle" onClick={() => setOpen((value) => !value)}>
+          <span>高级设置</span><span>{open ? '收起' : '展开'}</span>
+        </button>
+        {open && <div className="v3-category-advanced">{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+export function V3RightRail({ config, onRegionOverride, onRootOverride, onSlotOverride }: V3RightRailProps) {
   const ctx = useContext(V3AppContext);
   const controls = ctx?.controls;
   const onControlsChange = ctx?.onControlsChange;
+  const shared = { config, onRegionOverride, onRootOverride, onSlotOverride };
 
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-
-  // Fallback if no context (backward compat)
   if (!controls || !onControlsChange) {
     return (
-      <aside className="v3-right-rail" aria-label="样式、资源和高级设置">
-        <div className="v3-right-section">
-          <div className="v3-right-section-title">高级设置</div>
-          <div className="v3-right-section-body">
-            <InspectorPanelV3 config={config}
-              onRegionOverride={onRegionOverride}
-              onRootOverride={onRootOverride}
-              onSlotOverride={onSlotOverride} />
-          </div>
-        </div>
+      <aside className="v3-right-rail" aria-label="样式、资源和分类设置">
+        <CategorySection title="布局结构"><LayoutAdvancedV3 {...shared} /></CategorySection>
       </aside>
     );
   }
 
   return (
-    <aside className="v3-right-rail" aria-label="样式、资源和高级设置">
-      <V3LogoControls controls={controls} onChange={onControlsChange} />
-      <V3AppearanceControls controls={controls} onChange={onControlsChange} />
-      <V3OutputControls controls={controls} onChange={onControlsChange} />
-
-      <div className="v3-right-section">
-        <div className="v3-right-section-title">高级设置</div>
-        <div className="v3-right-section-body">
-          <button
-            className="v3-btn v3-btn-sm v3-btn-ghost"
-            onClick={() => setAdvancedOpen((v) => !v)}
-          >
-            {advancedOpen ? '收起高级' : '编辑结构'}
-          </button>
-          {advancedOpen && (
-            <div className="v3-advanced-panel">
-              <InspectorPanelV3 config={config}
-                onRegionOverride={onRegionOverride}
-                onRootOverride={onRootOverride}
-                onSlotOverride={onSlotOverride} />
-            </div>
-          )}
-        </div>
-      </div>
+    <aside className="v3-right-rail" aria-label="样式、资源和分类设置">
+      <V3LogoControls controls={controls} onChange={onControlsChange}
+        advancedContent={<LogoAdvancedV3 {...shared} />} />
+      <V3AppearanceControls controls={controls} onChange={onControlsChange}
+        advancedContent={<AppearanceAdvancedV3 {...shared} />} />
+      <V3SignatureControls controls={controls} onChange={onControlsChange}
+        advancedContent={<SignatureAdvancedV3 {...shared} />} />
+      <V3BorderControls controls={controls} onChange={onControlsChange}
+        advancedContent={<BorderAdvancedV3 {...shared} />} />
+      <CategorySection title="布局结构"><LayoutAdvancedV3 {...shared} /></CategorySection>
     </aside>
   );
 }

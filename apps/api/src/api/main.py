@@ -66,6 +66,19 @@ async def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content=exc.to_payload())
 
 
+@app.get(f"{_api}/logos")
+def list_logos() -> dict[str, Any]:
+    """List available built-in logo names (dev/testing)."""
+    if not _logos_dir.exists():
+        return success_response(logos=[])
+    names = sorted(
+        p.stem
+        for p in _logos_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg"} and not p.name.startswith((".", "._"))
+    )
+    return success_response(logos=names)
+
+
 @app.get(f"{_api}/health")
 def health() -> dict[str, Any]:
     """Health check for local, Caddy, and systemd probes."""
