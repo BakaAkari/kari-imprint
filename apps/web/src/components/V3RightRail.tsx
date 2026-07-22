@@ -5,7 +5,6 @@ import type { RuntimeCapabilities } from '../apiV3';
 import {
   AppearanceAdvancedV3,
   BorderAdvancedV3,
-  LayoutAdvancedV3,
   LogoAdvancedV3,
   SignatureAdvancedV3,
 } from './V3CategoryAdvanced';
@@ -48,6 +47,12 @@ function CategorySection({ title, children }: { title: string; children: ReactNo
   );
 }
 
+const LAYOUT_STRUCTURE_LABELS: Record<string, string> = {
+  footer: '底',
+  'side-left': '左',
+  'side-right': '右',
+};
+
 export function V3RightRail({ config, onRegionOverride, onRootOverride, onSlotOverride }: V3RightRailProps) {
   const ctx = useContext(V3AppContext);
   const controls = ctx?.controls;
@@ -57,13 +62,40 @@ export function V3RightRail({ config, onRegionOverride, onRootOverride, onSlotOv
   if (!controls || !onControlsChange) {
     return (
       <aside className="v3-right-rail" aria-label="样式、资源和分类设置">
-        <CategorySection title="布局结构"><LayoutAdvancedV3 {...shared} /></CategorySection>
+        <div className="v3-right-section">
+          <div className="v3-layout-structure-row">
+            <span className="v3-right-section-title">布局结构</span>
+            <select
+              className="v3-compact-select"
+              value="footer"
+              disabled
+            >
+              <option value="footer">底</option>
+              <option value="side-left">左</option>
+              <option value="side-right">右</option>
+            </select>
+          </div>
+        </div>
       </aside>
     );
   }
 
   return (
     <aside className="v3-right-rail" aria-label="样式、资源和分类设置">
+      <div className="v3-right-section">
+        <div className="v3-layout-structure-row">
+          <span className="v3-right-section-title">布局结构</span>
+          <select
+            className="v3-compact-select"
+            value={controls.layout_structure}
+            onChange={(e) => onControlsChange({ layout_structure: e.target.value as any })}
+          >
+            <option value="footer">{LAYOUT_STRUCTURE_LABELS.footer}</option>
+            <option value="side-left">{LAYOUT_STRUCTURE_LABELS['side-left']}</option>
+            <option value="side-right">{LAYOUT_STRUCTURE_LABELS['side-right']}</option>
+          </select>
+        </div>
+      </div>
       <V3LogoControls controls={controls} onChange={onControlsChange}
         advancedContent={<LogoAdvancedV3 {...shared} />} />
       <V3AppearanceControls controls={controls} onChange={onControlsChange}
@@ -72,7 +104,6 @@ export function V3RightRail({ config, onRegionOverride, onRootOverride, onSlotOv
         advancedContent={<SignatureAdvancedV3 {...shared} />} />
       <V3BorderControls controls={controls} onChange={onControlsChange}
         advancedContent={<BorderAdvancedV3 {...shared} />} />
-      <CategorySection title="布局结构"><LayoutAdvancedV3 {...shared} /></CategorySection>
     </aside>
   );
 }

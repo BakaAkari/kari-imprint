@@ -82,6 +82,7 @@ export type AssetOrientation = 'upright' | 'follow-flow' | 'rotate-cw' | 'rotate
 export type AssetPlacement = 'start' | 'center' | 'end';
 export type AssetTrack = 'primary' | 'secondary' | 'span';
 export type FlowMode = 'single-track' | 'dual-track';
+export type LayoutStructure = 'footer' | 'side-left' | 'side-right';
 export type FlowSlotId = 'primary-start' | 'primary-end' | 'secondary-start' | 'secondary-end' | 'asset';
 export interface PaddingConfig {
   top: number;
@@ -226,6 +227,7 @@ export type FooterTextSizes = Record<FooterTextSlot, SizeLevel>;
 
 export interface MainControlConfig {
   scheme: ColorScheme;
+  layout_structure: LayoutStructure;
   flow_mode: FlowMode;
   logo_position: LogoPosition;
   text_sizes: FooterTextSizes;
@@ -620,6 +622,17 @@ export function resolveConfig(
       config.regions.push(footer);
     }
     footer.enabled = true;
+    // 应用布局结构控制（底/左/右）
+    if (controls.layout_structure === 'footer') {
+      footer.type = 'footer-bar';
+      delete (footer as any).edge;
+      delete (footer as any).width;
+    } else {
+      footer.type = 'side-bar';
+      footer.edge = controls.layout_structure === 'side-left' ? 'left' : 'right';
+      footer.width = { mode: 'short_edge_ratio', value: 0.12 };
+      delete (footer as any).height;
+    }
     if (footer.type === 'footer-bar') {
       footer.height = footerSurface.heightRatio ?? FOOTER_HEIGHT_RATIO;
     } else if (footer.type === 'side-bar') {
@@ -735,7 +748,7 @@ export function resolveConfig(
  */
 // 主界面控制的缺省值
 export const defaultMainControls: MainControlConfig = {
-  scheme: 'dark', flow_mode: 'dual-track', logo_position: 'right',
+  scheme: 'dark', layout_structure: 'footer', flow_mode: 'dual-track', logo_position: 'right',
   text_sizes: { primary_start: 'medium', primary_end: 'medium', secondary_start: 'medium', secondary_end: 'medium' },
   logo_size: 'medium', signature_size: 'medium',
   border_enabled: false, border_width_level: 'medium',

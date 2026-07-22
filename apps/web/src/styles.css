@@ -1852,6 +1852,34 @@ hr, .divider {
   padding-left: 18px;
 }
 
+/* 布局结构 — 紧凑一行 */
+.v3-layout-structure-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 22px;
+}
+
+.v3-compact-select {
+  flex: 0 1 auto;
+  min-width: 0;
+  width: 72px;
+  font-size: 13px;
+  padding: 2px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23888' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 22px;
+}
+
 @media (max-width: 1080px) {
   .workspace-v3 {
     grid-template-columns: 220px minmax(0, 1fr) 220px;

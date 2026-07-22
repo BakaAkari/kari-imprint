@@ -40,6 +40,7 @@ export const layoutTemplatesV3: Record<string, LayoutTemplateV3> = {
 
 const baseControls: MainControlConfig = {
   ...cloneControls(defaultMainControls),
+  layout_structure: 'footer',
   primary_start: [],
   secondary_start: [],
   primary_end: [],
