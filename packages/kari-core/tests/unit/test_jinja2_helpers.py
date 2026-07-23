@@ -1,8 +1,12 @@
 """测试 [`core.jinja2renders.vw`](core/jinja2renders.py:7) / [`vh`](core/jinja2renders.py:13) / [`auto_logo`](core/jinja2renders.py:19)。"""
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 from jinja2 import Template
 
+from kari_core.core import jinja2renders
 from kari_core.core.jinja2renders import auto_logo, vh, vw
 
 
@@ -26,13 +30,20 @@ class TestVwVh:
 
 
 class TestAutoLogo:
-    def test_returns_default_fujifilm_for_unknown_brand(self) -> None:
-        # 未知品牌现在回退到默认 fujifilm logo
+    @staticmethod
+    def _logo_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        for name in ("fujifilm.png", "nikon.png"):
+            (tmp_path / name).write_bytes(b"fixture")
+        monkeypatch.setattr(jinja2renders, "logos_dir", tmp_path)
+
+    def test_returns_default_fujifilm_for_unknown_brand(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._logo_registry(tmp_path, monkeypatch)
         out = _render("{{ auto_logo()|default('NONE', true) }}", {"Make": "PHOTON-9000-NOT-A-BRAND"})
         assert "fujifilm" in out.lower()
 
-    def test_matches_known_brand(self) -> None:
-        # config/logos/nikon.png 仓库自带；smoke 测试匹配是否走通
+    def test_matches_known_brand(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._logo_registry(tmp_path, monkeypatch)
         out = _render("{{ auto_logo() }}", {"Make": "NIKON"})
-        # 命中应包含 nikon
         assert "nikon" in out.lower()
