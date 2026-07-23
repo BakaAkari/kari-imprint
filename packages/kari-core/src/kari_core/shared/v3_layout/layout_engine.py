@@ -491,6 +491,22 @@ def _compute_flow_region(
         secondary = Rect(second_x if primary_on_left else first_x, inner.y, secondary_size, inner.h)
     track_rects = {"primary": primary, "secondary": secondary}
     elements: list[ComputedElement] = []
+
+    # 为 Logo/asset 预留空间，避免文字与 logo 重叠
+    logo_start_reserve = 0
+    logo_end_reserve = 0
+    asset = slots.get("asset")
+    # 空 path 表示“按 EXIF 自动选择 Logo”。最终渲染仍会产生 Logo，
+    # 因此布局阶段不能把空 path 当成“没有 Logo”。
+    if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
+        size_ref = bounds.h if flow == "horizontal" else bounds.w
+        logo_size = _resolve_logo_size(asset.content, size_ref)
+        logo_dim = min(inner.w if flow == "horizontal" else inner.h, logo_size * 3)
+        if asset.content.placement == "end":
+            logo_end_reserve = logo_dim + item_gap
+        elif asset.content.placement == "start":
+            logo_start_reserve = logo_dim + item_gap
+
     for track_name in ("primary", "secondary"):
         if track_name == "secondary" and layout.mode == "single-track":
             continue
@@ -506,17 +522,28 @@ def _compute_flow_region(
             font_size = _resolve_font_size(style, ref, short_edge, long_edge)
             if flow == "horizontal":
                 anchor = "middle-left" if endpoint == "start" else "middle-right"
-                slot_bounds = Rect(
-                    x=track.x if endpoint == "start" else track.x + track.w // 2 + item_gap,
-                    y=track.y, w=max(1, track.w // 2 - item_gap), h=track.h,
-                )
+                if endpoint == "start":
+                    slot_bounds = Rect(
+                        x=track.x + logo_start_reserve, y=track.y,
+                        w=max(1, track.w // 2 - item_gap - logo_start_reserve), h=track.h,
+                    )
+                else:
+                    slot_bounds = Rect(
+                        x=track.x + track.w // 2 + item_gap, y=track.y,
+                        w=max(1, track.w // 2 - item_gap - logo_end_reserve), h=track.h,
+                    )
             else:
                 anchor = "top-center" if endpoint == "start" else "bottom-center"
-                slot_bounds = Rect(
-                    x=track.x,
-                    y=track.y if endpoint == "start" else track.y + track.h // 2 + item_gap,
-                    w=track.w, h=max(1, track.h // 2 - item_gap),
-                )
+                if endpoint == "start":
+                    slot_bounds = Rect(
+                        x=track.x, y=track.y + logo_start_reserve,
+                        w=track.w, h=max(1, track.h // 2 - item_gap - logo_start_reserve),
+                    )
+                else:
+                    slot_bounds = Rect(
+                        x=track.x, y=track.y + track.h // 2 + item_gap,
+                        w=track.w, h=max(1, track.h // 2 - item_gap - logo_end_reserve),
+                    )
             pos = _apply_anchor(slot_bounds, anchor)
             if isinstance(slot.content, TextContent) and slot.content.chips:
                 elements.append(ComputedElement(
@@ -524,7 +551,6 @@ def _compute_flow_region(
                     rect=Rect(pos.x, pos.y, slot_bounds.w, slot_bounds.h),
                     anchor=anchor, content=slot.content, style=_with_font_size(style, font_size),
                 ))
-    asset = slots.get("asset")
     if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)

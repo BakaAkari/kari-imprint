@@ -376,6 +376,24 @@ function computeFlowRegion(
   }
   const trackRects: Record<'primary' | 'secondary', Rect> = { primary, secondary };
   const elements: ComputedElement[] = [];
+
+  // 为 Logo/asset 预留空间，避免文字与 logo 重叠
+  let logoStartReserve = 0;
+  let logoEndReserve = 0;
+  const asset = slots.asset;
+  // 空 path 表示“按 EXIF 自动选择 Logo”。Canvas 仍会绘制默认/解析后的 Logo，
+  // 因此布局阶段不能把空 path 当成“没有 Logo”。
+  if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
+    const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
+    const logoSize = resolveLogoSize(asset.content, sizeRef);
+    const logoDim = Math.min(flow === 'horizontal' ? inner.w : inner.h, logoSize * 3);
+    if (asset.content.placement === 'end') {
+      logoEndReserve = logoDim + itemGap;
+    } else if (asset.content.placement === 'start') {
+      logoStartReserve = logoDim + itemGap;
+    }
+  }
+
   for (const trackName of ['primary', 'secondary'] as const) {
     if (trackName === 'secondary' && layout.mode === 'single-track') continue;
     const track = trackRects[trackName];
@@ -391,10 +409,16 @@ function computeFlowRegion(
         ? (endpoint === 'start' ? 'middle-left' : 'middle-right')
         : (endpoint === 'start' ? 'top-center' : 'bottom-center');
       const slotBounds = flow === 'horizontal'
-        ? rect(track.x + (endpoint === 'start' ? 0 : Math.floor(track.w / 2) + itemGap), track.y,
-            Math.max(1, Math.floor(track.w / 2) - itemGap), track.h)
-        : rect(track.x, track.y + (endpoint === 'start' ? 0 : Math.floor(track.h / 2) + itemGap),
-            track.w, Math.max(1, Math.floor(track.h / 2) - itemGap));
+        ? (endpoint === 'start'
+          ? rect(track.x + logoStartReserve, track.y,
+              Math.max(1, Math.floor(track.w / 2) - itemGap - logoStartReserve), track.h)
+          : rect(track.x + Math.floor(track.w / 2) + itemGap, track.y,
+              Math.max(1, Math.floor(track.w / 2) - itemGap - logoEndReserve), track.h))
+        : (endpoint === 'start'
+          ? rect(track.x, track.y + logoStartReserve,
+              track.w, Math.max(1, Math.floor(track.h / 2) - itemGap - logoStartReserve))
+          : rect(track.x, track.y + Math.floor(track.h / 2) + itemGap,
+              track.w, Math.max(1, Math.floor(track.h / 2) - itemGap - logoEndReserve)));
       const pos = applyAnchor(slotBounds, anchor);
       if (isTextContent(slot.content) && slot.content.chips.length > 0) {
         elements.push({ id: `${region.id}-${slotId}`, type: 'text', rect: rect(pos.x, pos.y, slotBounds.w, slotBounds.h),
@@ -402,7 +426,6 @@ function computeFlowRegion(
       }
     }
   }
-  const asset = slots.asset;
   if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoH = resolveLogoSize(asset.content, sizeRef);

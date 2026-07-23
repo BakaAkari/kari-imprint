@@ -109,8 +109,11 @@ export function builtinLogoUrl(name: string): string {
   return `${API_BASE}/api/builtin-logos/${encodeURIComponent(name)}`;
 }
 
+// Neutral dashed-outline skeleton used by right-rail Logo previews and any
+// <img onError> fallback. Deliberately text-free: the previous "LOGO" glyph
+// implied that presets ship a Logo font, which they do not.
 export const DEFAULT_LOGO_PLACEHOLDER_URL = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96"><rect width="320" height="96" rx="18" fill="none" stroke="#999" stroke-width="4"/><text x="160" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#777">LOGO</text></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96"><rect x="6" y="6" width="308" height="84" rx="14" fill="none" stroke="#9aa0a6" stroke-width="4" stroke-dasharray="10 8"/></svg>',
 )}`;
 
 export async function fetchRuntimeCapabilitiesV3(): Promise<RuntimeCapabilities> {

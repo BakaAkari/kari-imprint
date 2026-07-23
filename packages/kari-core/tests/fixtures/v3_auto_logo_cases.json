@@ -1,0 +1,26 @@
+{
+  "description": "Shared preview/process contract for V3 auto-Logo resolution. Both the TS resolver in apps/web/src/autoLogo.ts and the Python V3 resolver in packages/kari-core/src/kari_core/processor/v3_renderer.py::_resolve_auto_logo_path must produce the same stem (or null) for every case here. V3 policy: builtin-only registry, whole-token match, NO fujifilm fallback.",
+  "builtins": [
+    "apple",
+    "canon",
+    "DJI",
+    "fujifilm",
+    "leica_logo",
+    "nikon",
+    "nothing",
+    "sony",
+    "panasonic"
+  ],
+  "cases": [
+    {"make": null, "expected": null, "note": "no EXIF Make available"},
+    {"make": "", "expected": null, "note": "empty EXIF Make"},
+    {"make": "NIKON CORPORATION", "expected": "nikon", "note": "multi-token make matches on whole token"},
+    {"make": "FUJIFILM", "expected": "fujifilm"},
+    {"make": "Canon Inc.", "expected": "canon"},
+    {"make": "SONY", "expected": "sony"},
+    {"make": "Nothing Phone", "expected": "nothing", "note": "whole-token match, not substring"},
+    {"make": "PHOTON-9000-NOT-A-BRAND", "expected": null, "note": "unknown brand — V3 does NOT fall back to fujifilm"},
+    {"make": "AB", "expected": null, "note": "tokens shorter than 3 chars are discarded"},
+    {"make": "DJI", "expected": "DJI", "note": "case-preserving stem match (registry order is case-insensitive)"}
+  ]
+}

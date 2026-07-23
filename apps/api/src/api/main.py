@@ -36,7 +36,7 @@ from api.storage import (
 
 _api = settings.api_prefix
 
-app = FastAPI(title="Kari Imprint Web API", version="0.1.0")
+app = FastAPI(title="Kari Imprint Web API", version="0.1.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],

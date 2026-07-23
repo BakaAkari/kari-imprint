@@ -7,11 +7,7 @@ import { V3RightRail } from './components/V3RightRail';
 import { WatermarkCanvasV3 } from './WatermarkCanvasV3';
 import { createLocalPreview } from './localPreview';
 import {
-  createDefaultWatermarkConfigV3,
   resolveConfig,
-  presetDefaultBaseV3,
-  defaultMainControls,
-  defaultControlSurface,
   type MainControlConfig,
   type RegionConfig,
   type RegionOverrides,
@@ -21,6 +17,7 @@ import {
   type WatermarkConfigV3,
   type PreviewAspectRatio,
 } from './v3Types';
+import { createInitialPresetSession, createPresetSession, getProductPreset } from './v3PresetSession';
 import './styles.css';
 
 type ActionState = 'idle' | 'running' | 'success' | 'error';
@@ -55,7 +52,7 @@ export type V3AppContextType = {
   onControlsChange: (patch: Partial<MainControlConfig>) => void;
   slotOverrides: SlotOverrides;
   onSlotOverridesChange: (overrides: SlotOverrides) => void;
-  onPresetChange: (template: WatermarkConfigV3, controls: MainControlConfig, controlSurface?: typeof defaultControlSurface) => void;
+  onPresetChange: (presetId: string) => void;
 };
 
 export const V3AppContext = createContext<V3AppContextType | null>(null);
@@ -67,12 +64,14 @@ export function V3HomePage() {
   const [activeFileIndex, setActiveFileIndex] = useState(0);
 
   // ── 新三层状态 ──────────────────────────────────────────
-  const [template, setTemplate] = useState<WatermarkConfigV3>(presetDefaultBaseV3);
-  const [controls, setControls] = useState<MainControlConfig>(defaultMainControls);
-  const [controlSurface, setControlSurface] = useState(defaultControlSurface);
-  const [slotOverrides, setSlotOverrides] = useState<SlotOverrides>({});
-  const [regionOverrides, setRegionOverrides] = useState<RegionOverrides>({});
-  const [rootOverrides, setRootOverrides] = useState<RootOverrides>({});
+  // 首屏、reset、点击预设都必须走 createPresetSession，保证三者产生完全一致的可视状态。
+  const initialSession = useMemo(() => createInitialPresetSession(), []);
+  const [template, setTemplate] = useState<WatermarkConfigV3>(initialSession.template);
+  const [controls, setControls] = useState<MainControlConfig>(initialSession.controls);
+  const [controlSurface, setControlSurface] = useState(initialSession.controlSurface);
+  const [slotOverrides, setSlotOverrides] = useState<SlotOverrides>(initialSession.slotOverrides);
+  const [regionOverrides, setRegionOverrides] = useState<RegionOverrides>(initialSession.regionOverrides);
+  const [rootOverrides, setRootOverrides] = useState<RootOverrides>(initialSession.rootOverrides);
   const config = useMemo(
     () => resolveConfig(template, controls, slotOverrides, regionOverrides, rootOverrides, controlSurface),
     [template, controls, slotOverrides, regionOverrides, rootOverrides, controlSurface],
@@ -98,16 +97,23 @@ export function V3HomePage() {
     setSlotOverrides(prev => ({ ...prev, [key]: override }));
   }, []);
 
-  const onPresetChange = useCallback(
-    (newTemplate: WatermarkConfigV3, newControls: MainControlConfig, nextControlSurface = defaultControlSurface) => {
-      setTemplate(structuredClone(newTemplate));
-      setControls(newControls);
-      setControlSurface(structuredClone(nextControlSurface));
-      setSlotOverrides({});
-      clearOutputs();
-    },
+  const applyPresetSession = useCallback((session: ReturnType<typeof createPresetSession>) => {
+    // 预设切换必须原子性替换整套预设状态并清空全部 override。
+    setTemplate(session.template);
+    setControls(session.controls);
+    setControlSurface(session.controlSurface);
+    setSlotOverrides(session.slotOverrides);
+    setRegionOverrides(session.regionOverrides);
+    setRootOverrides(session.rootOverrides);
+    clearOutputs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+  }, []);
+
+  const onPresetChange = useCallback(
+    (presetId: string) => {
+      applyPresetSession(createPresetSession(getProductPreset(presetId)));
+    },
+    [applyPresetSession],
   );
 
   const [result, setResult] = useState<ApiFile | null>(null);

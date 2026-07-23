@@ -13,16 +13,24 @@ Web/V3 使用独立 SemVer 版本线，从 `0.1.0` 开始：
 版本同步位置：
 
 - `pyproject.toml`
+- `packages/kari-core/pyproject.toml`
+- `apps/api/pyproject.toml`
+- `apps/api/src/api/main.py`
 - `uv.lock`
-- `web_frontend/package.json`
+- `apps/web/package.json`
+- `apps/web/package-lock.json`
 - `docs/changelog.md`
 
 正式 tag 前必须完成：
 
 ```bash
 uv run ruff check .
-uv run pytest
-cd web_frontend && VITE_API_BASE=/tools/watermark-v3 npm run build
+uv run python scripts/verify_flow_layout_parity.py
+cd packages/kari-core && uv run pytest
+cd apps/api && uv run pytest
+cd apps/web && npm run test:presets
+cd apps/web && npx tsc -b --pretty false
+cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
 ```
 
 以及线上验证：

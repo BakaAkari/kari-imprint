@@ -1,5 +1,4 @@
 import type { ControlSurface, MainControlConfig, WatermarkConfigV3 } from './v3Types';
-import { defaultMainControls } from './v3Types';
 import { productPresetsV3 } from './v3PresetDefinitions';
 import type { PresetCategory } from './v3TemplateModel';
 import type { RailPreset } from './components/ImagePresetRail';
@@ -10,7 +9,7 @@ export type WatermarkPresetV3 = RailPreset<WatermarkConfigV3> & {
   controlSurface?: ControlSurface;
 };
 
-export const watermarkPresetsV3: WatermarkPresetV3[] = productPresetsV3.map((preset) => ({
+export const watermarkPresetsV3: readonly WatermarkPresetV3[] = productPresetsV3.map((preset) => ({
   id: preset.id,
   name: preset.name,
   description: preset.description,
@@ -30,11 +29,3 @@ export const watermarkPresetMetaV3: Record<string, Pick<WatermarkPresetV3, 'cate
   );
 
 export const defaultPresetMetaV3 = watermarkPresetMetaV3.default;
-
-export function getPresetMainControls(templateOrPreset: WatermarkConfigV3 | WatermarkPresetV3): MainControlConfig {
-  if ((templateOrPreset as WatermarkPresetV3).mainControls) {
-    return structuredClone((templateOrPreset as WatermarkPresetV3).mainControls);
-  }
-  const found = watermarkPresetsV3.find((preset) => preset.config === templateOrPreset);
-  return structuredClone(found?.mainControls ?? defaultMainControls);
-}

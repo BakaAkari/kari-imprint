@@ -46,7 +46,7 @@ export default function V3MainControls({ config: _config }: V3MainControlsProps)
   const isSideBar = flowRegion?.type === 'side-bar';
   const isDual = controls.flow_mode === 'dual-track';
   const labels = isSideBar
-    ? { primary_start: '内列上方', primary_end: '内列下方', secondary_start: '外列上方', secondary_end: '外列下方' }
+    ? { primary_start: '内上', primary_end: '内下', secondary_start: '外上', secondary_end: '外下' }
     : { primary_start: '左上', primary_end: '右上', secondary_start: '左下', secondary_end: '右下' };
   const rows = useMemo(() => {
     const all = [
@@ -215,75 +215,29 @@ export function V3LogoControls({
     [onChange],
   );
 
+  const isSide = controls.layout_structure === 'side-left' || controls.layout_structure === 'side-right';
+  const posLabels: Record<string, string> = isSide
+    ? { left: '上', center: '中', right: '下' }
+    : { left: '左', center: '中', right: '右' };
+
+  const logoEnabled = controls.logo_enabled;
   return (
     <div className="v3-right-section v3-logo-drawer">
       <div className="v3-right-section-title">Logo</div>
       <div className="v3-right-section-body">
-        <div className="v3-form-row">
-          <label>来源</label>
-          <div className="v3-segmented-group">
-            <button
-              className={`v3-segment ${logoMode === 'auto' ? 'active' : ''}`}
-              onClick={() => onChange({ logo_path: '' })}
-            >
-              自动
-            </button>
-            <button
-              className={`v3-segment ${logoMode === 'builtin' ? 'active' : ''}`}
-              disabled={builtinLogos.length === 0}
-              onClick={() => {
-                if (builtinLogos.length > 0) onChange({ logo_path: `builtin:${currentBuiltin || builtinLogos[0]}` });
-              }}
-            >
-              内置
-            </button>
-            <button
-              className={`v3-segment ${logoMode === 'custom' ? 'active' : ''}`}
-              onClick={() => logoInputRef.current?.click()}
-            >
-              上传
-            </button>
-          </div>
-          <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
-          {uploadStatus && <div className="v3-control-note">{uploadStatus}</div>}
-        </div>
-        {logoMode === 'builtin' && (
-          <div className="v3-form-row">
-            <label>品牌</label>
-            <select
-              value={currentBuiltin}
-              onChange={(e) => onChange({ logo_path: `builtin:${e.target.value}` })}
-            >
-              {builtinLogos.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {(logoMode === 'builtin' || logoMode === 'auto') && (
-          <div className="v3-form-row">
-            <img
-              src={logoMode === 'builtin' && currentBuiltin ? builtinLogoUrl(currentBuiltin) : DEFAULT_LOGO_PLACEHOLDER_URL}
-              alt="logo 预览"
-              style={{ maxHeight: 32, maxWidth: 120, objectFit: 'contain' }}
-              onError={(e) => {
-                e.currentTarget.src = DEFAULT_LOGO_PLACEHOLDER_URL;
-              }}
-            />
-          </div>
-        )}
-        <div className="v3-form-row">
-          <label>大小</label>
-          <select
-            value={controls.logo_size}
-            onChange={(e) => onChange({ logo_size: e.target.value as SizeLevel })}
+        <div className="v3-tone-row">
+          <button
+            className={`v3-segment ${logoEnabled ? 'active' : ''}`}
+            onClick={() => onChange({ logo_enabled: true })}
           >
-            {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
-              <option key={s} value={s}>
-                {s === 'small' ? '小' : s === 'medium' ? '中' : '大'}
-              </option>
-            ))}
-          </select>
+            开启
+          </button>
+          <button
+            className={`v3-segment ${!logoEnabled ? 'active' : ''}`}
+            onClick={() => onChange({ logo_enabled: false })}
+          >
+            关闭
+          </button>
         </div>
         <div className="v3-form-row">
           <label>位置</label>
@@ -293,61 +247,90 @@ export function V3LogoControls({
                 key={pos}
                 className={`v3-segment ${controls.logo_position === pos ? 'active' : ''}`}
                 onClick={() => onChange({ logo_position: pos })}
+                disabled={!logoEnabled}
               >
-                {LOGO_POSITION_LABELS[pos]}
+                {posLabels[pos]}
               </button>
             ))}
           </div>
         </div>
-        {advancedContent && (
-          <>
-            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
-              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
-            </button>
-            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function V3AppearanceControls({
-  controls,
-  onChange,
-  advancedContent,
-}: {
-  controls: MainControlConfig;
-  onChange: (patch: Partial<MainControlConfig>) => void;
-  advancedContent?: React.ReactNode;
-}) {
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  return (
-    <div className="v3-right-section">
-      <div className="v3-right-section-title">整体外观</div>
-      <div className="v3-right-section-body">
-        <div className="v3-form-row">
-          <label>明暗方案</label>
-          <div className="v3-segmented-group">
-            {(['dark', 'light'] as ColorScheme[]).map(s => (
-              <button
-                key={s}
-                className={`v3-segment ${controls.scheme === s ? 'active' : ''}`}
-                onClick={() => onChange({ scheme: s })}
+        <button
+          className="v3-section-advanced-toggle"
+          onClick={() => setAdvancedOpen((value) => !value)}
+          disabled={!logoEnabled}
+        >
+          <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+        </button>
+        {logoEnabled && advancedOpen && (
+          <div className="v3-category-advanced">
+            <div className="v3-form-row">
+              <label>来源</label>
+              <div className="v3-segmented-group">
+                <button
+                  className={`v3-segment ${logoMode === 'auto' ? 'active' : ''}`}
+                  onClick={() => onChange({ logo_path: '' })}
+                >
+                  自动
+                </button>
+                <button
+                  className={`v3-segment ${logoMode === 'builtin' ? 'active' : ''}`}
+                  disabled={builtinLogos.length === 0}
+                  onClick={() => {
+                    if (builtinLogos.length > 0) onChange({ logo_path: `builtin:${currentBuiltin || builtinLogos[0]}` });
+                  }}
+                >
+                  内置
+                </button>
+                <button
+                  className={`v3-segment ${logoMode === 'custom' ? 'active' : ''}`}
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  上传
+                </button>
+              </div>
+              <input ref={logoInputRef} type="file" accept="image/*" className="v3-hidden-input" onChange={handleLogoChange} />
+              {uploadStatus && <div className="v3-control-note">{uploadStatus}</div>}
+            </div>
+            {logoMode === 'builtin' && (
+              <div className="v3-form-row">
+                <label>品牌</label>
+                <select
+                  value={currentBuiltin}
+                  onChange={(e) => onChange({ logo_path: `builtin:${e.target.value}` })}
+                >
+                  {builtinLogos.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(logoMode === 'builtin' || logoMode === 'auto') && (
+              <div className="v3-form-row">
+                <img
+                  src={logoMode === 'builtin' && currentBuiltin ? builtinLogoUrl(currentBuiltin) : DEFAULT_LOGO_PLACEHOLDER_URL}
+                  alt="logo 预览"
+                  style={{ maxHeight: 32, maxWidth: 120, objectFit: 'contain' }}
+                  onError={(e) => {
+                    e.currentTarget.src = DEFAULT_LOGO_PLACEHOLDER_URL;
+                  }}
+                />
+              </div>
+            )}
+            <div className="v3-form-row">
+              <label>大小</label>
+              <select
+                value={controls.logo_size}
+                onChange={(e) => onChange({ logo_size: e.target.value as SizeLevel })}
               >
-                {s === 'dark' ? '深色水印' : '浅色水印'}
-              </button>
-            ))}
+                {(['small', 'medium', 'large'] as SizeLevel[]).map(s => (
+                  <option key={s} value={s}>
+                    {s === 'small' ? '小' : s === 'medium' ? '中' : '大'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {advancedContent}
           </div>
-        </div>
-        <div className="v3-control-note">影响文字、水印条背景与边框；Logo 始终保留原始颜色和透明通道。</div>
-        {advancedContent && (
-          <>
-            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
-              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
-            </button>
-            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
-          </>
         )}
       </div>
     </div>
@@ -441,29 +424,47 @@ export function V3BorderControls({
     <div className="v3-right-section">
       <div className="v3-right-section-title">边框</div>
       <div className="v3-right-section-body">
-        <label className="v3-form-row v3-checkbox-row">
-          <input type="checkbox" checked={controls.border_enabled}
-            onChange={(e) => onChange({ border_enabled: e.target.checked })} />
-          <span className="text-sm">启用边框</span>
-        </label>
-        {controls.border_enabled && (
-          <div className="v3-form-row">
-            <label>宽度</label>
-            <select value={controls.border_width_level}
-              onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
-              <option value="small">小</option>
-              <option value="medium">中</option>
-              <option value="large">大</option>
-            </select>
-          </div>
-        )}
-        {advancedContent && (
-          <>
-            <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
-              <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+        <div className="v3-tone-row">
+          <button
+            className={`v3-segment ${controls.border_enabled ? 'active' : ''}`}
+            onClick={() => onChange({ border_enabled: true })}
+          >
+            开启
+          </button>
+          <button
+            className={`v3-segment ${!controls.border_enabled ? 'active' : ''}`}
+            onClick={() => onChange({ border_enabled: false })}
+          >
+            关闭
+          </button>
+        </div>
+        <div className="v3-tone-row">
+          {(['dark', 'light'] as ColorScheme[]).map(s => (
+            <button
+              key={s}
+              className={`v3-segment ${controls.scheme === s ? 'active' : ''}`}
+              onClick={() => onChange({ scheme: s })}
+            >
+              {s === 'dark' ? '浅色边框' : '深色边框'}
             </button>
-            {advancedOpen && <div className="v3-category-advanced">{advancedContent}</div>}
-          </>
+          ))}
+        </div>
+        <button className="v3-section-advanced-toggle" onClick={() => setAdvancedOpen((value) => !value)}>
+          <span>高级设置</span><span>{advancedOpen ? '收起' : '展开'}</span>
+        </button>
+        {advancedOpen && (
+          <div className="v3-category-advanced">
+            <div className="v3-form-row">
+              <label>宽度</label>
+              <select value={controls.border_width_level}
+                onChange={(e) => onChange({ border_width_level: e.target.value as SizeLevel })}>
+                <option value="small">小</option>
+                <option value="medium">中</option>
+                <option value="large">大</option>
+              </select>
+            </div>
+            {advancedContent}
+          </div>
         )}
       </div>
     </div>

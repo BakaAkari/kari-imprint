@@ -250,3 +250,31 @@ class TestFooterBarLayout:
         assert elements["footer-primary-start"].rect.x < 30
         assert elements["footer-asset"].anchor == "middle-center"
         assert elements["footer-asset"].rect.x > 400
+
+    def test_auto_logo_with_empty_path_reserves_end_space(self):
+        result = compute_layout(
+            WatermarkConfig(
+                regions=[RegionConfig(
+                    id="footer",
+                    type="footer-bar",
+                    enabled=True,
+                    height=0.09,
+                    slots={
+                        "primary-end": self._text_slot(),
+                        "asset": SlotConfig(
+                            enabled=True,
+                            content=LogoContent(path="", placement="end"),
+                        ),
+                    },
+                )],
+            ),
+            1000,
+            600,
+        )
+
+        elements = {el.id: el for el in result.elements}
+        text = elements["footer-primary-end"]
+        logo = elements["footer-asset"]
+        assert logo.anchor == "middle-right"
+        # right-anchored rect.x is the text anchor; the Logo's actual left edge is rect.x - rect.w.
+        assert text.rect.x < logo.rect.x - logo.rect.w

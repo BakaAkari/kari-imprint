@@ -14,6 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from kari_core.core.auto_logo import match_brand_stem
 from kari_core.core.config_loader import FONTS_DIR, LOGOS_DIR
 from kari_core.core.image_io import load_logo
 from kari_core.core.logger import logger
@@ -209,56 +210,61 @@ def _render_text_element(
     return img
 
 
+def _iter_builtin_logo_files() -> list[Path]:
+    """Return the sorted list of builtin logo files served by /api/logos.
+
+    V3 auto-Logo only considers builtins so that the front-end preview (which
+    knows the builtin registry via `/api/logos`) and PIL Process see the same
+    match. If we ever want auto to walk `custom/` again, the API must expose a
+    parallel stem list first.
+    """
+    if not LOGOS_DIR.exists():
+        return []
+    return sorted(
+        (
+            f for f in LOGOS_DIR.iterdir()
+            if f.is_file()
+            and not f.name.startswith(".")
+            and not f.name.startswith("._")
+            and f.suffix.lower() in _LOGO_EXTENSIONS
+        ),
+        key=lambda item: item.name.lower(),
+    )
+
+
 def _resolve_auto_logo_path(
     content: LogoContent, field_values: dict[str, str]
 ) -> str | None:
-    """解析 auto logo 路径。"""
+    """Resolve the V3 auto-Logo path for `content` under the shared V3 policy.
+
+    Policy (must match the front-end resolver in `apps/web/src/autoLogo.ts`):
+      - Explicit ``builtin:<stem>`` reference → look up that stem, else None.
+      - Explicit resource path → return unchanged.
+      - Auto mode (empty path) → whole-token match on the builtin registry.
+        No custom-dir search. No fujifilm fallback. Unknown / missing Make
+        return None so preview and Process are always in agreement.
+    """
     if content.path.startswith("builtin:"):
         key = content.path.split(":", 1)[1]
-        if not LOGOS_DIR.exists():
-            return None
-        for f in sorted(LOGOS_DIR.iterdir(), key=lambda x: x.name.lower()):
-            if f.is_file() and f.stem == key and f.suffix.lower() in _LOGO_EXTENSIONS:
+        for f in _iter_builtin_logo_files():
+            if f.stem == key:
                 return str(f.absolute())
         return None
     if content.path:
         return content.path
 
-    # auto 模式：根据 Make 字段推断品牌 logo
     make = field_values.get("make", "")
     if not make:
         return None
-    if not LOGOS_DIR.exists():
+    builtins = _iter_builtin_logo_files()
+    if not builtins:
         return None
-
-    # 复用 jinja2renders.auto_logo 的匹配逻辑（但不需要 Jinja context）
-    brand = make.lower()
-    tokens = [t for t in brand.replace("-", " ").split() if len(t) > 2]
-
-    def _matches_stem(stem: str) -> bool:
-        stem_tokens = {
-            token for token in stem.lower().replace("-", " ").replace("_", " ").split()
-            if token
-        }
-        return any(token in stem_tokens for token in tokens)
-
-    def _is_valid_logo(f: Path) -> bool:
-        if f.name.startswith(".") or f.name.startswith("._"):
-            return False
-        return f.suffix.lower() in _LOGO_EXTENSIONS
-
-    # 1. 优先匹配用户自定义 Logo
-    custom_dir = LOGOS_DIR / "custom"
-    if custom_dir.exists():
-        for f in sorted(custom_dir.iterdir(), key=lambda x: x.name.lower()):
-            if _is_valid_logo(f) and _matches_stem(f.stem):
-                return str(f.absolute())
-
-    # 2. 回退到内置默认 Logo
-    for f in sorted(LOGOS_DIR.iterdir(), key=lambda x: x.name.lower()):
-        if f.is_file() and _is_valid_logo(f) and _matches_stem(f.stem):
+    matched_stem = match_brand_stem(make, (f.stem for f in builtins))
+    if matched_stem is None:
+        return None
+    for f in builtins:
+        if f.stem == matched_stem:
             return str(f.absolute())
-
     return None
 
 

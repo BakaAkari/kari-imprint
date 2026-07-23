@@ -18,7 +18,7 @@ type ImagePresetRailProps<TConfig> = {
   setFiles: React.Dispatch<React.SetStateAction<File[]>>;
   setActiveFileIndex: React.Dispatch<React.SetStateAction<number>>;
   removeFile: (index: number) => void;
-  presets: RailPreset<TConfig>[];
+  presets: readonly RailPreset<TConfig>[];
   onApplyPreset: (preset: RailPreset<TConfig>) => void;
   onReset: () => void;
   showToast: (message: string, type: 'success' | 'error' | 'info') => void;

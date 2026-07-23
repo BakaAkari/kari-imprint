@@ -17,17 +17,33 @@ import type { WatermarkConfigV3, FieldChip, TextContent, PreviewAspectRatio } fr
 import { PLACEHOLDER_EXIF, PREVIEW_ASPECT_RATIOS } from './v3Types';
 import { computeLayout } from './v3_layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './v3_layout/layoutEngine';
-import { DEFAULT_LOGO_PLACEHOLDER_URL, builtinLogoUrl, resourceUrlV3 } from './apiV3';
+import { builtinLogoUrl, fetchLogosV3, resourceUrlV3 } from './apiV3';
 import type { ExifFieldValues, RuntimeCapabilities } from './apiV3';
+import { resolveAutoLogo } from './autoLogo';
 
 function resolveAssetSrc(path: string, kind: 'logo' | 'signature'): string {
+  if (!path) return '';
   if (path.startsWith('builtin:')) return builtinLogoUrl(path.split(':', 2)[1]);
-  if (path) return resourceUrlV3(kind, path);
-  return kind === 'logo' ? DEFAULT_LOGO_PLACEHOLDER_URL : '';
+  return resourceUrlV3(kind, path);
 }
 
-function assetKind(content: object): 'logo' | 'signature' {
-  return 'invert_mono' in content ? 'signature' : 'logo';
+/**
+ * Resolve an element's Logo path for preview rendering.
+ *
+ * When `content.path` is empty (auto-Logo mode) and we have both an EXIF Make
+ * and a builtin registry, mirror the backend's brand-token match; the produced
+ * `builtin:<stem>` reference points at exactly the same asset PIL will use on
+ * Process. When resolution fails, leave path empty so the neutral skeleton
+ * placeholder is drawn — never fabricate a URL.
+ */
+function resolveLogoElementPath(
+  content: { path: string },
+  fieldValues: ExifFieldValues,
+  builtins: readonly string[],
+): string {
+  if (content.path) return content.path;
+  const resolution = resolveAutoLogo(fieldValues.make, builtins);
+  return resolution.path ?? '';
 }
 
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
@@ -83,6 +99,7 @@ function renderCanvas(
   logos: Map<string, HTMLImageElement>,
   _config: WatermarkConfigV3,
   fieldValues: ExifFieldValues,
+  builtins: readonly string[],
 ) {
   const { canvas, image_rect, elements } = layout;
 
@@ -136,7 +153,7 @@ function renderCanvas(
 
   // 3. 绘制水印元素
   for (const el of elements) {
-    drawElement(ctx, el, logos, _config.custom_text ?? '', fieldValues);
+    drawElement(ctx, el, logos, _config.custom_text ?? '', fieldValues, builtins);
   }
 
   // 4. 全局效果（圆角裁剪）— 需要在最外层 clip
@@ -149,6 +166,7 @@ function drawElement(
   logos: Map<string, HTMLImageElement>,
   customText: string,
   fieldValues: ExifFieldValues,
+  builtins: readonly string[],
 ) {
   const { type, rect, anchor, content, style } = el;
 
@@ -188,8 +206,9 @@ function drawElement(
 
     case 'logo': {
       if (!('path' in content)) return;
-      const logoPath = resolveAssetSrc(content.path, 'logo');
-      const img = logos.get(logoPath);
+      const effectivePath = resolveLogoElementPath(content, fieldValues, builtins);
+      const logoPath = resolveAssetSrc(effectivePath, 'logo');
+      const img = logoPath ? logos.get(logoPath) : undefined;
       if (img) {
         const origin = anchorOrigin(rect, anchor);
         const orientation = 'orientation' in content ? content.orientation : 'upright';
@@ -203,10 +222,9 @@ function drawElement(
           drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor);
         }
       } else {
-        // 加载中/失败占位
-        const origin = anchorOrigin(rect, anchor);
-        ctx.fillStyle = '#888888';
-        ctx.fillRect(origin.x, origin.y, rect.w, rect.h);
+        // Logo 尚未加载 / 加载失败：绘制中性骨架占位——不使用任何字体文本，
+        // 避免让占位符看起来像预设本身携带 Logo 字体。
+        drawLogoSkeleton(ctx, rect, anchor);
       }
       break;
     }
@@ -268,6 +286,39 @@ function drawImageContain(
 }
 
 
+function drawLogoSkeleton(
+  ctx: CanvasRenderingContext2D,
+  rect: ComputedElement['rect'],
+  anchor: string,
+) {
+  const origin = anchorOrigin(rect, anchor);
+  const w = Math.max(1, rect.w);
+  const h = Math.max(1, rect.h);
+  const radius = Math.min(w, h) * 0.12;
+  const dash = Math.max(4, Math.round(h * 0.16));
+  ctx.save();
+  ctx.strokeStyle = 'rgba(128, 128, 128, 0.55)';
+  ctx.lineWidth = Math.max(1, Math.round(h * 0.06));
+  ctx.setLineDash([dash, dash]);
+  ctx.beginPath();
+  const x = origin.x + 0.5;
+  const y = origin.y + 0.5;
+  const right = origin.x + w - 0.5;
+  const bottom = origin.y + h - 0.5;
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(right - radius, y);
+  ctx.quadraticCurveTo(right, y, right, y + radius);
+  ctx.lineTo(right, bottom - radius);
+  ctx.quadraticCurveTo(right, bottom, right - radius, bottom);
+  ctx.lineTo(x + radius, bottom);
+  ctx.quadraticCurveTo(x, bottom, x, bottom - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
 function anchorOrigin(rect: ComputedElement['rect'], anchor: string): { x: number; y: number } {
   const x = anchor.includes('right')
     ? rect.x - rect.w
@@ -300,6 +351,19 @@ export function WatermarkCanvasV3({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [logoImages, setLogoImages] = useState<Map<string, HTMLImageElement>>(new Map());
+  const [builtinLogos, setBuiltinLogos] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLogosV3()
+      .then((names) => {
+        if (!cancelled) setBuiltinLogos(names);
+      })
+      .catch(() => {
+        // Silent: an empty registry cleanly downgrades to skeleton via the resolver.
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -382,14 +446,18 @@ export function WatermarkCanvasV3({
       ctx.clip();
     }
 
-    // 收集需要加载的 logo / 签名路径
+    // 收集需要加载的 logo / 签名路径。对 logo 元素做 auto-Logo 解析，
+    // 只有解析到具体品牌资源时才发起加载请求；未解析则由骨架占位处理。
     const logoPaths: string[] = [];
     for (const el of layout.elements) {
-      if ((el.type === 'logo' || el.type === 'signature') && 'path' in el.content && el.content.path) {
-        const path = resolveAssetSrc(el.content.path, assetKind(el.content));
-        if (!logoImages.has(path)) {
-          logoPaths.push(path);
-        }
+      if (el.type === 'signature' && 'path' in el.content && el.content.path) {
+        const path = resolveAssetSrc(el.content.path, 'signature');
+        if (path && !logoImages.has(path)) logoPaths.push(path);
+      } else if (el.type === 'logo' && 'path' in el.content) {
+        const effective = resolveLogoElementPath(el.content, fieldValues, builtinLogos);
+        if (!effective) continue;
+        const path = resolveAssetSrc(effective, 'logo');
+        if (path && !logoImages.has(path)) logoPaths.push(path);
       }
     }
 
@@ -397,10 +465,10 @@ export function WatermarkCanvasV3({
     // never reach this point, but a defensive fallback keeps the workspace
     // usable if a stale async render races with file removal.
     try {
-      renderCanvas(ctx, layout, image, logoImages, config, fieldValues);
+      renderCanvas(ctx, layout, image, logoImages, config, fieldValues, builtinLogos);
     } catch (error) {
       if (image && error instanceof DOMException) {
-        renderCanvas(ctx, layout, null, logoImages, config, fieldValues);
+        renderCanvas(ctx, layout, null, logoImages, config, fieldValues, builtinLogos);
       } else {
         throw error;
       }
@@ -427,7 +495,7 @@ export function WatermarkCanvasV3({
           // 失败时保持占位状态
         });
     }
-  }, [config, image, placeholderAspectRatio, logoImages, runtimeCaps, fieldValues]);
+  }, [config, image, placeholderAspectRatio, logoImages, runtimeCaps, fieldValues, builtinLogos]);
 
   return (
     <div ref={containerRef} className="canvas-scaler">

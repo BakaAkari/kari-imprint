@@ -2,6 +2,7 @@ from pathlib import Path
 
 from jinja2 import pass_context
 
+from kari_core.core.auto_logo import match_brand_stem
 from kari_core.core.config_loader import LOGOS_DIR as logos_dir
 
 
@@ -23,44 +24,48 @@ def auto_logo(context, brand: str | None = None):
     return resolve_auto_logo(exif, brand)
 
 
+def _is_valid_logo(f: Path) -> bool:
+    if f.name.startswith(".") or f.name.startswith("._"):
+        return False
+    return f.suffix.lower() in {'.png', '.jpg', '.jpeg'}
+
+
+def _list_valid(directory: Path) -> list[Path]:
+    if not directory.exists():
+        return []
+    return sorted(
+        (f for f in directory.iterdir() if f.is_file() and _is_valid_logo(f)),
+        key=lambda item: item.name.lower(),
+    )
+
+
 def resolve_auto_logo(exif: dict, brand: str | None = None) -> str | None:
-    """Resolve an installed logo from trusted EXIF values without Jinja evaluation."""
+    """V2 legacy resolver — Jinja templates still use its fallback semantics.
+
+    Distinct from V3: this path walks `custom/` first, then builtin, then
+    falls back to `fujifilm.png`. The primitive `match_brand_stem` is shared
+    with V3 (`packages/kari-core/src/kari_core/core/auto_logo.py`) so the
+    tokenizer never drifts between the two.
+    """
 
     brand = (brand or exif.get('Make', 'fujifilm')).lower()
     if brand in ('', 'default'):
         brand = 'fujifilm'
 
-    # Split the brand name into tokens (e.g. "NIKON CORPORATION" -> ["nikon", "corporation"])
-    # and filter to tokens long enough to be meaningful brand identifiers.
-    tokens = [t for t in brand.replace("-", " ").split() if len(t) > 2]
-
-    def _matches_stem(stem: str) -> bool:
-        """Match whole brand tokens, never arbitrary substrings such as ``not`` → ``nothing``."""
-        stem_tokens = {
-            token for token in stem.lower().replace("-", " ").replace("_", " ").split()
-            if token
-        }
-        return any(token in stem_tokens for token in tokens)
-
-    def _is_valid_logo(f: Path) -> bool:
-        """Skip hidden files, AppleDouble artefacts, and non-image extensions."""
-        if f.name.startswith(".") or f.name.startswith("._"):
-            return False
-        return f.suffix.lower() in {'.png', '.jpg', '.jpeg'}
-
-    # 1. 优先匹配用户自定义 Logo
-    custom_dir = logos_dir / "custom"
-    if custom_dir.exists():
-        for f in custom_dir.iterdir():
-            if _is_valid_logo(f) and _matches_stem(f.stem):
+    custom_files = _list_valid(logos_dir / "custom")
+    custom_match = match_brand_stem(brand, (f.stem for f in custom_files))
+    if custom_match is not None:
+        for f in custom_files:
+            if f.stem == custom_match:
                 return str(f.absolute()).replace('\\', '/')
 
-    # 2. 回退到内置品牌 Logo
-    for f in logos_dir.iterdir():
-        if f.is_file() and _is_valid_logo(f) and _matches_stem(f.stem):
-            return str(f.absolute()).replace('\\', '/')
+    builtin_files = _list_valid(logos_dir)
+    builtin_match = match_brand_stem(brand, (f.stem for f in builtin_files))
+    if builtin_match is not None:
+        for f in builtin_files:
+            if f.stem == builtin_match:
+                return str(f.absolute()).replace('\\', '/')
 
-    # 3. 最终回退：如果什么都没匹配上，使用 fujifilm 作为默认 logo
     fallback = logos_dir / 'fujifilm.png'
     if fallback.exists():
         return str(fallback.absolute()).replace('\\', '/')

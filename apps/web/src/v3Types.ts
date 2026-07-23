@@ -229,6 +229,7 @@ export interface MainControlConfig {
   scheme: ColorScheme;
   layout_structure: LayoutStructure;
   flow_mode: FlowMode;
+  logo_enabled: boolean;
   logo_position: LogoPosition;
   text_sizes: FooterTextSizes;
   logo_size: SizeLevel;
@@ -247,18 +248,6 @@ export interface MainControlConfig {
 export const FOOTER_HEIGHT_RATIO = 0.09;
 
 export { FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS };
-
-export interface WatermarkPresetV3 {
-  id: string;
-  name: string;
-  description: string;
-  // 基于中等大小/黑色/标准密度的基准配置
-  base: WatermarkConfigV3;
-  // 默认主界面控制
-  mainControls: MainControlConfig;
-  // 声明这个预设允许主控制面影响哪些结构。未声明时使用 defaultControlSurface。
-  controlSurface?: ControlSurface;
-}
 
 export interface FooterControlSurface {
   enabled: boolean;
@@ -348,13 +337,25 @@ export const defaultStyle: StyleConfig = {
   text_direction: null,
 };
 
+/**
+ * Preset templates carry only structural chrome that MainControlConfig does not own:
+ *   - canvas margins/background/border_radius/border (border further split by controlSurface.border)
+ *   - defaults style (baseline typography for slots the controls don't cover)
+ *   - region skeleton: id / type / enabled / layout / text_orientation
+ *
+ * Controlled slots (footer text slots and Logo asset slot) are deliberately absent.
+ * MainControlConfig is the single authoritative source for their content, style,
+ * enabled flag, and Logo position — resolveConfig() reconstructs them purely from
+ * controls, so there is nowhere for a duplicate chip list, font weight, or color
+ * to hide inside a preset template.
+ */
 export const presetDefaultBaseV3: WatermarkConfigV3 = {
   schema_version: 3,
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 0,
-    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
+    border: { enabled: true, width_level: 'small', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -365,36 +366,7 @@ export const presetDefaultBaseV3: WatermarkConfigV3 = {
       layout: defaultFlowLayout(),
       text_orientation: 'auto',
       // height 由 applyMainControls 统一计算，不在预设中硬编码
-      slots: {
-        'primary-start': {
-          enabled: true,
-          content: {
-            chips: [{ field_id: 'make' }, { field_id: 'camera_model' }],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#222222' },
-        },
-        'secondary-start': {
-          enabled: true,
-          content: {
-            chips: [
-              { field_id: 'focal_length' },
-              { field_id: 'aperture' },
-              { field_id: 'shutter' },
-              { field_id: 'iso' },
-            ],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#222222' },
-        },
-        'primary-end': { enabled: false, content: null, style: null },
-        'secondary-end': { enabled: false, content: null, style: null },
-        'asset': {
-          enabled: true,
-          content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
-          style: null,
-        },
-      },
+      // slots 由 MainControlConfig 权威构造，模板不携带任何 controlled slot。
     },
   ],
 };
@@ -407,7 +379,7 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 0,
-    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
+    border: { enabled: false, width_level: 'small', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -417,26 +389,6 @@ export const presetMinimalBaseV3: WatermarkConfigV3 = {
       enabled: true,
       layout: defaultFlowLayout(),
       text_orientation: 'auto',
-      // height 由 applyMainControls 统一计算，不在预设中硬编码
-      slots: {
-        'primary-start': { enabled: false, content: null, style: null },
-        'secondary-start': { enabled: false, content: null, style: null },
-        'primary-end': { enabled: false, content: null, style: null },
-        'secondary-end': {
-          enabled: true,
-          content: {
-            chips: [
-              { field_id: 'focal_length' },
-              { field_id: 'aperture' },
-              { field_id: 'shutter' },
-              { field_id: 'iso' },
-            ],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#2C2C2C' },
-        },
-        'asset': { enabled: false, content: null, style: null },
-      },
     },
   ],
 };
@@ -449,7 +401,8 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
     border_radius: 24,
-    border: { enabled: false, width_level: 'medium', color: '#FFFFFF' },
+    // 拍立得的白纸边由 border 实现；controlSurface.border.enabled 打开时由 controls.border_enabled 权威覆盖。
+    border: { enabled: true, width_level: 'medium', color: '#FFFFFF' },
   },
   defaults: defaultStyle,
   regions: [
@@ -459,50 +412,6 @@ export const presetSoftCardBaseV3: WatermarkConfigV3 = {
       enabled: true,
       layout: defaultFlowLayout(),
       text_orientation: 'auto',
-      // height 由 applyMainControls 统一计算，不在预设中硬编码
-      slots: {
-        'primary-start': {
-          enabled: true,
-          content: {
-            chips: [{ field_id: 'custom_text', custom_text: 'AKARI PHOTO' }],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
-        },
-        'secondary-start': {
-          enabled: true,
-          content: {
-            chips: [{ field_id: 'datetime' }],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
-        },
-        'primary-end': {
-          enabled: true,
-          content: {
-            chips: [{ field_id: 'camera_model' }],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
-        },
-        'secondary-end': {
-          enabled: true,
-          content: {
-            chips: [
-              { field_id: 'focal_length' },
-              { field_id: 'aperture' },
-              { field_id: 'iso' },
-            ],
-            separator: ' ',
-          },
-          style: { ...defaultStyle, font_size_level: 'medium', font_size_ratio: null, color: '#242424' },
-        },
-        'asset': {
-          enabled: true,
-          content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'center', track: 'span' },
-          style: null,
-        },
-      },
     },
   ],
 };
@@ -523,13 +432,17 @@ export interface SlotOverride {
 export type SlotOverrides = Record<string, SlotOverride>;
 
 /**
- * 从模板和主控制参数生成渲染配置。
+ * 从模板 + 主控制参数 + 三层 overrides 合成完整 WatermarkConfigV3。
  *
- * 核心原则：
- * - template 的 per-slot style 被保留（如 font_size_ratio）
- * - controls 只控制 chips 列表、高度、颜色主题、logo 位置
- * - overrides 在 controls 变更后仍持久化
- * - 非 footer 区域（free）不受影响
+ * 核心原则（与 v3PresetSession + preset 定义共同构成单一真相源）：
+ * - Controlled slot（footer 文本 + Logo asset）的 content/style 完全由
+ *   `controls` 权威决定；template 中不允许携带任何 controlled slot。
+ * - `controls.logo_enabled=false` 时 asset slot 保持 disabled，
+ *   Layout 引擎不预留空间，Canvas 不绘制骨架，API payload 与预览一致。
+ * - `controlSurface` 声明主控制面在当前 template 上允许影响的结构。
+ * - overrides 是用户在选择预设后的临时手动修改；由 V3HomePage 在切换
+ *   预设时清空，此函数只按当前值把它们叠加到合成结果上。
+ * - 非 footer 区域（free）默认不受 controls 影响。
  */
 export interface RegionOverride extends Partial<Omit<RegionConfig, 'id' | 'slots'>> {}
 export type RegionOverrides = Record<string, RegionOverride>;
@@ -662,12 +575,13 @@ export function resolveConfig(
     for (const [logicalId, chips] of Object.entries(chipMap) as [FooterTextSlot, FieldChip[]][]) {
       const slotId = footerSurface.slots[logicalId];
       if (!slotId) continue;
-      const existing = template.regions.find((region) => region.id === footer!.id)?.slots?.[slotId];
+      // Controlled slot 的 content/style 完全由 controls 决定；
+      // preset template 中不允许携带任何 controlled slot（见 v3Types.ts 的 preset*Base 定义）。
       footer.slots[slotId] = {
         enabled: chips.length > 0,
-        content: chips.length > 0 ? { chips, separator: existing?.content && 'separator' in existing.content ? existing.content.separator : ' ' } : null,
+        content: chips.length > 0 ? { chips, separator: ' ' } : null,
         style: chips.length > 0 ? {
-          ...(existing?.style ?? config.defaults),
+          ...config.defaults,
           font_size: null,
           font_size_level: controls.text_sizes[logicalId],
           font_size_ratio: null,
@@ -679,18 +593,24 @@ export function resolveConfig(
     if (controlSurface.logo.enabled) {
       const logoSlot = footerSurface.logoSlots[controls.logo_position];
       if (logoSlot) {
-        footer.slots[logoSlot] = {
-          enabled: true,
-          content: {
-            path: controls.logo_path,
-            size_level: controls.logo_size,
-            size_ratio: null,
-            orientation: 'upright',
-            placement: controls.logo_position === 'left' ? 'start' : controls.logo_position === 'right' ? 'end' : 'center',
-            track: 'span',
-          },
-          style: null,
-        };
+        if (controls.logo_enabled) {
+          footer.slots[logoSlot] = {
+            enabled: true,
+            content: {
+              path: controls.logo_path,
+              size_level: controls.logo_size,
+              size_ratio: null,
+              orientation: 'upright',
+              placement: controls.logo_position === 'left' ? 'start' : controls.logo_position === 'right' ? 'end' : 'center',
+              track: 'span',
+            },
+            style: null,
+          };
+        } else {
+          // logo_enabled=false 时明确 disabled，layout 引擎不会预留空间，
+          // Canvas 不绘制骨架，PIL 也跳过对应 element。
+          footer.slots[logoSlot] = { enabled: false, content: null, style: null };
+        }
       }
     }
   }
@@ -741,35 +661,4 @@ export function resolveConfig(
   }
   if (rootOverrides.defaults) Object.assign(config.defaults, rootOverrides.defaults);
   return config;
-}
-
-/**
- * 创建默认 WatermarkConfigV3（用于初始渲染）。
- */
-// 主界面控制的缺省值
-export const defaultMainControls: MainControlConfig = {
-  scheme: 'dark', layout_structure: 'footer', flow_mode: 'dual-track', logo_position: 'right',
-  text_sizes: { primary_start: 'medium', primary_end: 'medium', secondary_start: 'medium', secondary_end: 'medium' },
-  logo_size: 'medium', signature_size: 'medium',
-  border_enabled: false, border_width_level: 'medium',
-  primary_start: [{ field_id: 'make' }, { field_id: 'camera_model' }],
-  primary_end: [],
-  secondary_start: [{ field_id: 'focal_length' }, { field_id: 'aperture' }, { field_id: 'shutter' }, { field_id: 'iso' }],
-  secondary_end: [],
-  custom_text: '', logo_path: '', signature_path: '',
-};
-
-export function createDefaultWatermarkConfigV3(): WatermarkConfigV3 {
-  return resolveConfig(presetDefaultBaseV3, defaultMainControls);
-}
-
-export function inferMainControls(config: WatermarkConfigV3): MainControlConfig {
-  const controls = structuredClone(defaultMainControls);
-  controls.logo_position = config.logo_position ?? controls.logo_position;
-  controls.custom_text = config.custom_text ?? '';
-  return controls;
-}
-
-export function getPresetMainControls(preset: WatermarkPresetV3): MainControlConfig {
-  return preset.mainControls ? structuredClone(preset.mainControls) : structuredClone(defaultMainControls);
 }

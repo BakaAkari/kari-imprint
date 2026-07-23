@@ -1852,6 +1852,19 @@ hr, .divider {
   padding-left: 18px;
 }
 
+/* 水印色调 — 紧凑一行两个按钮 */
+.v3-tone-row {
+  display: flex;
+  gap: 4px;
+}
+
+.v3-tone-row .v3-segment {
+  flex: 1;
+  font-size: 13px;
+  padding: 3px 0;
+  text-align: center;
+}
+
 /* 布局结构 — 紧凑一行 */
 .v3-layout-structure-row {
   display: flex;

@@ -4,6 +4,37 @@
 
 ## Unreleased — V3 开发中
 
+## 0.1.1 - 2026-07-23
+
+### Added
+
+- 新增确定性的产品预设状态模型：首屏、刷新、重置和预设选择统一使用预设列表中的同一状态来源。
+- 新增 `logo_enabled` 主控制参数，极简预设可默认关闭 Logo，用户仍可在主控制面重新开启。
+- 新增前端/Python 共用的 V3 自动 Logo 契约 Fixture 与预设契约测试，覆盖品牌匹配、状态复现、覆盖隔离和布局防重叠。
+
+### Changed
+
+- 品牌底栏作为第一个产品预设直接成为网页默认状态，默认开启浅色边框。
+- 边框控制移动到右侧栏顶部，边框色调合并到边框启用按钮下方。
+- 自动 Logo 改为内置品牌注册表的整词匹配；未知品牌不再错误回退到 Fujifilm，前端预览与 PIL 导出保持一致。
+- Logo 加载/缺失占位统一为无文字的中性虚线骨架，不再显示伪造的 `LOGO` 字体。
+
+### Fixed
+
+- 修复切换预设后 Slot / Region / Root overrides 泄漏到新预设的问题。
+- 修复空路径自动 Logo 未参与 Flow Layout 占位，导致右侧文字与 Logo 重叠的问题。
+- 修复预设参数隐式继承全局默认值、模板与主控制参数重复维护造成的状态漂移。
+- 修复极简预设虽然宣称无 Logo，实际仍生成 Logo 元素并占用布局空间的问题。
+
+### Verification
+
+- `uv run ruff check .`
+- `uv run python scripts/verify_flow_layout_parity.py`
+- `packages/kari-core`: `398 passed, 7 skipped`
+- `apps/api`: `73 passed`
+- `apps/web`: preset contract、TypeScript、Vite production build 通过
+- 本地开发环境页面、API health、预设切换和边框/Logo 控件验证通过
+
 ### Added
 
 - Schema v3 Flow Layout 基础模型：Canonical Slot、单/双轨、轨道间距和方向策略。
