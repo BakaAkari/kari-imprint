@@ -165,7 +165,7 @@ class TestMigration:
                             "content": {
                                 "path": "",
                                 "color": "#D8D8D6",
-                                "size_ratio": 0.60,
+                                "size_ratio": 0.78,
                             },
                         },
                     },
@@ -203,12 +203,12 @@ class TestMigration:
         """If size_level already set, don't overwrite; drop compatible ratio."""
         payload = deepcopy(self._sample_v1())
         payload["regions"][0]["slots"]["right-logo"]["content"]["size_level"] = "large"
-        payload["regions"][0]["slots"]["right-logo"]["content"]["size_ratio"] = 0.72
+        payload["regions"][0]["slots"]["right-logo"]["content"]["size_ratio"] = 0.95
         result = validate_v3_payload(payload)
         content = result["regions"][0]["slots"]["asset"]["content"]
         # size_level already set, kept
         assert content["size_level"] == "large"
-        # compatible ratio (0.72 == large) dropped
+        # compatible ratio (0.95 == large) dropped
         assert content["size_ratio"] is None
 
 class TestRegionLayoutFields:

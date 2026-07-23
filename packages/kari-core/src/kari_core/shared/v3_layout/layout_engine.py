@@ -90,8 +90,8 @@ class TextContent:
 @dataclass(slots=True)
 class LogoContent:
     path: str = ""           # 空表示 auto
-    size_ratio: float | None = 0.6  # logo 高度占所在区域高度的比例
-    size_level: str | None = None   # 'small' | 'medium' | 'large'
+    size_ratio: float | None = None  # 精确比例；为空时由 size_level 决定
+    size_level: str | None = "medium"   # 'small' | 'medium' | 'large'
     orientation: str = "upright"
     placement: str = "center"
     track: str = "span"
@@ -430,6 +430,22 @@ def _compute_side_bar(
     return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "vertical")
 
 
+def _side_endpoint(region: RegionConfig, endpoint: str) -> str:
+    """Map footer endpoints after rotating around the adjacent bottom corner."""
+    if region.type != "side-bar":
+        return endpoint
+    if region.edge == "left":
+        return "end" if endpoint == "start" else "start"
+    return endpoint
+
+
+def _side_placement(_region: RegionConfig, placement: str) -> str:
+    """Logo positions are physical top/center/bottom controls in side mode."""
+    if placement in {"start", "center"}:
+        return placement
+    return "end"
+
+
 def _resolve_text_direction(region: RegionConfig, style: StyleConfig) -> str:
     if style.text_direction:
         return style.text_direction
@@ -483,8 +499,9 @@ def _compute_flow_region(
         primary = Rect(inner.x, first_y if primary_first else second_y, inner.w, primary_size)
         secondary = Rect(inner.x, second_y if primary_first else first_y, inner.w, secondary_size)
     else:
-        photo_is_left = region.edge != "left"
-        primary_on_left = photo_is_left if layout.track_order == "photo-outward" else not photo_is_left
+        # Rotated-footer semantics: primary (the former upper track) is outer;
+        # secondary remains adjacent to the photo on either edge.
+        primary_on_left = region.edge == "left"
         first_x = inner.x
         second_x = inner.x + (primary_size if primary_on_left else secondary_size) + track_gap
         primary = Rect(first_x if primary_on_left else second_x, inner.y, primary_size, inner.h)
@@ -494,6 +511,7 @@ def _compute_flow_region(
 
     # 为 Logo/asset 预留空间，避免文字与 logo 重叠
     logo_start_reserve = 0
+    logo_center_reserve = 0
     logo_end_reserve = 0
     asset = slots.get("asset")
     # 空 path 表示“按 EXIF 自动选择 Logo”。最终渲染仍会产生 Logo，
@@ -501,11 +519,22 @@ def _compute_flow_region(
     if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_size = _resolve_logo_size(asset.content, size_ref)
-        logo_dim = min(inner.w if flow == "horizontal" else inner.h, logo_size * 3)
-        if asset.content.placement == "end":
+        logo_dim = (
+            min(inner.w, logo_size * 3)
+            if flow == "horizontal"
+            else min(inner.h, logo_size)
+        )
+        physical_placement = (
+            _side_placement(region, asset.content.placement)
+            if flow == "vertical"
+            else asset.content.placement
+        )
+        if physical_placement == "end":
             logo_end_reserve = logo_dim + item_gap
-        elif asset.content.placement == "start":
+        elif physical_placement == "start":
             logo_start_reserve = logo_dim + item_gap
+        else:
+            logo_center_reserve = logo_dim + item_gap * 2
 
     for track_name in ("primary", "secondary"):
         if track_name == "secondary" and layout.mode == "single-track":
@@ -533,16 +562,19 @@ def _compute_flow_region(
                         w=max(1, track.w // 2 - item_gap - logo_end_reserve), h=track.h,
                     )
             else:
-                anchor = "top-center" if endpoint == "start" else "bottom-center"
-                if endpoint == "start":
+                physical_endpoint = _side_endpoint(region, endpoint)
+                anchor = "top-center" if physical_endpoint == "start" else "bottom-center"
+                if physical_endpoint == "start":
                     slot_bounds = Rect(
                         x=track.x, y=track.y + logo_start_reserve,
-                        w=track.w, h=max(1, track.h // 2 - item_gap - logo_start_reserve),
+                        w=track.w,
+                        h=max(1, (track.h - logo_center_reserve) // 2 - item_gap - logo_start_reserve),
                     )
                 else:
                     slot_bounds = Rect(
-                        x=track.x, y=track.y + track.h // 2 + item_gap,
-                        w=track.w, h=max(1, track.h // 2 - item_gap - logo_end_reserve),
+                        x=track.x, y=track.y + (track.h + logo_center_reserve) // 2 + item_gap,
+                        w=track.w,
+                        h=max(1, (track.h - logo_center_reserve) // 2 - item_gap - logo_end_reserve),
                     )
             pos = _apply_anchor(slot_bounds, anchor)
             if isinstance(slot.content, TextContent) and slot.content.chips:
@@ -554,10 +586,15 @@ def _compute_flow_region(
     if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)
+        physical_placement = (
+            _side_placement(region, asset.content.placement)
+            if flow == "vertical"
+            else asset.content.placement
+        )
         anchor = (
             ("middle-left" if asset.content.placement == "start" else "middle-right" if asset.content.placement == "end" else "middle-center")
             if flow == "horizontal"
-            else ("top-center" if asset.content.placement == "start" else "bottom-center" if asset.content.placement == "end" else "middle-center")
+            else ("top-center" if physical_placement == "start" else "bottom-center" if physical_placement == "end" else "middle-center")
         )
         pos = _apply_anchor(inner, anchor)
         content = replace(
@@ -625,9 +662,9 @@ _FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "large": 0.25,
 }
 _LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
-    "small": 0.50,
-    "medium": 0.60,
-    "large": 0.72,
+    "small": 0.65,
+    "medium": 0.78,
+    "large": 0.95,
 }
 _SIGNATURE_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "small": 0.15,
@@ -676,14 +713,14 @@ def _resolve_font_size(
 def _resolve_logo_size(content: LogoContent, region_height: int) -> int:
     """Logo 高度 = 所在区域高度 * size_ratio，随底栏/水印条高度缩放。
 
-    支持 size_level 映射（small=0.50, medium=0.60, large=0.72）。
+    支持 size_level 映射（small=0.65, medium=0.78, large=0.95）。
     """
     if content.size_level is not None:
-        ratio = _LOGO_SIZE_LEVEL_RATIOS.get(content.size_level, 0.60)
+        ratio = _LOGO_SIZE_LEVEL_RATIOS.get(content.size_level, 0.78)
     elif content.size_ratio is not None:
         ratio = content.size_ratio
     else:
-        ratio = 0.6
+        ratio = 0.78
     return max(16, round(region_height * ratio))
 
 

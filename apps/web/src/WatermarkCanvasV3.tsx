@@ -14,7 +14,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { WatermarkConfigV3, FieldChip, TextContent, PreviewAspectRatio } from './v3Types';
-import { PLACEHOLDER_EXIF, PREVIEW_ASPECT_RATIOS } from './v3Types';
+import { PREVIEW_ASPECT_RATIOS } from './v3Types';
 import { computeLayout } from './v3_layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './v3_layout/layoutEngine';
 import { builtinLogoUrl, fetchLogosV3, resourceUrlV3 } from './apiV3';
@@ -51,7 +51,7 @@ function resolveLogoElementPath(
 function resolveText(chip: FieldChip, customText: string, fieldValues: ExifFieldValues): string {
   if (chip.field_id === 'custom_text') return chip.custom_text || customText || '';
   if (chip.field_id === 'empty') return '';
-  return fieldValues[chip.field_id] ?? PLACEHOLDER_EXIF[chip.field_id] ?? '';
+  return fieldValues[chip.field_id] ?? '';
 }
 
 function buildText(content: TextContent, customText: string, fieldValues: ExifFieldValues): string {
@@ -183,9 +183,27 @@ function drawElement(
       ctx.fillStyle = style.color;
       const direction = style.text_direction ?? 'horizontal';
       if (direction === 'rotate-cw' || direction === 'rotate-ccw') {
-        ctx.translate(rect.x, rect.y);
+        // Side-bar is the footer Flow rotated by 90°: rect.h is the available
+        // text length, rect.w is its thickness. Respect both exactly so top /
+        // bottom endpoints cannot spill outside their slot.
+        const origin = anchorOrigin(rect, anchor);
+        const measuredWidth = Math.max(1, ctx.measureText(text).width);
+        const lengthScale = Math.min(1, rect.h / measuredWidth);
+        const drawFontSize = Math.max(1, fontSize * lengthScale);
+        ctx.beginPath();
+        ctx.rect(origin.x, origin.y, rect.w, rect.h);
+        ctx.clip();
+        ctx.font = `${fontWeight} ${drawFontSize}px "AkaSemiNoto", "Microsoft YaHei", sans-serif`;
+        // Preserve footer endpoint alignment after rotation: top slots grow
+        // downward from the top inset; bottom slots grow upward from the bottom.
+        const isTop = anchor.includes('top');
+        const endpointY = isTop ? origin.y : origin.y + rect.h;
+        ctx.translate(origin.x + rect.w / 2, endpointY);
         ctx.rotate(direction === 'rotate-cw' ? Math.PI / 2 : -Math.PI / 2);
-        ctx.textAlign = 'center';
+        const growsPositive =
+          (direction === 'rotate-cw' && isTop) ||
+          (direction === 'rotate-ccw' && !isTop);
+        ctx.textAlign = growsPositive ? 'left' : 'right';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, 0, 0);
       } else if (direction === 'vertical-glyphs') {

@@ -185,6 +185,17 @@ def _render_text_element(
             draw.text(((width - glyph_w) // 2 - box[0], index * advance - box[1]), glyph, font=font, fill=color)
         return img
 
+    # Side-bar uses the same endpoint semantics as footer Flow after a 90°
+    # rotation. Fit rotated text to the slot length before rendering so it
+    # cannot spill past the top/bottom endpoint.
+    if direction in {"rotate-cw", "rotate-ccw"}:
+        max_length = max(1, el.rect.h)
+        initial_bbox = font.getbbox(text)
+        initial_width = max(1, int(initial_bbox[2] - initial_bbox[0])) if initial_bbox else max(1, font_size * len(text))
+        if initial_width > max_length:
+            font_size = max(1, int(font_size * max_length / initial_width))
+            font = _load_font(style.font_family, font_size)
+
     # 测量文本尺寸（getbbox 返回 (left, top, right, bottom)）
     bbox = font.getbbox(text)
     if bbox:
@@ -202,10 +213,19 @@ def _render_text_element(
     # 因此需要向上偏移以正确对齐基线
     draw.text((0, -ascent_offset), text, font=font, fill=color)
 
-    if direction == "rotate-cw":
-        return img.rotate(-90, expand=True)
-    if direction == "rotate-ccw":
-        return img.rotate(90, expand=True)
+    if direction in {"rotate-cw", "rotate-ccw"}:
+        rotated = img.rotate(-90 if direction == "rotate-cw" else 90, expand=True)
+        slot = Image.new("RGBA", (max(1, el.rect.w), max(1, el.rect.h)), (0, 0, 0, 0))
+        is_top = "top" in el.anchor
+        # Mirror footer endpoint alignment after rotation. Depending on edge
+        # direction, the rotated bitmap's visual start may be its top or bottom.
+        start_at_top = (
+            (direction == "rotate-cw" and is_top)
+            or (direction == "rotate-ccw" and not is_top)
+        )
+        paste_y = 0 if start_at_top else slot.height - rotated.height
+        slot.paste(rotated, ((slot.width - rotated.width) // 2, paste_y), rotated)
+        return slot
 
     return img
 

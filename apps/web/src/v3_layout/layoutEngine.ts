@@ -317,6 +317,24 @@ function computeSideBar(
   return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical');
 }
 
+/**
+ * A side-bar is the footer grid rotated around its adjacent bottom corner.
+ * Right edge rotates clockwise: footer left endpoints become side top.
+ * Left edge rotates counter-clockwise: footer right endpoints become side top.
+ */
+function sideEndpoint(region: RegionConfig, endpoint: 'start' | 'end'): 'start' | 'end' {
+  if (region.type !== 'side-bar') return endpoint;
+  if (region.edge === 'left') return endpoint === 'start' ? 'end' : 'start';
+  return endpoint;
+}
+
+function sidePlacement(_region: RegionConfig, placement: string): 'start' | 'center' | 'end' {
+  // Logo controls are physical positions in side mode: 上 / 中 / 下.
+  // Unlike text endpoints, they do not flip with the rotated footer mapping.
+  if (placement === 'start' || placement === 'center') return placement;
+  return 'end';
+}
+
 function resolveTextDirection(region: RegionConfig, style: StyleConfig): NonNullable<StyleConfig['text_direction']> {
   if (style.text_direction) return style.text_direction;
   const policy = region.text_orientation ?? 'auto';
@@ -367,8 +385,9 @@ function computeFlowRegion(
     primary = rect(inner.x, primaryFirst ? firstY : secondY, inner.w, primarySize);
     secondary = rect(inner.x, primaryFirst ? secondY : firstY, inner.w, secondarySize);
   } else {
-    const photoIsLeft = region.edge !== 'left';
-    const primaryOnLeft = layout.track_order === 'photo-outward' ? photoIsLeft : !photoIsLeft;
+    // Rotated-footer semantics: the primary (former upper) track is the outer
+    // side column, while secondary stays adjacent to the photo.
+    const primaryOnLeft = region.edge === 'left';
     const firstX = inner.x;
     const secondX = inner.x + (primaryOnLeft ? primarySize : secondarySize) + trackGap;
     primary = rect(primaryOnLeft ? firstX : secondX, inner.y, primarySize, inner.h);
@@ -379,6 +398,7 @@ function computeFlowRegion(
 
   // 为 Logo/asset 预留空间，避免文字与 logo 重叠
   let logoStartReserve = 0;
+  let logoCenterReserve = 0;
   let logoEndReserve = 0;
   const asset = slots.asset;
   // 空 path 表示“按 EXIF 自动选择 Logo”。Canvas 仍会绘制默认/解析后的 Logo，
@@ -386,11 +406,18 @@ function computeFlowRegion(
   if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoSize = resolveLogoSize(asset.content, sizeRef);
-    const logoDim = Math.min(flow === 'horizontal' ? inner.w : inner.h, logoSize * 3);
-    if (asset.content.placement === 'end') {
+    const logoDim = flow === 'horizontal'
+      ? Math.min(inner.w, logoSize * 3)
+      : Math.min(inner.h, logoSize);
+    const physicalPlacement = flow === 'vertical'
+      ? sidePlacement(region, asset.content.placement)
+      : asset.content.placement;
+    if (physicalPlacement === 'end') {
       logoEndReserve = logoDim + itemGap;
-    } else if (asset.content.placement === 'start') {
+    } else if (physicalPlacement === 'start') {
       logoStartReserve = logoDim + itemGap;
+    } else {
+      logoCenterReserve = logoDim + itemGap * 2;
     }
   }
 
@@ -405,20 +432,21 @@ function computeFlowRegion(
       style.text_direction = resolveTextDirection(region, style);
       const ref = flow === 'horizontal' ? bounds.h : bounds.w;
       const fontSize = resolveFontSize(style, ref, shortEdge, longEdge);
+      const physicalEndpoint = flow === 'vertical' ? sideEndpoint(region, endpoint) : endpoint;
       const anchor = flow === 'horizontal'
         ? (endpoint === 'start' ? 'middle-left' : 'middle-right')
-        : (endpoint === 'start' ? 'top-center' : 'bottom-center');
+        : (physicalEndpoint === 'start' ? 'top-center' : 'bottom-center');
       const slotBounds = flow === 'horizontal'
         ? (endpoint === 'start'
           ? rect(track.x + logoStartReserve, track.y,
               Math.max(1, Math.floor(track.w / 2) - itemGap - logoStartReserve), track.h)
           : rect(track.x + Math.floor(track.w / 2) + itemGap, track.y,
               Math.max(1, Math.floor(track.w / 2) - itemGap - logoEndReserve), track.h))
-        : (endpoint === 'start'
+        : (physicalEndpoint === 'start'
           ? rect(track.x, track.y + logoStartReserve,
-              track.w, Math.max(1, Math.floor(track.h / 2) - itemGap - logoStartReserve))
-          : rect(track.x, track.y + Math.floor(track.h / 2) + itemGap,
-              track.w, Math.max(1, Math.floor(track.h / 2) - itemGap - logoEndReserve)));
+              track.w, Math.max(1, Math.floor((track.h - logoCenterReserve) / 2) - itemGap - logoStartReserve))
+          : rect(track.x, track.y + Math.floor((track.h + logoCenterReserve) / 2) + itemGap,
+              track.w, Math.max(1, Math.floor((track.h - logoCenterReserve) / 2) - itemGap - logoEndReserve)));
       const pos = applyAnchor(slotBounds, anchor);
       if (isTextContent(slot.content) && slot.content.chips.length > 0) {
         elements.push({ id: `${region.id}-${slotId}`, type: 'text', rect: rect(pos.x, pos.y, slotBounds.w, slotBounds.h),
@@ -429,9 +457,12 @@ function computeFlowRegion(
   if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoH = resolveLogoSize(asset.content, sizeRef);
+    const physicalPlacement = flow === 'vertical'
+      ? sidePlacement(region, asset.content.placement)
+      : asset.content.placement;
     const anchor = flow === 'horizontal'
       ? (asset.content.placement === 'start' ? 'middle-left' : asset.content.placement === 'end' ? 'middle-right' : 'middle-center')
-      : (asset.content.placement === 'start' ? 'top-center' : asset.content.placement === 'end' ? 'bottom-center' : 'middle-center');
+      : (physicalPlacement === 'start' ? 'top-center' : physicalPlacement === 'end' ? 'bottom-center' : 'middle-center');
     const pos = applyAnchor(inner, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
     elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, logoH * 3), logoH),
@@ -609,7 +640,7 @@ function resolveFontSize(
 }
 
 function resolveLogoSize(content: LogoContent, regionHeight: number): number {
-  // Logo 高度按所在区域高度的 size_ratio 缩放，默认占 60%，随底栏/水印条高度变化
+  // Logo 高度按所在区域高度的 size_ratio 缩放，默认使用中号 token，随底栏/水印条高度变化
   const ratio = content.size_ratio ?? LOGO_SIZE_RATIOS[content.size_level ?? 'medium'];
   return Math.max(16, Math.round(regionHeight * ratio));
 }

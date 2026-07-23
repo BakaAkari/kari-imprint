@@ -23,6 +23,7 @@ export function V3LeftRail({ aspectRatio, onAspectRatioChange, runtimeCaps }: V3
     setActiveFileIndex,
     removeFile,
     clearOutputs,
+    randomizePlaceholderExif,
     showToast,
     onPresetChange,
   } = context;
@@ -34,8 +35,9 @@ export function V3LeftRail({ aspectRatio, onAspectRatioChange, runtimeCaps }: V3
 
   const resetConfig = useCallback(() => {
     onPresetChange(getFirstProductPreset().id);
+    if (files.length === 0) randomizePlaceholderExif();
     clearOutputs();
-  }, [onPresetChange, clearOutputs]);
+  }, [files.length, onPresetChange, randomizePlaceholderExif, clearOutputs]);
 
   return (
     <ImagePresetRail

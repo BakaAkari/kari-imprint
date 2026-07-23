@@ -172,7 +172,7 @@ const softCardControls: MainControlConfig = {
 export const productPresetsV3: readonly ProductPresetV3[] = finalize([
   {
     id: 'default',
-    name: '品牌底栏',
+    name: '聚焦',
     description: '手机影像风：左侧 EXIF，右侧品牌 Logo',
     category: 'brand',
     template: layoutTemplatesV3.brandFooter,
@@ -180,7 +180,7 @@ export const productPresetsV3: readonly ProductPresetV3[] = finalize([
   },
   {
     id: 'minimal',
-    name: '极简参数',
+    name: '简约',
     description: '低干扰：仅保留核心拍摄参数',
     category: 'minimal',
     template: layoutTemplatesV3.minimalFooter,
@@ -188,7 +188,7 @@ export const productPresetsV3: readonly ProductPresetV3[] = finalize([
   },
   {
     id: 'soft-card',
-    name: '拍立得白边',
+    name: '圆润',
     description: '暖白纸边 + 底部信息区',
     category: 'polaroid',
     template: layoutTemplatesV3.polaroidFooter,

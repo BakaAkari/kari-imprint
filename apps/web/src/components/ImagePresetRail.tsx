@@ -230,11 +230,7 @@ export function ImagePresetRail<TConfig>({
                 className="preset-card"
                 onClick={() => onApplyPreset(preset)}
               >
-                <span className="preset-card-name">
-                  {preset.name}
-                  {preset.category && <span className="preset-card-tag">{preset.category}</span>}
-                </span>
-                <span className="preset-card-desc">{preset.description}</span>
+                <span className="preset-card-name">{preset.name}</span>
               </button>
             ))}
           </div>

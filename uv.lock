@@ -282,7 +282,7 @@ wheels = [
 
 [[package]]
 name = "kari-core"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/kari-core" }
 dependencies = [
     { name = "jinja2" },
@@ -321,12 +321,12 @@ dev = [
 
 [[package]]
 name = "kari-imprint"
-version = "0.1.1"
+version = "0.1.2"
 source = { virtual = "." }
 
 [[package]]
 name = "kari-imprint-api"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },

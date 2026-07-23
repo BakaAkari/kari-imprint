@@ -23,22 +23,6 @@ export type FieldId =
   | 'custom_text'
   | 'empty';
 
-/** Placeholder values for Canvas skeleton preview when no image EXIF is available. */
-export const PLACEHOLDER_EXIF: Record<FieldId, string> = {
-  camera_model: 'GFX100S II',
-  lens_model: 'GF80mmF1.7 R WR',
-  focal_length: '80mm',
-  aperture: 'F1.7',
-  shutter: '1/250s',
-  iso: 'ISO400',
-  datetime: '2026.07.10',
-  make: 'FUJIFILM',
-  artist: 'Baka Akari',
-  gps: 'Shanghai',
-  custom_text: 'AKARI PHOTO',
-  empty: '',
-};
-
 export type FieldChip = {
   field_id: FieldId;
   custom_text?: string;

@@ -18,6 +18,7 @@ import {
   type PreviewAspectRatio,
 } from './v3Types';
 import { createInitialPresetSession, createPresetSession, getProductPreset } from './v3PresetSession';
+import { createRandomPlaceholderExif } from './placeholderExif';
 import './styles.css';
 
 type ActionState = 'idle' | 'running' | 'success' | 'error';
@@ -45,6 +46,7 @@ export type V3AppContextType = {
   setActiveFileIndex: React.Dispatch<React.SetStateAction<number>>;
   removeFile: (index: number) => void;
   clearOutputs: () => void;
+  randomizePlaceholderExif: () => void;
   clearBatchResults: () => void;
   loadPreview: () => void;
   // 新的状态管理 API
@@ -129,7 +131,13 @@ export function V3HomePage() {
   const [canvasImage, setCanvasImage] = useState<ImageBitmap | null>(null);
   const [previewRevision, setPreviewRevision] = useState(0);
   const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>('3:2');
+  const [placeholderFieldValues, setPlaceholderFieldValues] = useState<ExifFieldValues>(() => createRandomPlaceholderExif());
   const [fieldValues, setFieldValues] = useState<ExifFieldValues>({});
+  const canvasFieldValues = files[activeFileIndex] ? fieldValues : placeholderFieldValues;
+
+  const randomizePlaceholderExif = useCallback(() => {
+    setPlaceholderFieldValues((previous) => createRandomPlaceholderExif(previous));
+  }, []);
 
   const showToast = useCallback((message: string, type: ToastItem['type']) => {
     const id = ++toastIdCounter;
@@ -306,7 +314,7 @@ export function V3HomePage() {
     status, message, progress, toasts,
     showToast, removeToast,
     runPreview, runProcess, runProcessAll, cancelProcessAll,
-    setFiles, setActiveFileIndex, removeFile, clearOutputs, clearBatchResults, loadPreview,
+    setFiles, setActiveFileIndex, removeFile, clearOutputs, randomizePlaceholderExif, clearBatchResults, loadPreview,
     // 新 API
     controls,
     onControlsChange,
@@ -318,7 +326,7 @@ export function V3HomePage() {
     status, message, progress, toasts,
     showToast, removeToast,
     runPreview, runProcess, runProcessAll, cancelProcessAll,
-    setFiles, setActiveFileIndex, removeFile, clearOutputs, clearBatchResults, loadPreview,
+    setFiles, setActiveFileIndex, removeFile, clearOutputs, randomizePlaceholderExif, clearBatchResults, loadPreview,
     controls, onControlsChange, slotOverrides, onSlotOverridesChange, onPresetChange,
   ]);
 
@@ -335,7 +343,7 @@ export function V3HomePage() {
                 image={canvasImage}
                 placeholderAspectRatio={previewAspectRatio}
                 runtimeCaps={runtimeCaps}
-                fieldValues={fieldValues}
+                fieldValues={canvasFieldValues}
               />
             </div>
             <V3MainControls config={config} onChange={onControlsChange} />

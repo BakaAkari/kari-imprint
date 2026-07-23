@@ -115,9 +115,9 @@ _FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "large": 0.25,
 }
 _LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
-    "small": 0.50,
-    "medium": 0.60,
-    "large": 0.72,
+    "small": 0.65,
+    "medium": 0.78,
+    "large": 0.95,
 }
 _SIGNATURE_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "small": 0.15,

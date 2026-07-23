@@ -1,6 +1,6 @@
 [project]
 name = "kari-core"
-version = "0.1.1"
+version = "0.1.2"
 description = "Core image processing, EXIF, layout and rendering engine for Kari Imprint"
 readme = "README.md"
 requires-python = ">=3.13"
