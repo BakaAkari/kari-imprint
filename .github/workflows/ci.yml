@@ -20,21 +20,23 @@ jobs:
           enable-cache: true
       - run: sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
       - run: uv python install 3.13
-      - run: uv sync --frozen --dev
-      - run: uv run ruff check .
-      - run: uv run pytest
+      - run: uv sync --frozen --all-packages --all-groups
+      - run: uv run --all-packages --all-groups ruff check .
+      - run: uv run --all-packages --all-groups pytest
 
   frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web_frontend
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web_frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
-      - run: npm run build
+      - run: npm run test:presets
+      - run: npx tsc -b --pretty false
+      - run: VITE_API_BASE=/tools/watermark-v3 npm run build

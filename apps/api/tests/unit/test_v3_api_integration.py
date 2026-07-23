@@ -104,9 +104,10 @@ class TestV3PayloadValidation:
         parsed = _dict_to_watermark_config(config)
         logo = parsed.regions[0].slots["asset"].content
         assert isinstance(logo, LogoContent)
-        # v2 migration: size_ratio=0.6 is token "medium" → size_level="medium", size_ratio=None
-        assert logo.size_level == "medium"
-        assert logo.size_ratio is None
+        # 0.6 is no longer a named Logo token after the 0.1.2 size update,
+        # so legacy payloads preserve it as an exact custom ratio.
+        assert logo.size_level is None
+        assert logo.size_ratio == 0.6
 
     def test_empty_dict_defaults(self):
         result = validate_v3_payload({})

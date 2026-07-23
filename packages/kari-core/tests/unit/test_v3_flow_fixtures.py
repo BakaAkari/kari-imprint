@@ -61,15 +61,15 @@ def test_flow_fixtures_are_deterministic_and_bounded():
             assert all("secondary" not in el.id for el in first.elements)
 
 
-def test_side_primary_track_stays_photo_adjacent():
+def test_side_primary_track_stays_on_outer_edge():
     cases = {case["id"]: case for case in json.loads(FIXTURES.read_text())}
     right = compute_layout(_config(cases["side-right-dual"]), 800, 600)
     right_elements = {el.id: el for el in right.elements}
-    assert right_elements["flow-primary-start"].rect.x < right_elements["flow-secondary-start"].rect.x
+    assert right_elements["flow-primary-start"].rect.x > right_elements["flow-secondary-start"].rect.x
 
     left_case = cases["side-left-single"]
     left_case["config"]["regions"][0]["layout"]["mode"] = "dual-track"
     left_case["config"]["regions"][0]["slots"]["secondary-end"] = {"enabled": True, "text": "shutter"}
     left = compute_layout(_config(left_case), 600, 900)
     left_elements = {el.id: el for el in left.elements}
-    assert left_elements["flow-primary-start"].rect.x > left_elements["flow-secondary-start"].rect.x
+    assert left_elements["flow-primary-start"].rect.x < left_elements["flow-secondary-start"].rect.x
