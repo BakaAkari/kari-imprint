@@ -561,7 +561,7 @@ def _compute_flow_region(
         logo_dim = (
             min(inner.w, round(logo_size * asset_aspect_ratio))
             if flow == "horizontal"
-            else min(inner.h, logo_size)
+            else min(inner.h, round(logo_size / asset_aspect_ratio))
         )
         physical_placement = (
             _side_placement(region, asset.content.placement)
@@ -636,7 +636,7 @@ def _compute_flow_region(
         logo_dim = (
             min(inner.w, round(logo_h * asset_aspect_ratio))
             if flow == "horizontal"
-            else min(inner.h, logo_h)
+            else min(inner.h, round(logo_h / asset_aspect_ratio))
         )
         physical_placement = (
             _side_placement(region, asset.content.placement)
@@ -693,9 +693,15 @@ def _compute_flow_region(
             asset.content,
             orientation=_resolve_asset_orientation(region, asset.content.orientation),
         )
+        if flow == "horizontal":
+            asset_w = min(inner.w, round(logo_h * asset_aspect_ratio))
+            asset_h = logo_h
+        else:
+            asset_w = min(inner.w, logo_h)
+            asset_h = min(inner.h, round(logo_h / asset_aspect_ratio))
         elements.append(ComputedElement(
             id=f"{region.id}-asset", type="logo",
-            rect=Rect(pos.x, pos.y, min(inner.w, round(logo_h * asset_aspect_ratio)), logo_h),
+            rect=Rect(pos.x, pos.y, asset_w, asset_h),
             anchor=anchor, content=content, style=defaults,
         ))
     return elements

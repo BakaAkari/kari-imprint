@@ -102,5 +102,41 @@
         }
       }]
     }
+  },
+  {
+    "id": "side-right-square-logo",
+    "image": [800, 600],
+    "asset_aspect_ratio": 1.0,
+    "config": {
+      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
+      "regions": [{
+        "id": "flow", "type": "side-bar", "enabled": true, "edge": "right",
+        "width": {"mode": "pixel", "value": 140},
+        "layout": {"mode": "dual-track"},
+        "slots": {
+          "primary-start": {"enabled": true, "text": "make"},
+          "secondary-start": {"enabled": true, "text": "camera_model"},
+          "asset": {"enabled": true, "logo": "brand.png", "placement": "end"}
+        }
+      }]
+    }
+  },
+  {
+    "id": "side-left-wide-wordmark",
+    "image": [800, 600],
+    "asset_aspect_ratio": 5.0,
+    "config": {
+      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
+      "regions": [{
+        "id": "flow", "type": "side-bar", "enabled": true, "edge": "left",
+        "width": {"mode": "pixel", "value": 140},
+        "layout": {"mode": "dual-track"},
+        "slots": {
+          "primary-start": {"enabled": true, "text": "make"},
+          "secondary-start": {"enabled": true, "text": "camera_model"},
+          "asset": {"enabled": true, "logo": "wordmark.png", "placement": "start"}
+        }
+      }]
+    }
   }
 ]

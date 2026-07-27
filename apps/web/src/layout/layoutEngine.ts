@@ -436,7 +436,7 @@ function computeFlowRegion(
     const logoSize = resolveLogoSize(asset.content, sizeRef);
     const logoDim = flow === 'horizontal'
       ? Math.min(inner.w, Math.round(logoSize * assetAspectRatio))
-      : Math.min(inner.h, logoSize);
+      : Math.min(inner.h, Math.round(logoSize / assetAspectRatio));
     const physicalPlacement = flow === 'vertical'
       ? sidePlacement(region, asset.content.placement)
       : asset.content.placement;
@@ -499,7 +499,7 @@ function computeFlowRegion(
     const logoH = resolveLogoSize(asset.content, sizeRef);
     const logoDim = flow === 'horizontal'
       ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
-      : Math.min(inner.h, logoH);
+      : Math.min(inner.h, Math.round(logoH / assetAspectRatio));
     const physicalPlacement = flow === 'vertical'
       ? sidePlacement(region, asset.content.placement)
       : asset.content.placement;
@@ -538,7 +538,13 @@ function computeFlowRegion(
       : (physicalPlacement === 'start' ? 'top-center' : physicalPlacement === 'end' ? 'bottom-center' : 'middle-center');
     const pos = applyAnchor(inner, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
-    elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, Math.round(logoH * assetAspectRatio)), logoH),
+    const assetW = flow === 'horizontal'
+      ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
+      : Math.min(inner.w, logoH);
+    const assetH = flow === 'horizontal'
+      ? logoH
+      : Math.min(inner.h, Math.round(logoH / assetAspectRatio));
+    elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, assetW, assetH),
       anchor, content, style: defaults });
   }
   return elements;

@@ -344,6 +344,45 @@ class TestFooterBarLayout:
         floor = _run(0.3)
         assert tiny.w == floor.w
 
+    def test_side_asset_aspect_ratio_scales_logo_box_height(self):
+        """side-bar (vertical flow): width is constrained by the bar width;
+        real-image aspect ratio should drive the box height, not width."""
+
+        def _run(aspect: float | None) -> Rect:
+            layout = compute_layout(
+                ImprintConfig(
+                    regions=[RegionConfig(
+                        id="side",
+                        type="side-bar",
+                        enabled=True,
+                        edge="right",
+                        width={"mode": "pixel", "value": 140},
+                        slots={
+                            "primary-start": self._text_slot(),
+                            "asset": SlotConfig(
+                                enabled=True,
+                                content=LogoContent(path="logo.png", placement="end"),
+                            ),
+                        },
+                    )],
+                ),
+                800,
+                600,
+                aspect,
+            )
+            return {el.id: el for el in layout.elements}["side-asset"].rect
+
+        fallback = _run(None)
+        square = _run(1.0)
+        wide = _run(5.0)
+
+        # Cross-axis width comes from the side-bar inner width and does not
+        # depend on aspect ratio.
+        assert square.w == fallback.w == wide.w
+        # Height (flow-axis) = round(logo_size / aspect), so larger aspect
+        # (wider wordmark) yields a shorter box.
+        assert wide.h < fallback.h < square.h
+
     def test_auto_logo_with_empty_path_reserves_end_space(self):
         """layout engine 本身不区分自动/手动 path；预留由上层解析后决定。"""
         result = compute_layout(
