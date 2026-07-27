@@ -482,9 +482,12 @@ export function KariImprintCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 确定图片尺寸（无图时使用所选预览比例）
+    // 确定图片尺寸（无图或 bitmap 已被 close() 时使用所选预览比例）。
+    // ImageBitmap.close() 后对象仍存在，但 .width/.height 归零；直接用会让
+    // fitPreviewDimensions 抛错并把整棵组件树推下悬崖。
+    const hasValidBitmap = !!image && image.width > 0 && image.height > 0;
     let sourceW: number, sourceH: number;
-    if (image) {
+    if (hasValidBitmap) {
       sourceW = image.width;
       sourceH = image.height;
     } else {
@@ -575,13 +578,14 @@ export function KariImprintCanvas({
       }
     }
 
-    // 绘制（可能尚未加载 logo，先占位）。Closed ImageBitmap should
-    // never reach this point, but a defensive fallback keeps the workspace
-    // usable if a stale async render races with file removal.
+    // 绘制（可能尚未加载 logo，先占位）。若 bitmap 已 close()（hasValidBitmap
+    // 为 false）则以 null 走占位分支；仍保留 DOMException 兜底以防第三方
+    // ImageSource 在 drawImage 内部抛错，避免整个组件树被卸载。
+    const drawImageSource = hasValidBitmap ? image : null;
     try {
-      renderCanvas(ctx, layout, image, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
+      renderCanvas(ctx, layout, drawImageSource, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
     } catch (error) {
-      if (image && error instanceof DOMException) {
+      if (drawImageSource && error instanceof DOMException) {
         renderCanvas(ctx, layout, null, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
       } else {
         throw error;
