@@ -30,6 +30,30 @@ from kari_core.shared.layout.layout_engine import (
 
 _LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
+# Runtime cache keyed by (absolute path, mtime_ns, size) → (w, h). Aspect ratio
+# is a rendering-time fact derived from the file, not a user-facing config
+# value, so it never crosses the API boundary; caching by mtime+size is enough
+# to keep repeated renders cheap without going stale on edits.
+_LOGO_DIMS_CACHE: dict[tuple[str, int, int], tuple[int, int]] = {}
+
+
+def _read_image_dimensions(path: str) -> tuple[int, int] | None:
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    cached = _LOGO_DIMS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    try:
+        with Image.open(path) as img:
+            dims = img.size
+    except (FileNotFoundError, OSError, Image.UnidentifiedImageError):
+        return None
+    _LOGO_DIMS_CACHE[key] = dims
+    return dims
+
 # ── 颜色解析 ──────────────────────────────────────────────────────────
 
 
@@ -331,6 +355,45 @@ def _resolve_auto_logo_path(
         return None
     f = _find_logo_file(matched_stem, variant=logo_variant, dark=dark)
     return str(f.absolute()) if f else None
+
+
+def resolve_logo_asset_aspect_ratio(
+    config: ImprintConfig,
+    field_values: dict[str, str],
+    bg_color: str = "#FFFFFF",
+    logo_variant: str = "",
+) -> float | None:
+    """Resolve the aspect ratio (w/h) of the Logo file that will be rendered.
+
+    Walks the config for the first enabled asset slot whose content is a
+    ``LogoContent``, then resolves it exactly the way ``render_pil`` will
+    (dark/light scheme derived from ``bg_color``) and reads the on-disk image
+    dimensions. Returns ``None`` when no logo is matched or the file cannot be
+    opened — callers pass ``None`` to ``compute_layout`` and get the legacy
+    ``3.0`` fallback.
+    """
+    scheme = "light" if bg_color.upper() in ("#1A1A1A", "#111111", "#000000") else "dark"
+    for region in config.regions:
+        if not region.enabled:
+            continue
+        asset = region.slots.get("asset") if region.slots else None
+        if asset is None or not asset.enabled:
+            continue
+        if not isinstance(asset.content, LogoContent):
+            continue
+        logo_path = _resolve_auto_logo_path(
+            asset.content, field_values, scheme=scheme, logo_variant=logo_variant,
+        )
+        if not logo_path:
+            return None
+        dims = _read_image_dimensions(logo_path)
+        if dims is None:
+            return None
+        w, h = dims
+        if w <= 0 or h <= 0:
+            return None
+        return w / h
+    return None
 
 
 def _render_logo_element(

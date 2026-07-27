@@ -84,6 +84,34 @@ function resolveLogoElementPath(
   };
 }
 
+/**
+ * Find the aspect ratio (naturalWidth / naturalHeight) of the Logo image that
+ * will be rendered for the first enabled asset slot in `config`. Returns
+ * `undefined` when the image is not yet loaded or when no Logo is matched;
+ * the layout engine falls back to its 3.0 constant in that case.
+ */
+function resolveAssetAspectRatio(
+  config: ImprintConfig,
+  logos: Map<string, HTMLImageElement>,
+  fieldValues: ExifFieldValues,
+  builtins: readonly LogoRegistryEntry[],
+  scheme: string,
+  logoVariant: string,
+): number | undefined {
+  for (const region of config.regions) {
+    if (!region.enabled) continue;
+    const asset = region.slots?.asset;
+    if (!asset?.enabled || !asset.content || !('path' in asset.content) || 'invert_mono' in asset.content) continue;
+    const resolved = resolveLogoElementPath(asset.content as { path: string }, fieldValues, builtins, scheme, logoVariant);
+    if (!resolved.path) return undefined;
+    const src = resolveAssetSrc(resolved.path, 'logo', resolved.variant, resolved.dark);
+    const img = logos.get(src);
+    if (!img || img.naturalWidth <= 0 || img.naturalHeight <= 0) return undefined;
+    return img.naturalWidth / img.naturalHeight;
+  }
+  return undefined;
+}
+
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
 
 function resolveText(chip: FieldChip, customText: string, fieldValues: ExifFieldValues): string {
@@ -477,7 +505,8 @@ export function KariImprintCanvas({
     // - 匹配到 → 填充 path → layout 预留空间 + 推开文字
     // - 未匹配 → disable slot → layout 不产生 logo 元素 → 无空白
     const resolvedConfig = resolveLogoConfig(config, fieldValues, builtinLogos, scheme, logoVariant);
-    const layout = computeLayout(resolvedConfig, imgW, imgH);
+    const assetAspectRatio = resolveAssetAspectRatio(resolvedConfig, logoImages, fieldValues, builtinLogos, scheme, logoVariant);
+    const layout = computeLayout(resolvedConfig, imgW, imgH, assetAspectRatio);
 
     // 容器显示尺寸
     const rect = container.getBoundingClientRect();

@@ -251,6 +251,99 @@ class TestFooterBarLayout:
         assert elements["footer-asset"].anchor == "middle-center"
         assert elements["footer-asset"].rect.x > 400
 
+    def test_asset_aspect_ratio_scales_logo_box_width(self):
+        """Real-image aspect ratio replaces the hard-coded 3× width box."""
+
+        def _run(aspect: float | None) -> Rect:
+            layout = compute_layout(
+                ImprintConfig(
+                    regions=[RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        slots={
+                            "primary-start": self._text_slot(),
+                            "asset": SlotConfig(
+                                enabled=True,
+                                content=LogoContent(path="logo.png", placement="end"),
+                            ),
+                        },
+                    )],
+                ),
+                1000,
+                600,
+                aspect,
+            )
+            return {el.id: el for el in layout.elements}["footer-asset"].rect
+
+        fallback = _run(None)
+        square = _run(1.0)
+        wide = _run(5.0)
+
+        # Square logos should occupy far less horizontal space than the legacy 3× box.
+        assert square.w < fallback.w
+        # Wide wordmark logos should stretch wider than the legacy 3× box (bounded by inner width).
+        assert wide.w > fallback.w
+        # Same logo height across all values → only width changes.
+        assert square.h == fallback.h == wide.h
+
+    def test_asset_aspect_ratio_none_matches_default(self):
+        def _run(aspect: float | None) -> Rect:
+            layout = compute_layout(
+                ImprintConfig(
+                    regions=[RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        slots={
+                            "primary-start": self._text_slot(),
+                            "asset": SlotConfig(
+                                enabled=True,
+                                content=LogoContent(path="logo.png", placement="start"),
+                            ),
+                        },
+                    )],
+                ),
+                1000, 600,
+                aspect,
+            )
+            return {el.id: el for el in layout.elements}["footer-asset"].rect
+
+        # None must be equivalent to the legacy 3.0 constant.
+        assert _run(None) == _run(3.0)
+
+    def test_asset_aspect_ratio_clamped(self):
+        def _run(aspect: float | None) -> Rect:
+            layout = compute_layout(
+                ImprintConfig(
+                    regions=[RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        slots={
+                            "asset": SlotConfig(
+                                enabled=True,
+                                content=LogoContent(path="logo.png", placement="end"),
+                            ),
+                        },
+                    )],
+                ),
+                1000, 600, aspect,
+            )
+            return {el.id: el for el in layout.elements}["footer-asset"].rect
+
+        # Values outside [0.3, 6.0] should be clamped, not blindly multiplied.
+        insane = _run(100.0)
+        capped = _run(6.0)
+        assert insane.w == capped.w
+
+        tiny = _run(0.01)
+        floor = _run(0.3)
+        assert tiny.w == floor.w
+
     def test_auto_logo_with_empty_path_reserves_end_space(self):
         """layout engine 本身不区分自动/手动 path；预留由上层解析后决定。"""
         result = compute_layout(
