@@ -25,7 +25,7 @@ class WebApiSettings:
     resources_dir: Path
     tmp_dir: Path
     assets_dir: Path
-    api_prefix: str = "/tools/watermark-v3/api"
+    api_prefix: str = "/tools/kari-imprint/api"
     max_upload_bytes: int = 80 * 1024 * 1024
     max_resource_bytes: int = 5 * 1024 * 1024
     max_image_pixels: int = 100_000_000
@@ -89,7 +89,7 @@ class WebApiSettings:
             assets_dir=assets_dir,
             api_prefix=_env_str(
                 "KARI_IMPRINT_API_PREFIX",
-                _pick_str(server_cfg.get("api_prefix"), "/tools/watermark-v3/api"),
+                _pick_str(server_cfg.get("api_prefix"), "/tools/kari-imprint/api"),
             ),
             max_upload_bytes=_env_int(
                 "KARI_IMPRINT_MAX_UPLOAD_BYTES",

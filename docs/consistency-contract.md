@@ -34,21 +34,21 @@
 
 | 接口 | TS 位置 | Python 位置 | 同步方式 |
 |---|---|---|---|
-| `RegionConfig` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `SlotConfig` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `StyleConfig` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `FlowLayoutConfig` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `LogoContent` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `SignatureContent` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `TextContent` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
-| `BorderConfig` | `v3Types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `RegionConfig` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `SlotConfig` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `StyleConfig` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `FlowLayoutConfig` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `LogoContent` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `SignatureContent` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `TextContent` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
+| `BorderConfig` | `types.ts` + `layoutEngine.ts` | `layout_engine.py` | 手动 + 审计 |
 | `ComputedElement` | `layoutEngine.ts` | `layout_engine.py` | Golden Fixture |
 
 ### 1.2 类型重复问题
 
-当前 `v3Types.ts` 和 `layoutEngine.ts` 各自定义了 `RegionConfig`、`SlotConfig`、`StyleConfig` 等接口，存在重复定义。**非布局引擎专用的类型应只存在于 `v3Types.ts`**，`layoutEngine.ts` 通过 import 引用。
+当前 `types.ts` 和 `layoutEngine.ts` 各自定义了 `RegionConfig`、`SlotConfig`、`StyleConfig` 等接口，存在重复定义。**非布局引擎专用的类型应只存在于 `types.ts`**，`layoutEngine.ts` 通过 import 引用。
 
-**待修复**：将 `layoutEngine.ts` 中的 `RegionConfig`、`SlotConfig`、`StyleConfig`、`FlowLayoutConfig`、`LogoContent`、`SignatureContent`、`TextContent`、`BorderConfig` 改为从 `v3Types.ts` import。
+**待修复**：将 `layoutEngine.ts` 中的 `RegionConfig`、`SlotConfig`、`StyleConfig`、`FlowLayoutConfig`、`LogoContent`、`SignatureContent`、`TextContent`、`BorderConfig` 改为从 `types.ts` import。
 
 ### 1.3 字段命名规则
 
@@ -91,19 +91,19 @@ Python: mode: Literal["single-track", "dual-track"]
 
 ```tsx
 // JSX：动态拼接
-className={`v3-footer-bar-rows-${controls.flow_mode}`}
-// 生成: v3-footer-bar-rows-dual-track 或 v3-footer-bar-rows-single-track
+className={`footer-bar-rows-${controls.flow_mode}`}
+// 生成: footer-bar-rows-dual-track 或 footer-bar-rows-single-track
 ```
 
 CSS 必须使用**完全相同的 token** 作为类名后缀：
 
 ```css
 /* 正确：使用与 flow_mode 值一致的类名 */
-.v3-footer-bar-rows-dual-track { ... }
-.v3-footer-bar-rows-single-track { ... }
+.footer-bar-rows-dual-track { ... }
+.footer-bar-rows-single-track { ... }
 
 /* 错误：独立发明新类名 */
-.v3-footer-bar-rows-dual-row { ... }
+.footer-bar-rows-dual-row { ... }
 ```
 
 ### 3.2 grid-area 命名
@@ -112,16 +112,16 @@ CSS `grid-area` 名称必须与 JSX 传入的位置标识符一致：
 
 ```tsx
 // JSX
-className={`v3-footer-row v3-footer-row-${row.position}`}
-// row.position = 'primary-start' → 生成 v3-footer-row-primary-start
+className={`footer-row footer-row-${row.position}`}
+// row.position = 'primary-start' → 生成 footer-row-primary-start
 ```
 
 ```css
 /* 正确 */
-.v3-footer-row-primary-start { grid-area: primary-start; }
+.footer-row-primary-start { grid-area: primary-start; }
 
 /* 错误 */
-.v3-footer-row-primary-start { grid-area: top-left; }
+.footer-row-primary-start { grid-area: top-left; }
 ```
 
 ### 3.3 自检命令
@@ -146,13 +146,13 @@ rg '拼接变量的每个可能值' apps/web/src/styles.css
 ### 4.1 当前缺口
 
 - 后端使用 Pydantic `StrictModel` 进行请求校验。
-- 前端 `apiV3.ts` 手写 fetch 调用，无运行时类型校验。
+- 前端 `api.ts` 手写 fetch 调用，无运行时类型校验。
 - 没有自动生成的 OpenAPI schema。
 
 ### 4.2 规则
 
 - API 的请求体和响应体类型必须与 Pydantic schema 保持一致。
-- 新增 API 端点时，必须同步更新前端 `apiV3.ts` 中的类型标注。
+- 新增 API 端点时，必须同步更新前端 `api.ts` 中的类型标注。
 - Pydantic schema 字段新增/删除/重命名时，**必须搜索前端所有引用并同步更新**。
 
 ### 4.3 未来方向
@@ -247,7 +247,7 @@ cd packages/kari-core && uv run pytest tests/unit/test_v3_design_tokens.py
 cd apps/web && npx tsc -b --pretty false
 
 # 前端构建
-cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd apps/web && VITE_API_BASE=/tools/kari-imprint npm run build
 ```
 
 ### 8.2 白名单例外
@@ -289,7 +289,7 @@ rg 'side-edge|top-left|bottom-left|top-right|bottom-right|left\right' apps packa
 rg 'className=\{.*\$\{' apps/web/src --type tsx
 
 # 3. 检查 TS/Python 枚举值对齐
-rg 'type.*=.*\|.*\|' apps/web/src/v3Types.ts
+rg 'type.*=.*\|.*\|' apps/web/src/types.ts
 rg 'Literal\[.*\|.*\]' packages/kari-core/src
 
 # 4. 检查 dead import

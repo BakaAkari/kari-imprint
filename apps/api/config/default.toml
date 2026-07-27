@@ -1,5 +1,5 @@
 [server]
-api_prefix = "/tools/watermark-v3/api"
+api_prefix = "/tools/kari-imprint/api"
 
 [paths]
 data_dir = ""

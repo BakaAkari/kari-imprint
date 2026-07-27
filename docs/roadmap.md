@@ -1,39 +1,36 @@
 # Roadmap / 开发路线图
 
-本文件记录 `aka-semi-utils / V3 水印工具` 的当前状态、阶段拆分和下一步优先级。较大功能开发必须先更新 roadmap 或对应设计文档，再实现。
+本文件记录 `kari-imprint`（Kari Imprint 边框工具）的当前状态、阶段拆分和下一步优先级。较大功能开发必须先更新 roadmap 或对应设计文档，再实现。
 
 ## 产品目标
 
-- 面向普通摄影用户，稳定生成高级感、品牌级摄影水印。
-- 用 V3 Flow Layout 保持排版能力灵活，同时通过产品层限制避免布局失控。
+- 面向普通摄影用户，稳定生成高级感、品牌级摄影信息边框。
+- 用 Flow Layout 保持排版能力灵活，同时通过产品层限制避免布局失控。
 - 前端预览与后端输出保持一致。
-- 线上部署可验证、可回滚、无 V1/V2 旧功能入口。
+- 线上部署可验证、可回滚。
 
 ## 当前状态
 
-- 当前主线：`dev/v3-region-layout`。
-- 当前线上：`https://baka-akari.zone/tools/watermark-v3/`。
-- 当前架构：V3 Region / Slot / Content。
+- 当前主线：`main`。
+- 当前线上：`https://baka-akari.zone/tools/kari-imprint/`。
+- 当前架构：Region / Slot / Content。
 - 桌面版：冻结在 `v2.1.9`，归档于 `archive/desktop-v2`。
-- V1：`/tools/watermark/` 只显示“回炉重塑中”。
-- V2：代码、路由、服务和 SPA fallback 已移除。
 
 ## 已完成阶段
 
 ### Phase A：Web MVP 原型归档
 
-旧 Web MVP 已完成验证，但其 V1/V2 文档和四角配置模型已归档到 `docs/archive/legacy-web-mvp/`，不再作为当前实现依据。
+旧 Web MVP 已完成验证，但其早期文档和四角配置模型已归档到 `docs/archive/legacy-web-mvp/`，不再作为当前实现依据。
 
-### Phase B：V3 Region-Based Layout 基础架构
+### Phase B：Region-Based Layout 基础架构
 
 已完成：
 
-- V3 配置模型：`web_frontend/src/v3Types.ts` / `web_api/schemas_v3.py`。
-- 前端布局引擎：`web_frontend/src/v3_layout/layoutEngine.ts`。
-- 后端布局引擎：`shared/v3_layout/layout_engine.py`。
-- 后端 V3 渲染：`processor/v3_watermark.py`。
-- V3 API 处理链：上传、预览、处理、下载。
-- V1/V2 清理：旧前端、旧 schema、旧 assembler、旧路由和旧服务下线。
+- 配置模型：`apps/web/src/types.ts` / `apps/api/src/api/schemas.py`。
+- 前端布局引擎：`apps/web/src/layout/layoutEngine.ts`。
+- 后端布局引擎：`packages/kari-core/src/kari_core/shared/layout/layout_engine.py`。
+- 后端渲染：`packages/kari-core/src/kari_core/processor/kari_imprint.py` + `renderer.py`。
+- API 处理链：上传、预览、处理、下载。
 - 全量测试通过：`uv run pytest`。
 
 ## 当前阶段
@@ -47,12 +44,12 @@
 - 用 Canonical Slot 和单/双轨模型统一底栏、左右侧栏。
 - 保留 Footer / Side 独立几何策略，消除物理槽位命名耦合。
 - 建立 Region 默认方向、Slot 显式覆盖和资源独立方向。
-- 通过 schema v3 迁移旧配置，并建立 TS/Python Golden 一致性测试。
+- 建立 TS/Python Golden 一致性测试。
 - 拆分 Footer / Side 控制面，清理 `footer_mode` 等旧序列化结构。
 
-实施状态：阶段 1 已建立 schema v3、Flow 类型、Canonical Slot 与 v1/v2 兼容迁移；阶段 2 已完成 Footer / Side Flow 策略和跨语言 Fixture 一致性校验；阶段 3 已完成 Region / Slot / Asset 方向解析并清理切换时的样式批量改写；阶段 4 已完成 Footer / Side 控制面拆分和单/双轨功能关联；阶段 5 已完成预设迁移、旧运行时结构清理和文档收口。
+实施状态：阶段 1 已建立 schema、Flow 类型、Canonical Slot；阶段 2 已完成 Footer / Side Flow 策略和跨语言 Fixture 一致性校验；阶段 3 已完成 Region / Slot / Asset 方向解析并清理切换时的样式批量改写；阶段 4 已完成 Footer / Side 控制面拆分和单/双轨功能关联；阶段 5 已完成预设迁移、旧运行时结构清理和文档收口。
 
-### Phase C：V3 控制面收敛与布局 Guardrails
+### Phase C：控制面收敛与布局 Guardrails
 
 设计文档：`design/v3-control-surface-guardrails.md`。
 

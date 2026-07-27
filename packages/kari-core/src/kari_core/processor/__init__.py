@@ -16,7 +16,7 @@ def _auto_register_processors():
         'kari_core.processor.filters',
         'kari_core.processor.generators',
         'kari_core.processor.mergers',
-        'kari_core.processor.v3_watermark',
+        'kari_core.processor.kari_imprint',
     ]
 
     for module_name in modules_to_scan:

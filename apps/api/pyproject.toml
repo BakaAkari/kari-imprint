@@ -1,6 +1,6 @@
 [project]
 name = "kari-imprint-api"
-version = "0.1.2"
+version = "0.2.0"
 description = "FastAPI backend for Kari Imprint"
 readme = "README.md"
 requires-python = ">=3.13"

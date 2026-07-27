@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { computeLayout, type RegionConfig, type SlotConfig, type StyleConfig, type WatermarkConfig } from '../src/v3_layout/layoutEngine';
+import { computeLayout, type RegionConfig, type SlotConfig, type StyleConfig, type ImprintConfig } from '../src/layout/layoutEngine';
 
 const defaultStyle: StyleConfig = {
   font_size: 16, font_size_level: null, font_size_ratio: null,
@@ -9,7 +9,7 @@ const defaultStyle: StyleConfig = {
   text_direction: null,
 };
 
-const fixturePath = resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/v3_flow_layout_cases.json');
+const fixturePath = resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/flow_layout_cases.json');
 const cases = JSON.parse(readFileSync(fixturePath, 'utf8')) as Array<any>;
 const output = cases.map((entry) => {
   const raw = entry.config.regions[0];
@@ -31,7 +31,7 @@ const output = cases.map((entry) => {
     },
     slots,
   };
-  const config: WatermarkConfig = {
+  const config: ImprintConfig = {
     schema_version: 3,
     canvas: { margins: entry.config.canvas.margins, background: '#FFFFFF', border_radius: 0,
       border: { enabled: false, width_level: 'medium', color: '#FFFFFF' } },

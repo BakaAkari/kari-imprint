@@ -1,0 +1,39 @@
+[Unit]
+Description=Kari Imprint API (photography info-frame tool)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/kari-imprint
+
+Environment="PYTHONUNBUFFERED=1"
+Environment="KARI_IMPRINT_API_PREFIX=/tools/kari-imprint/api"
+Environment="KARI_IMPRINT_DATA_DIR=/var/lib/kari-imprint"
+Environment="KARI_IMPRINT_UPLOAD_DIR=/var/lib/kari-imprint/uploads"
+Environment="KARI_IMPRINT_OUTPUT_DIR=/var/lib/kari-imprint/outputs"
+Environment="KARI_IMPRINT_RESOURCES_DIR=/var/lib/kari-imprint/resources"
+Environment="KARI_IMPRINT_TMP_DIR=/var/lib/kari-imprint/tmp"
+Environment="KARI_IMPRINT_MAX_IMAGE_PIXELS=50000000"
+Environment="KARI_IMPRINT_PREVIEW_MAX_IMAGE_PIXELS=100000000"
+
+# uv 已通过 /home/ubuntu/.local/bin/uv sync 装好 workspace，只需要用它
+# python 解释器路径与 site-analytics 一致的直接调用 venv 方案
+ExecStart=/opt/kari-imprint/.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 21832 --workers 1 --limit-concurrency 8 --timeout-keep-alive 5 --no-server-header
+
+Restart=on-failure
+RestartSec=3
+
+# 安全约束
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kari-imprint
+MemoryMax=1200M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

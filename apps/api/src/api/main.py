@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import secrets
 import time
 import zipfile
@@ -20,8 +21,8 @@ from starlette.concurrency import run_in_threadpool
 
 from api import stats
 from api.errors import ApiError
-from api.processing import process_image_v3
-from api.schemas_v3 import is_v3_payload, success_response, validate_v3_payload
+from api.processing import process_image
+from api.schemas import is_imprint_payload, success_response, validate_imprint_payload
 from api.settings import settings
 from api.storage import (
     cleanup_expired_files,
@@ -36,10 +37,10 @@ from api.storage import (
 
 _api = settings.api_prefix
 
-app = FastAPI(title="Kari Imprint Web API", version="0.1.2")
+app = FastAPI(title="Kari Imprint Web API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=["http://127.0.0.1:21831", "http://localhost:21831"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -58,6 +59,50 @@ if _logos_dir.exists():
     app.mount(f"{_api}/logos", StaticFiles(directory=str(_logos_dir)), name="logos")
 
 _LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+
+# ── Logo naming: <stem>[_variant][_dark].<ext> ──────────────────────
+
+
+def _parse_logo_stem(raw: str) -> tuple[str, str, bool]:
+    """Return (base_stem, variant, is_dark) from a filename stem.
+
+    ``canon_v2_dark`` → (``canon``, ``v2``, True)
+    ``sony_alt``       → (``sony``, ``alt``, False)
+    ``nikon``          → (``nikon``, ````, False)
+    """
+    parts = raw.split("_")
+    is_dark = parts[-1] == "dark"
+    if is_dark:
+        parts.pop()
+    if len(parts) > 1 and re.match(r"^(v\d+|[a-z]{2,3})$", parts[-1]):
+        variant = parts[-1]
+        base = "_".join(parts[:-1])
+    else:
+        variant = ""
+        base = "_".join(parts)
+    return base, variant, is_dark
+
+
+def _find_logo_file(base_stem: str, variant: str = "", dark: bool = False) -> Path | None:
+    """Find a logo file matching base_stem + optional variant + optional dark.
+
+    Fallback order: <base>_<variant>_dark → <base>_dark → <base>_<variant> → <base>
+    """
+    if not _logos_dir.exists():
+        return None
+    variants: list[str] = []
+    if variant and dark:
+        variants.append(f"{base_stem}_{variant}_dark")
+    if dark:
+        variants.append(f"{base_stem}_dark")
+    if variant:
+        variants.append(f"{base_stem}_{variant}")
+    variants.append(base_stem)
+    for candidate in variants:
+        for path in sorted(_logos_dir.iterdir(), key=lambda item: item.name.lower()):
+            if path.is_file() and path.stem == candidate and path.suffix.lower() in _LOGO_EXTENSIONS:
+                return path
+    return None
 
 
 def _resolve_builtin_logo(name: str) -> Path:
@@ -82,22 +127,46 @@ async def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
 
 @app.get(f"{_api}/logos")
 def list_logos() -> dict[str, Any]:
-    """List available built-in logo names (dev/testing)."""
+    """List available built-in logos with per-brand variants."""
     if not _logos_dir.exists():
         return success_response(logos=[])
-    names = sorted(
-        p.stem
-        for p in _logos_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in _LOGO_EXTENSIONS and not p.name.startswith((".", "._"))
+    brand_variants: dict[str, set[str]] = {}
+    for p in sorted(_logos_dir.iterdir(), key=lambda item: item.name.lower()):
+        if not p.is_file() or p.suffix.lower() not in _LOGO_EXTENSIONS:
+            continue
+        if p.name.startswith((".", "._")):
+            continue
+        base, variant, _dark = _parse_logo_stem(p.stem)
+        brand_variants.setdefault(base, set()).add(variant)
+    result = sorted(
+        (
+            {"stem": base, "variants": sorted(v for v in variants if v)}
+            for base, variants in brand_variants.items()
+            if base
+        ),
+        key=lambda e: e["stem"],
     )
-    return success_response(logos=names)
+    return success_response(logos=result)
 
 
 @app.get(f"{_api}/builtin-logos/{{name}}")
-def get_builtin_logo(name: str) -> FileResponse:
-    """Serve a built-in logo by safe stem, regardless of image extension."""
+def get_builtin_logo(
+    name: str,
+    variant: str = "",
+    dark: bool = False,
+) -> FileResponse:
+    """Serve a built-in logo, with optional variant and dark-mode lookup.
 
-    return FileResponse(_resolve_builtin_logo(name))
+    Query params:
+      variant=<str>  — e.g. ``v2``, ``alt``
+      dark=<1|true>  — use the ``_dark`` variant
+    """
+    if not name or Path(name).name != name or Path(name).suffix:
+        raise ApiError(code="invalid_logo_name", message="Logo 名称不合法", status_code=400)
+    path = _find_logo_file(name, variant=variant, dark=dark)
+    if path is None:
+        raise ApiError(code="logo_not_found", message=f"内置 Logo '{name}' 不存在", status_code=404)
+    return FileResponse(path)
 
 
 @app.get(f"{_api}/health")
@@ -181,7 +250,7 @@ async def metadata_endpoint(
     file: UploadFile | None = File(default=None),
     image_id: str = Form(default=""),
 ) -> dict[str, Any]:
-    """Return normalized, safe EXIF field values for V3 canvas preview."""
+    """Return normalized, safe EXIF field values for canvas preview."""
 
     cleanup_expired_files(settings)
     if file is not None:
@@ -333,20 +402,20 @@ async def _run_single_image(
     try:
         t0 = time.perf_counter()
 
-        if is_v3_payload(config_payload):
-            v3_config = validate_v3_payload(config_payload)
+        if is_imprint_payload(config_payload):
+            imprint_config = validate_imprint_payload(config_payload)
             result_path = await run_in_threadpool(
-                process_image_v3,
+                process_image,
                 input_path,
                 output_path,
-                v3_config,
+                imprint_config,
                 settings,
                 preview=preview,
             )
         else:
             raise ApiError(
                 code="legacy_config_removed",
-                message="旧版水印配置已下线，请使用 V3 Region 配置",
+                message="旧版水印配置已下线，请使用 Kari Imprint Region 配置",
                 status_code=410,
             )
 
@@ -372,7 +441,7 @@ def _parse_config_json(raw: str) -> dict[str, Any]:
     if len(raw.encode("utf-8")) > _MAX_CONFIG_JSON_BYTES:
         raise ApiError(
             code="config_too_large",
-            message="水印配置过大",
+            message="边框配置过大",
             status_code=413,
         )
 

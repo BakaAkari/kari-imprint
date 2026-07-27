@@ -1,6 +1,6 @@
 ---
 name: kari-imprint
-description: "Kari Imprint - photography watermark tools: web, app, mini-program."
+description: "Kari Imprint - photography info-frame tools: web, app, mini-program."
 version: 1.0.0
 ---
 
@@ -8,7 +8,7 @@ version: 1.0.0
 
 ## 项目定位
 
-公开摄影水印工具集，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **V3 Flow Layout**：Region / Canonical Slot / Content，底栏与左右侧栏共享单/双轨排版模型。
+公开摄影信息边框工具集，代码由 `aka-semi-utils` 迁移重命名。当前主线是 **Flow Layout**：Region / Canonical Slot / Content，底栏与左右侧栏共享单/双轨排版模型。
 
 ## Monorepo 结构
 
@@ -56,7 +56,7 @@ uv run python scripts/verify_flow_layout_parity.py
 cd packages/kari-core && uv run pytest
 cd apps/api && uv run pytest
 cd apps/web && npx tsc -b --pretty false
-cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd apps/web && VITE_API_BASE=/tools/kari-imprint npm run build
 git diff --check
 ```
 
@@ -67,7 +67,7 @@ git diff --check
 - 豀函数不在服务器直接 `git clone` GitHub。正常使用本地 Mac scp/rsync 传代码，或在服务器上从内网镜像拉取。
 - 豀函数不在服务器上运行 `uv sync --all-packages --dev`。部署只需要运行时依赖；开发依赖（pytest/ruff/mypy）留给本地开发环境。
 - 豀函数不让 `www-data` 运行 `/opt` 下的程序。腾讯云轻量服务器对该用户有额外限制，直接使用 `ubuntu` 用户运行服务。
-- 豀函数部署后不立即验证 `/api/health` 和端到端水印生成。
+- 豀函数部署后不立即验证 `/api/health` 和端到端边框生成。
 
 ## 轨迹
 

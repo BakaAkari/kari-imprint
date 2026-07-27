@@ -1,8 +1,8 @@
-import { toDownloadUrl } from '../apiV3';
-import type { V3AppContextType } from '../V3HomePage';
+import { toDownloadUrl } from '../api';
+import type { AppContextType } from '../HomePage';
 
 export type TopBarController = Pick<
-  V3AppContextType,
+  AppContextType,
   | 'files'
   | 'status'
   | 'message'
@@ -53,7 +53,7 @@ export function TopBar({ controller: ctx }: { controller: TopBarController }) {
         <span className="topbar-nav-sep" />
         <div className="topbar-brand">
           <div className="topbar-brand-text">
-            <span className="topbar-brand-title">WATERMARK</span>
+            <span className="topbar-brand-title">KARI IMPRINT</span>
             <span className="topbar-brand-sub">T-001</span>
           </div>
         </div>

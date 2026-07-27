@@ -2,7 +2,7 @@
 
 桌面最终版为 `v2.1.9`，保存在 `archive/desktop-v2`，不再更新。
 
-Web/V3 使用独立 SemVer 版本线，从 `0.1.0` 开始：
+Kari Imprint 使用独立 SemVer 版本线，从 `0.1.0` 开始：
 
 - `0.x`：公开测试前及公开测试阶段，API 和配置允许破坏性调整。
 - `1.0.0`：公开服务稳定、隐私与运维流程完成后发布。
@@ -30,15 +30,15 @@ cd packages/kari-core && uv run pytest
 cd apps/api && uv run pytest
 cd apps/web && npm run test:presets
 cd apps/web && npx tsc -b --pretty false
-cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd apps/web && VITE_API_BASE=/tools/kari-imprint npm run build
 ```
 
 以及线上验证：
 
-- V3 页面 200。
-- V3 API health 200。
+- 前端页面 200。
+- API health 200。
 - 上传、预览、处理、下载冒烟测试。
 - V1 页面为“回炉重塑中”。
 - V1 API 410。
 - V2 404。
-- `watermark-v3.service` active，只有 2190 监听。
+- `kari-imprint.service` active，只有 2190 监听。

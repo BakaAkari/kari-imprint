@@ -1,4 +1,4 @@
-import type { ExifFieldValues } from './apiV3';
+import type { ExifFieldValues } from './api';
 
 /**
  * Coherent sample cameras for the empty-canvas preview.

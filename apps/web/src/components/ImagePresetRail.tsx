@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PREVIEW_ASPECT_RATIOS, type PreviewAspectRatio, type MainControlConfig, type ControlSurface } from '../v3Types';
-import type { RuntimeCapabilities } from '../apiV3';
+import { PREVIEW_ASPECT_RATIOS, type PreviewAspectRatio, type MainControlConfig, type ControlSurface } from '../types';
+import type { RuntimeCapabilities } from '../api';
 
 export type RailPreset<TConfig> = {
   id: string;
@@ -131,7 +131,7 @@ export function ImagePresetRail<TConfig>({
   }, [handleFiles]);
 
   return (
-    <aside className="left-rail v3-left-rail" aria-label="图像选择和水印预设">
+    <aside className="left-rail" aria-label="图像选择和边框预设">
       <div className="rail-panel rail-panel-upload">
         <div className="rail-panel-header">
           <span className="rail-panel-title">图片</span>
@@ -219,7 +219,7 @@ export function ImagePresetRail<TConfig>({
 
       <div className="rail-panel rail-panel-presets">
         <div className="rail-panel-header">
-          <span className="rail-panel-title">水印预设</span>
+          <span className="rail-panel-title">边框预设</span>
           <button className="small ghost" onClick={onReset}>重置</button>
         </div>
         <div className="rail-panel-body scroll">

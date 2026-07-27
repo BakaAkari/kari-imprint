@@ -1,15 +1,15 @@
 """Shared auto-Logo brand matcher.
 
-Both the V3 renderer (`processor/v3_renderer.py::_resolve_auto_logo_path`) and the
-legacy V2 Jinja helper (`core/jinja2renders.py::resolve_auto_logo`) call the same
+Both the renderer (`processor/renderer.py::_resolve_auto_logo_path`) and the
+legacy Jinja helper (`core/jinja2renders.py::resolve_auto_logo`) call the same
 pure primitive here so that a rename or matcher tweak can never desynchronise the
 two Python paths again. Front-end previews mirror the same behaviour through a
-shared JSON contract fixture (`tests/fixtures/v3_auto_logo_cases.json`).
+shared JSON contract fixture (`tests/fixtures/auto_logo_cases.json`).
 
-V3 policy — implemented at the callsite:
+Policy — implemented at the callsite:
   - `_resolve_auto_logo_path` uses ONLY the builtin logos directory (no `custom/`
     lookup) and never falls back to fujifilm. Unknown or missing Make → None,
-    so the preview draws a neutral skeleton and the exported watermark is
+    so the preview draws a neutral skeleton and the exported imprint is
     transparent in the same place.
 """
 from __future__ import annotations

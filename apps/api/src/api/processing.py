@@ -10,7 +10,7 @@ from typing import Any
 import kari_core.processor  # noqa: F401  # side-effect: register processors
 from kari_core.core.util import get_exif
 from kari_core.processor.core import start_process
-from kari_core.shared.v3_assembler import v3_config_to_processors
+from kari_core.shared.assembler import imprint_config_to_processors
 from PIL import Image, ImageOps
 from PIL.Image import DecompressionBombWarning
 
@@ -19,7 +19,7 @@ from api.settings import WebApiSettings
 from api.storage import resolve_resource
 
 
-def process_image_v3(
+def process_image(
     input_path: Path,
     output_path: Path,
     config_dict: dict[str, Any],
@@ -27,19 +27,19 @@ def process_image_v3(
     *,
     preview: bool = False,
 ) -> Path:
-    """Run the V3 watermark processor pipeline for one uploaded image."""
+    """Run the Kari Imprint processor pipeline for one uploaded image."""
 
     if preview:
         _validate_image(input_path, settings, max_pixels=settings.preview_max_image_pixels, mode="preview")
     else:
         _validate_image(input_path, settings, max_pixels=settings.max_image_pixels, mode="process")
 
-    resolved_config = _resolve_v3_resources(config_dict, settings)
-    processors = v3_config_to_processors(resolved_config)
+    resolved_config = _resolve_imprint_resources(config_dict, settings)
+    processors = imprint_config_to_processors(resolved_config)
     if not processors:
         raise ApiError(
             code="empty_pipeline",
-            message="当前 V3 配置没有生成可执行的水印处理管线",
+            message="当前配置没有生成可执行的处理管线",
             status_code=400,
         )
     # The core output node reads encoding options from its processor config.
@@ -71,7 +71,7 @@ def process_image_v3(
         import logging
         import traceback
         _logger = logging.getLogger("api.processing")
-        _logger.error("V3 image processing failed:\n%s", traceback.format_exc())
+        _logger.error("Image processing failed:\n%s", traceback.format_exc())
         output_path.unlink(missing_ok=True)
         raise ApiError(
             code="processing_failed",
@@ -88,11 +88,11 @@ def process_image_v3(
     return output_path
 
 
-def _resolve_v3_resources(
+def _resolve_imprint_resources(
     config_dict: dict[str, Any],
     settings: WebApiSettings,
 ) -> dict[str, Any]:
-    """Resolve opaque V3 logo/signature ids after public schema validation.
+    """Resolve opaque logo/signature ids after public schema validation.
 
     User input never reaches a server path sink. Disabled regions and slots are
     intentionally ignored because their resources are not consumed.

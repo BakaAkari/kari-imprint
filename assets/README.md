@@ -2,7 +2,7 @@
 
 本目录用于存放不进 Git 仓库的大文件，主要包括：
 
-- `fonts/` — 水印渲染所需字体
+- `fonts/` — 边框渲染所需字体
 - `logos/` — 相机品牌 Logo
 
 ## 为什么不放在 Git 里
@@ -71,4 +71,4 @@ export KARI_IMPRINT_ASSETS_DIR=/var/lib/kari-imprint/assets
 - `Roboto-Medium.ttf`
 - `Roboto-Light.ttf`
 
-Logo 图片与品牌名称对应，例如 `nikon.png`。API 的 `/tools/watermark-v3/api/builtin-logos/{name}` 按文件 stem 解析，支持 `.png` / `.jpg` / `.jpeg` / `.webp`，因此 `DJI.jpg` 会以 `builtin:DJI` 引用。
+Logo 图片与品牌名称对应，例如 `nikon.png`。API 的 `/tools/kari-imprint/api/builtin-logos/{name}` 按文件 stem 解析，支持 `.png` / `.jpg` / `.jpeg` / `.webp`，因此 `DJI.jpg` 会以 `builtin:DJI` 引用。

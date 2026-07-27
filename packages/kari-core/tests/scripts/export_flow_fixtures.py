@@ -7,24 +7,24 @@ from pathlib import Path
 ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kari_core.shared.v3_layout.layout_engine import (  # noqa: E402
+from kari_core.shared.layout.layout_engine import (  # noqa: E402
     CanvasConfig,
     FieldChip,
     FlowLayoutConfig,
+    ImprintConfig,
     LogoContent,
     MarginsConfig,
     RegionConfig,
     SlotConfig,
     StyleConfig,
     TextContent,
-    WatermarkConfig,
     compute_layout,
 )
 
-FIXTURES = Path(__file__).parents[1] / "fixtures" / "v3_flow_layout_cases.json"
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "flow_layout_cases.json"
 
 
-def build(case: dict) -> WatermarkConfig:
+def build(case: dict) -> ImprintConfig:
     raw = case["config"]["regions"][0]
 
     def slot_content(value: dict):
@@ -45,7 +45,7 @@ def build(case: dict) -> WatermarkConfig:
             for slot_id, value in raw["slots"].items()
         },
     )
-    return WatermarkConfig(
+    return ImprintConfig(
         canvas=CanvasConfig(margins=MarginsConfig(**case["config"]["canvas"]["margins"])),
         regions=[region],
     )

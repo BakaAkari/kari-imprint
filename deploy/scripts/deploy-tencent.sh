@@ -1,197 +1,152 @@
 #!/usr/bin/env bash
+# deploy-tencent.sh — kari-imprint 部署脚本（for baka-akari.zone Caddy stack）
+#
+# 与 site-analytics 相同风格：ubuntu 用户 + uv venv + 127.0.0.1 反代 + Caddyfile 追加
+#
+# 用法:
+#   bash deploy/scripts/deploy-tencent.sh          # 完整部署
+#   bash deploy/scripts/deploy-tencent.sh code     # 仅同步代码 + 重启后端
+#   bash deploy/scripts/deploy-tencent.sh web      # 仅同步前端 dist
+#   bash deploy/scripts/deploy-tencent.sh caddy    # 仅更新 Caddyfile
+#   bash deploy/scripts/deploy-tencent.sh check    # 部署后健康检查
+
 set -euo pipefail
 
-# deploy-tencent.sh
-# 腾讯云轻量服务器部署脚本（一键打包+上传）
-# 由于腾讯云 SSH 可能需要二次验证，远程部署部分需要用户手动 ssh 登录后执行。
-#
-# 使用方式：
-#   1. 在 Mac 上运行 deploy/scripts/deploy-tencent.sh
-#   2. 等待上传完成
-#   3. 按提示 ssh 登录服务器，执行 /tmp/kari-imprint-deploy-remote.sh
-#
-# 要求本地 Mac 环境：
-#   - 已安装 uv (https://astral.sh/uv)
-#   - 已安装 npm/node
-#   - 配置好 SSH config 中的 tencent-ubuntu Host
+REMOTE="tencent-ubuntu"
+DOMAIN="baka-akari.zone"
+URL_PREFIX="/tools/kari-imprint"
+PORT="21832"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-DEPLOY_HOST="${DEPLOY_HOST:-tencent-ubuntu}"
-REMOTE_DIR="${REMOTE_DIR:-/opt/kari-imprint}"
-REMOTE_WEB_DIR="${REMOTE_WEB_DIR:-/var/www/personal-home/tools/watermark-v3}"
-REMOTE_DATA_DIR="${REMOTE_DATA_DIR:-/var/lib/kari-imprint}"
-REMOTE_ASSETS_DIR="${REMOTE_ASSETS_DIR:-/var/lib/kari-imprint/assets}"
-REMOTE_PORT="${REMOTE_PORT:-2192}"
-API_PREFIX="${API_PREFIX:-/tools/watermark-v3/api}"
-
-DEPLOY_TAG="$(date +%Y%m%d-%H%M%S)"
-TMP_TARBALL="/tmp/kari-imprint-${DEPLOY_TAG}.tgz"
-TMP_ASSETS_TARBALL="/tmp/kari-imprint-assets-${DEPLOY_TAG}.tgz"
-REMOTE_TARBALL="/tmp/kari-imprint-latest.tgz"
-REMOTE_ASSETS_TARBALL="/tmp/kari-imprint-assets-latest.tgz"
-
-echo "==> 检查本地 assets"
-if [ ! -d "${PROJECT_ROOT}/assets/fonts" ] || [ ! -d "${PROJECT_ROOT}/assets/logos" ]; then
-  echo "ERROR: 本地 assets/fonts 或 assets/logos 不存在，请先准备静态资源" >&2
-  exit 1
-fi
-
-echo "==> 清理并重新构建前端"
-cd "${PROJECT_ROOT}/apps/web"
-npm install
-VITE_API_BASE="${API_PREFIX%/api}" npm run build
-
-echo "==> 本地验证 Python 测试"
-cd "${PROJECT_ROOT}"
-uv run ruff check .
-cd packages/kari-core && uv run pytest
-cd ../../apps/api && uv run pytest
-
-echo "==> 打包源码（不含 .git/node_modules/.venv/assets）"
-cd "${PROJECT_ROOT}"
-tar -czf "${TMP_TARBALL}" \
-  --exclude='node_modules' \
-  --exclude='.venv' \
-  --exclude='venv' \
-  --exclude='dist' \
-  --exclude='__pycache__' \
-  --exclude='.pytest_cache' \
-  --exclude='.mypy_cache' \
-  --exclude='*.pyc' \
-  --exclude='.DS_Store' \
-  --exclude='.vite' \
-  --exclude='*.tsbuildinfo' \
-  --exclude='.git' \
-  --exclude='assets' \
-  .
-
-echo "==> 打包 assets（字体 + logo）"
-cd "${PROJECT_ROOT}"
-tar -czf "${TMP_ASSETS_TARBALL}" \
-  --exclude='.DS_Store' \
-  assets/fonts assets/logos assets/README.md
-
-echo "==> 上传代码包、assets 和远程部署脚本"
-cat > /tmp/kari-imprint-deploy-remote.sh <<'REMOTE_SCRIPT'
-#!/usr/bin/env bash
-set -euo pipefail
-
-REMOTE_DIR="/opt/kari-imprint"
-REMOTE_WEB_DIR="/var/www/personal-home/tools/watermark-v3"
+REMOTE_CODE_DIR="/opt/kari-imprint"
+REMOTE_WEB_DIR="/var/www/personal-home/tools/kari-imprint"
 REMOTE_DATA_DIR="/var/lib/kari-imprint"
-REMOTE_ASSETS_DIR="/var/lib/kari-imprint/assets"
-REMOTE_PORT="2192"
-API_PREFIX="/tools/watermark-v3/api"
+LOCAL_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
-echo "    -> 清理旧版并解压代码"
-sudo systemctl stop kari-imprint.service 2>/dev/null || true
-sudo rm -rf \
-  /opt/aka-semi-utils-web \
-  /opt/aka-semi-utils-web-v2 \
-  "${REMOTE_DIR}" \
-  /var/www/personal-home/tools/watermark \
-  /var/www/personal-home/tools/watermark-v3
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+log()  { echo -e "${GREEN}[deploy]${NC} $*"; }
+warn() { echo -e "${YELLOW}[warn]${NC}   $*"; }
+err()  { echo -e "${RED}[err]${NC}    $*" >&2; exit 1; }
 
-sudo mkdir -p "${REMOTE_DIR}"
-sudo chown -R "$(whoami)":"$(whoami)" "${REMOTE_DIR}"
-tar -xzf /tmp/kari-imprint-latest.tgz -C "${REMOTE_DIR}"
-find "${REMOTE_DIR}" -name '._*' -delete
+STEP="${1:-all}"
 
-echo "    -> 解压 assets 到服务器"
-sudo rm -rf "${REMOTE_ASSETS_DIR}"
-sudo mkdir -p "${REMOTE_ASSETS_DIR}"
-tar -xzf /tmp/kari-imprint-assets-latest.tgz -C "${REMOTE_DATA_DIR}"
-sudo chown -R "$(whoami)":"$(whoami)" "${REMOTE_ASSETS_DIR}"
+deploy_web() {
+    log "[web] 本地构建（VITE_API_BASE=${URL_PREFIX} VITE_PUBLIC_BASE=${URL_PREFIX}）"
+    (cd "${LOCAL_DIR}/apps/web" && VITE_API_BASE="${URL_PREFIX}" VITE_PUBLIC_BASE="${URL_PREFIX}" npm run build)
 
-echo "    -> 创建运行时目录"
-sudo mkdir -p "${REMOTE_DATA_DIR}"{"/uploads","/outputs","/resources","/tmp"}
-sudo chown -R "$(whoami)":"$(whoami)" "${REMOTE_DATA_DIR}"
+    log "[web] 远端准备目录"
+    ssh "${REMOTE}" "sudo mkdir -p '${REMOTE_WEB_DIR}' && sudo chown -R www-data:www-data '${REMOTE_WEB_DIR}'"
 
-echo "    -> 配置 Python 解释器和依赖"
-mkdir -p "$HOME/.config/uv"
-cat > "$HOME/.config/uv/uv.toml" <<'UVCONF'
-[pip]
-index-url = "https://mirrors.aliyun.com/pypi/simple/"
-UVCONF
+    log "[web] rsync dist -> ${REMOTE_WEB_DIR}/"
+    rsync -avz --delete \
+        --rsync-path="sudo rsync" \
+        "${LOCAL_DIR}/apps/web/dist/" \
+        "${REMOTE}:${REMOTE_WEB_DIR}/"
 
-export PATH="$HOME/.local/bin:$PATH"
-UV_PYTHON="/opt/uv-python/cpython-3.13/bin/python3.13"
+    log "[web] 修正 ownership（www-data，Caddy 需要读）"
+    ssh "${REMOTE}" "sudo chown -R www-data:www-data '${REMOTE_WEB_DIR}'"
+}
 
-cd "${REMOTE_DIR}"
-rm -rf .venv
-uv venv --python "$UV_PYTHON"
-uv pip install -e ./packages/kari-core -e ./apps/api
-chmod -R 755 .venv/bin
+deploy_code() {
+    log "[code] 远端准备目录（ubuntu 拥有）"
+    ssh "${REMOTE}" "sudo mkdir -p '${REMOTE_CODE_DIR}' '${REMOTE_DATA_DIR}'/{uploads,outputs,tmp,resources/logo,resources/signature} && sudo chown -R ubuntu:ubuntu '${REMOTE_CODE_DIR}' '${REMOTE_DATA_DIR}'"
 
-echo "    -> 部署编译前端静态文件"
-sudo mkdir -p "${REMOTE_WEB_DIR}"
-sudo cp -r "${REMOTE_DIR}/apps/web/dist/"* "${REMOTE_WEB_DIR}/"
-sudo chown -R www-data:www-data "${REMOTE_WEB_DIR}"
+    log "[code] rsync 源码 -> ${REMOTE_CODE_DIR}/"
+    # 只同步运行时需要的部分。剔除：git、venv、node_modules、pycache、web 前端 src（web 走 dist 通道）、tests（部署不需要）、dist（前端产物已上）
+    rsync -avz --delete \
+        --exclude='.git' \
+        --exclude='.venv' \
+        --exclude='node_modules' \
+        --exclude='__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='.DS_Store' \
+        --exclude='*.log' \
+        --exclude='apps/web/dist' \
+        --exclude='apps/web/node_modules' \
+        --exclude='apps/web/src' \
+        --exclude='apps/web/public' \
+        --exclude='apps/web/scripts' \
+        --exclude='apps/api/tests' \
+        --exclude='packages/kari-core/tests' \
+        --exclude='RENAME_BRIEF.md' \
+        --exclude='RENAME_REPORT.md' \
+        --exclude='design/' \
+        --exclude='docs/archive/' \
+        "${LOCAL_DIR}/" "${REMOTE}:${REMOTE_CODE_DIR}/"
 
-echo "    -> 配置环境变量"
-sudo tee /etc/kari-imprint.env > /dev/null <<ENV
-KARI_IMPRINT_DATA_DIR=${REMOTE_DATA_DIR}
-KARI_IMPRINT_ASSETS_DIR=${REMOTE_ASSETS_DIR}
-KARI_IMPRINT_RESOURCE_DIR=${REMOTE_DATA_DIR}/resources
-KARI_IMPRINT_UPLOAD_DIR=${REMOTE_DATA_DIR}/uploads
-KARI_IMPRINT_OUTPUT_DIR=${REMOTE_DATA_DIR}/outputs
-KARI_IMPRINT_TMP_DIR=${REMOTE_DATA_DIR}/tmp
-KARI_IMPRINT_API_PREFIX=${API_PREFIX}
-KARI_IMPRINT_MAX_UPLOAD_SIZE=33554432
-KARI_IMPRINT_OUTPUT_TTL=3600
-KARI_IMPRINT_CLEANUP_INTERVAL=300
-KARI_IMPRINT_LOG_LEVEL=info
-ENV
-sudo chmod 600 /etc/kari-imprint.env
+    log "[code] 远端 uv sync（runtime deps only，不含 dev）"
+    ssh "${REMOTE}" "cd '${REMOTE_CODE_DIR}' && /home/ubuntu/.local/bin/uv sync --all-packages --no-dev"
 
-echo "    -> 配置 systemd 服务"
-sudo tee /etc/systemd/system/kari-imprint.service > /dev/null <<SERVICE
-[Unit]
-Description=Kari Imprint Web API
-After=network-online.target
-Wants=network-online.target
+    log "[code] 上传 systemd unit"
+    scp "${LOCAL_DIR}/deploy/kari-imprint.service" "${REMOTE}:/tmp/kari-imprint.service"
+    ssh "${REMOTE}" "sudo mv /tmp/kari-imprint.service /etc/systemd/system/kari-imprint.service && sudo systemctl daemon-reload"
 
-[Service]
-Type=simple
-User=$(whoami)
-Group=$(whoami)
-WorkingDirectory=${REMOTE_DIR}
-EnvironmentFile=/etc/kari-imprint.env
-Environment=PATH=${REMOTE_DIR}/.venv/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=${REMOTE_DIR}/.venv/bin/uvicorn apps.api.src.api.main:app --host 127.0.0.1 --port ${REMOTE_PORT} --workers 1 --limit-concurrency 8 --timeout-keep-alive 5 --no-server-header
-Restart=on-failure
-RestartSec=3
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=yes
-ReadWritePaths=${REMOTE_DATA_DIR} ${REMOTE_ASSETS_DIR}
-MemoryMax=1200M
-TasksMax=64
+    log "[code] enable + restart 服务"
+    ssh "${REMOTE}" "sudo systemctl enable kari-imprint.service && sudo systemctl restart kari-imprint.service && sleep 2 && systemctl is-active kari-imprint.service"
 
-[Install]
-WantedBy=multi-user.target
-SERVICE
+    log "[code] 后端本地端口自检（127.0.0.1:${PORT}/tools/kari-imprint/api/health）"
+    ssh "${REMOTE}" "curl -sS -o /dev/null -w 'local:%{http_code}\n' http://127.0.0.1:${PORT}${URL_PREFIX}/api/health"
+}
 
-sudo systemctl daemon-reload
-sudo systemctl enable kari-imprint.service
-sudo systemctl start kari-imprint.service
+deploy_caddy() {
+    log "[caddy] 备份当前 Caddyfile"
+    ssh "${REMOTE}" "sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.\$(date +%Y%m%d_%H%M%S)"
 
-echo "    -> 检查服务状态"
-sleep 3
-systemctl is-active kari-imprint.service
-REMOTE_SCRIPT
+    log "[caddy] 检查是否已配置 /tools/kari-imprint 路由"
+    if ssh "${REMOTE}" "grep -q 'tools/kari-imprint' /etc/caddy/Caddyfile"; then
+        warn "Caddyfile 里已有 /tools/kari-imprint 路由，跳过追加（如需覆盖请手工编辑）"
+        return
+    fi
 
-chmod +x /tmp/kari-imprint-deploy-remote.sh
-scp "${TMP_TARBALL}" "${DEPLOY_HOST}:${REMOTE_TARBALL}"
-scp "${TMP_ASSETS_TARBALL}" "${DEPLOY_HOST}:${REMOTE_ASSETS_TARBALL}"
-scp /tmp/kari-imprint-deploy-remote.sh "${DEPLOY_HOST}:/tmp/kari-imprint-deploy-remote.sh"
+    log "[caddy] 追加新 handle 到 baka-akari.zone 块（在最后 file_server 之前）"
+    # 用 python 做 in-place 编辑：找到 'baka-akari.zone' 块内最后一个 handle 之后、file_server 之前插入
+    cat "${LOCAL_DIR}/deploy/caddy-snippet.conf" | ssh "${REMOTE}" 'cat > /tmp/kari-imprint-caddy-snippet.conf'
+    ssh "${REMOTE}" 'sudo python3 -c "
+import re, sys
+p = \"/etc/caddy/Caddyfile\"
+with open(p) as f: src = f.read()
+snippet = open(\"/tmp/kari-imprint-caddy-snippet.conf\").read()
+# 在 baka-akari.zone 块的最后一个 handle 之后、结尾 file_server / } 之前插入
+m = re.search(r\"(baka-akari\.zone[^{]*{)(.*?)(\n\tfile_server\n})\", src, re.S)
+if not m:
+    print(\"ERR: baka-akari.zone block not found in expected pattern\", file=sys.stderr); sys.exit(2)
+head, body, tail = m.group(1), m.group(2), m.group(3)
+new_body = body.rstrip() + \"\n\n\" + \"\n\".join(\"\t\"+l if l.strip() else l for l in snippet.splitlines()) + \"\n\"
+new_src = src[:m.start()] + head + new_body + tail + src[m.end():]
+with open(p, \"w\") as f: f.write(new_src)
+print(\"OK: Caddyfile patched\")
+"'
 
-echo ""
-echo "==> 代码包和 assets 已上传，请手动登录服务器完成部署："
-echo "    ssh ${DEPLOY_HOST}"
-echo "    bash /tmp/kari-imprint-deploy-remote.sh"
-echo ""
-echo "==> 部署完成后访问: https://baka-akari.zone/tools/watermark-v3/"
+    log "[caddy] validate"
+    ssh "${REMOTE}" "sudo caddy validate --config /etc/caddy/Caddyfile"
 
-rm -f "${TMP_TARBALL}" "${TMP_ASSETS_TARBALL}" /tmp/kari-imprint-deploy-remote.sh
+    log "[caddy] reload"
+    ssh "${REMOTE}" "sudo systemctl reload caddy"
+}
+
+deploy_check() {
+    log "[check] 后端健康"
+    ssh "${REMOTE}" "curl -sS -w '\nlocal-status:%{http_code}\n' http://127.0.0.1:${PORT}${URL_PREFIX}/api/health"
+    log "[check] Caddy → 前端"
+    curl -sS -o /dev/null -w "web:%{http_code}\n" "https://${DOMAIN}${URL_PREFIX}/"
+    log "[check] Caddy → 后端 API"
+    curl -sS -o /dev/null -w "api-health:%{http_code}\n" "https://${DOMAIN}${URL_PREFIX}/api/health"
+    log "[check] 服务状态"
+    ssh "${REMOTE}" "systemctl is-active kari-imprint.service; systemctl is-active caddy.service"
+    log "[check] 若 web=200 且 api-health=200 且服务 active，则 OK"
+}
+
+case "${STEP}" in
+    all)
+        deploy_web
+        deploy_code
+        deploy_caddy
+        deploy_check
+        ;;
+    web)   deploy_web ;;
+    code)  deploy_code ;;
+    caddy) deploy_caddy ;;
+    check) deploy_check ;;
+    *)     err "未知参数: ${STEP}（合法: all/web/code/caddy/check）" ;;
+esac
+
+log "完成: ${STEP}"

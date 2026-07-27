@@ -1,7 +1,7 @@
 [project]
 name = "kari-imprint"
-version = "0.1.2"
-description = "Kari Imprint - photography watermark tools (web, app, mini-program)"
+version = "0.2.0"
+description = "Kari Imprint - photography info-frame tools (web, app, mini-program)"
 readme = "README.md"
 requires-python = ">=3.13"
 

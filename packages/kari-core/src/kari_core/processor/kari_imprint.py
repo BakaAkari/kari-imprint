@@ -1,0 +1,202 @@
+"""Kari Imprint Filter — region-based imprint renderer.
+
+后端渲染层：
+  - 输入：imprint_config (dict) + 原图 PIL Image + EXIF
+  - 行为：调用 shared.layout.layout_engine.compute_layout() 获取 LayoutResult
+  - 输出：按 LayoutResult 在画布上粘贴/合成所有元素
+
+不内联计算坐标，全部委托给纯函数布局引擎；按 LayoutResult 的顺序绘制。
+"""
+
+from __future__ import annotations
+
+from kari_core.processor.core import PipelineContext, register
+from kari_core.processor.filters import FilterProcessor
+from kari_core.processor.renderer import render_pil
+from kari_core.shared.layout.layout_engine import TextContent, compute_layout
+from kari_core.shared.render_values import resolve_field_values
+
+
+@register("kari_imprint")
+class KariImprintFilter(FilterProcessor):
+    """Kari Imprint 滤镜 — 基于 LayoutResult 的声明式渲染。"""
+
+    def process(self, ctx: PipelineContext):
+        config_dict = ctx.get("imprint_config")
+        if not config_dict:
+            ctx.success()
+            return
+
+        config = _dict_to_imprint_config(config_dict)
+        img = ctx.get_buffer()[0]
+
+        layout = compute_layout(config, img.width, img.height)
+
+        exif = ctx.get_exif() or {}
+        file_path = ctx.get("input_path", "")
+        field_values = resolve_field_values(exif, file_path)
+
+        canvas = render_pil(
+            layout,
+            img,
+            bg_color=config.canvas.background,
+            field_values=field_values,
+            custom_text=config.custom_text,
+            config=config,
+        )
+
+        ctx.update_buffer([canvas]).save_buffer(self.name()).success()
+
+
+def _build_text(content: TextContent, custom_text: str, exif: dict, file_path: str) -> str:
+    """将 TextContent 中的 chips 解析为实际文本字符串。"""
+    field_values = resolve_field_values(exif, file_path)
+    texts: list[str] = []
+
+    for chip in content.chips:
+        if chip.field_id == "empty":
+            continue
+        if chip.field_id == "custom_text":
+            texts.append(chip.custom_text or custom_text or "")
+            continue
+        value = field_values.get(chip.field_id, "")
+        if value:
+            texts.append(value)
+
+    return content.separator.join(texts)
+
+
+def _dict_to_imprint_config(data: dict):
+    """将前端/API 传来的 plain dict 重建为 layout_engine 的 dataclass。"""
+    from kari_core.shared.layout.layout_engine import (
+        BorderConfig,
+        CanvasConfig,
+        FieldChip,
+        FlowLayoutConfig,
+        ImprintConfig,
+        LogoContent,
+        MarginsConfig,
+        RegionConfig,
+        SignatureContent,
+        SlotConfig,
+        StyleConfig,
+        TextContent,
+    )
+
+    def _style(d: dict | None) -> StyleConfig | None:
+        if d is None:
+            return None
+        return StyleConfig(
+            font_size=d.get("font_size"),
+            font_size_ratio=d.get("font_size_ratio"),
+            font_size_level=d.get("font_size_level"),
+            size_reference=d.get("size_reference", "region_height"),
+            color=d.get("color", "#222222"),
+            font_family=d.get("font_family", "NotoSansCJKsc-Bold.otf"),
+            bold=d.get("bold", True),
+            line_height=d.get("line_height", 1.2),
+            text_direction=d.get("text_direction"),
+        )
+
+    def _content(d: dict | None):
+        if d is None:
+            return None
+        if "chips" in d and "separator" in d:
+            return TextContent(
+                chips=[
+                    FieldChip(
+                        field_id=c.get("field_id", "empty"),
+                        custom_text=c.get("custom_text", ""),
+                    )
+                    for c in d["chips"]
+                ],
+                separator=d.get("separator", " "),
+            )
+        if "path" in d and "invert_mono" in d:
+            return SignatureContent(
+                path=d.get("path", ""),
+                invert_mono=d.get("invert_mono", False),
+                size_ratio=d.get("size_ratio"),
+                size_level=d.get("size_level"),
+                orientation=d.get("orientation", "upright"),
+                placement=d.get("placement", "end"),
+                track=d.get("track", "span"),
+            )
+        if "path" in d and "invert_mono" not in d:
+            return LogoContent(
+                path=d.get("path", ""),
+                size_ratio=d.get("size_ratio"),
+                size_level=d.get("size_level"),
+                orientation=d.get("orientation", "upright"),
+                placement=d.get("placement", "center"),
+                track=d.get("track", "span"),
+            )
+        return None
+
+    def _slot(d: dict | None) -> SlotConfig | None:
+        if d is None:
+            return None
+        return SlotConfig(
+            enabled=d.get("enabled", False),
+            content=_content(d.get("content")),
+            style=_style(d.get("style")),
+        )
+
+    def _flow(d: dict | None) -> FlowLayoutConfig | None:
+        if not d:
+            return None
+        ratios = d.get("track_ratios", (0.6, 0.4))
+        return FlowLayoutConfig(
+            mode=d.get("mode", "dual-track"),
+            main_alignment=d.get("main_alignment", "space-between"),
+            cross_alignment=d.get("cross_alignment", "center"),
+            track_order=d.get("track_order", "photo-outward"),
+            track_gap=d.get("track_gap", {"mode": "short_edge_ratio", "value": 0.012}),
+            item_gap=d.get("item_gap", {"mode": "short_edge_ratio", "value": 0.012}),
+            track_ratios=(float(ratios[0]), float(ratios[1])),
+        )
+
+    def _region(d: dict) -> RegionConfig:
+        return RegionConfig(
+            id=d.get("id", ""),
+            type=d.get("type", ""),
+            enabled=d.get("enabled", False),
+            slots={k: _slot(v) for k, v in (d.get("slots") or {}).items()},
+            height=d.get("height"),
+            edge=d.get("edge"),
+            width=d.get("width"),
+            alignment=d.get("alignment", "start"),
+            vertical_alignment=d.get("vertical_alignment", "center"),
+            padding=d.get("padding"),
+            layout=_flow(d.get("layout")),
+            text_orientation=d.get("text_orientation", "auto"),
+            anchor=d.get("anchor"),
+            offset_x=d.get("offset_x", 0.0),
+            offset_y=d.get("offset_y", 0.0),
+            offset_unit=d.get("offset_unit", "short_edge_ratio"),
+        )
+
+    canvas = data.get("canvas", {})
+    margins = canvas.get("margins", {})
+    border = canvas.get("border")
+
+    return ImprintConfig(
+        canvas=CanvasConfig(
+            margins=MarginsConfig(
+                top=margins.get("top", 0),
+                right=margins.get("right", 0),
+                bottom=margins.get("bottom", 0),
+                left=margins.get("left", 0),
+            ),
+            background=canvas.get("background", "#FFFFFF"),
+            border_radius=canvas.get("border_radius", 0),
+            border=BorderConfig(
+                enabled=border.get("enabled", False),
+                width_level=border.get("width_level", "medium"),
+                color=border.get("color", "#FFFFFF"),
+            ) if isinstance(border, dict) else None,
+        ),
+        regions=[_region(r) for r in data.get("regions", [])],
+        defaults=_style(data.get("defaults")) or StyleConfig(),
+        custom_text=data.get("custom_text", ""),
+    )

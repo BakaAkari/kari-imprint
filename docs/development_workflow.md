@@ -1,6 +1,6 @@
 # Development Workflow / 协作开发流程
 
-本文件固化 V3 水印工具的需求、设计、实现、验证、部署和提交流程。
+本文件固化 Kari Imprint 边框工具的需求、设计、实现、验证、部署和提交流程。
 
 **一致性与安全约束详见 `docs/consistency-contract.md`，本文件引用其核心规则。**
 
@@ -40,7 +40,7 @@
 至少运行：
 
 ```bash
-cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd apps/web && VITE_API_BASE=/tools/kari-imprint npm run build
 ```
 
 涉及 CSS Grid/Flexbox 的布局改动必须用浏览器截图验证。
@@ -59,11 +59,11 @@ uv run pytest
 必须验证：
 
 ```bash
-curl -sS https://baka-akari.zone/tools/watermark-v3/api/health
-curl -sS -o /dev/null -w '%{http_code}\n' https://baka-akari.zone/tools/watermark-v3/
+curl -sS https://baka-akari.zone/tools/kari-imprint/api/health
+curl -sS -o /dev/null -w '%{http_code}\n' https://baka-akari.zone/tools/kari-imprint/
 ```
 
-并检查旧入口（期望 V1 API `410`，V2 `404`，V3 `/v2` `404`）。
+并检查前端主入口可访问。
 
 ## 实现原则
 
@@ -78,7 +78,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://baka-akari.zone/tools/watermar
 
 ### 安全与架构
 
-- V3 只接受 Region / Slot / Content 配置。
+- 后端只接受 Region / Slot / Content 配置。
 - 不恢复 V1/V2 四角配置模型。
 - 不把用户文本送入 Jinja 或动态模板执行器。
 - 上传资源只能用服务端不透明 ID。
@@ -94,7 +94,7 @@ uv run python scripts/verify_flow_layout_parity.py
 cd packages/kari-core && uv run pytest
 cd apps/api && uv run pytest
 cd apps/web && npx tsc -b --pretty false
-cd apps/web && VITE_API_BASE=/tools/watermark-v3 npm run build
+cd apps/web && VITE_API_BASE=/tools/kari-imprint npm run build
 git diff --check
 
 # 残留引用搜索（功能删除后必做）
@@ -112,7 +112,7 @@ rg 'className=\{.*\$\{' apps/web/src --type tsx
 - `docs/roadmap.md`：当前路线图。
 - `docs/consistency-contract.md`：**最高优先级一致性开发契约**。
 - `docs/development_workflow.md`：本文件。
-- `design/v3-region-based-layout.md`：当前 V3 架构说明。
+- `design/v3-region-based-layout.md`：当前架构说明（历史文件名保留）。
 - `design/v3-control-surface-guardrails.md`：控制面设计（下一阶段）。
 - `deploy/README.md`：线上部署和验证。
 - `docs/archive/`：历史设计，仅作背景，不作为当前待办。

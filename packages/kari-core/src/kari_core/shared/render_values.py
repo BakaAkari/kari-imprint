@@ -1,4 +1,4 @@
-"""Shared value helpers for trusted renderer-owned watermark fields."""
+"""Shared value helpers for trusted renderer-owned imprint fields."""
 
 from __future__ import annotations
 

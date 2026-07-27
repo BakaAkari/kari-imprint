@@ -150,7 +150,7 @@ def new_output_path(input_path: Path, settings: WebApiSettings, *, prefix: str) 
     return settings.output_dir / f"{prefix}-{secrets.token_urlsafe(18)}{suffix}"
 
 
-def public_file_payload(path: Path, *, download_filename: str | None = None, api_prefix: str = "/tools/watermark/api") -> dict[str, str]:
+def public_file_payload(path: Path, *, download_filename: str | None = None, api_prefix: str = "/tools/kari-imprint/api") -> dict[str, str]:
     """Return file metadata safe for API clients.
 
     When *download_filename* is given it becomes the suggested filename for

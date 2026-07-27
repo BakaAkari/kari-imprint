@@ -1,8 +1,42 @@
 # Changelog / 开发变更记录
 
-本文件记录当前 Web/V3 主线的重要变化。正式 Release notes 应以本文件、git diff 和实际验证结果为基础整理。
+本文件记录 Kari Imprint 主线的重要变化。正式 Release notes 应以本文件、git diff 和实际验证结果为基础整理。
 
-## Unreleased — V3 开发中
+## 0.2.0 - 2026-07-25
+
+### Changed
+
+- 全面重命名：产品主功能“水印”→“边框”，英文命名 watermark→Kari Imprint / info-frame。
+- URL 从 `/tools/watermark-v3/` 迁移到 `/tools/kari-imprint/`；API prefix 同步为 `/tools/kari-imprint/api`。
+- 代码去掉 V3 后缀：所有类、文件、目录、变量、CSS 类名。
+  - Python：`v3_watermark.py` → `kari_imprint.py`、`v3_renderer.py` → `renderer.py`、`v3_assembler.py` → `assembler.py`、`shared/v3_layout/` → `shared/layout/`、`schemas_v3.py` → `schemas.py`、`WatermarkConfig` → `ImprintConfig`、`WatermarkV3Filter` → `KariImprintFilter`。
+  - TypeScript：`v3Types.ts` → `types.ts`、`apiV3.ts` → `api.ts`、`v3_layout/` → `layout/`、`WatermarkCanvasV3.tsx` → `KariImprintCanvas.tsx`、`V3HomePage.tsx` → `HomePage.tsx`、`V3RightRail`/`V3LeftRail`/`V3MainControls`/`InspectorPanelV3` 等组件、`WatermarkConfigV3` → `ImprintConfig`、`processImageV3` → `processImage` 等。
+  - CSS：所有 `.v3-*` 前缀去除；用户可见 UI 文本“水印” → “边框”。
+- 处理器注册名从 `v3_watermark` 改为 `kari_imprint`；pipeline ctx key `v3_config` → `imprint_config`。
+- 默认端口全面更新，避免与本地/系统常用端口冲突：
+  - Web dev: `5173` → `21831`
+  - API dev: `8000/8100` → `21830`（本地测试推荐）
+  - API 生产（systemd + Caddy 反代）: `2189/2192` → `21832`
+- deploy/ 目录整理：删除旧 nginx.conf / start.sh / stop.sh / deploy.sh / Caddyfile / kari-imprint-api.service / kari-imprint-web.service 等遗留文件，统一为 `deploy-tencent.sh` + `caddy-snippet.conf` + `kari-imprint.service`。
+- 无兼容层，无旧 URL 重定向（尚未公开运营）。
+
+### Verification
+
+- `uv run ruff check .`：All checks passed
+- `uv run python scripts/verify_flow_layout_parity.py`：Flow Layout parity passed: 4 fixtures
+- `packages/kari-core` pytest：401 passed, 7 skipped（skipped 为归档 GUI 测试）
+- `apps/api` pytest：73 passed
+- `apps/web` `npx tsc -b`：无错误
+- `apps/web` `VITE_API_BASE=/tools/kari-imprint npm run build`：`kari-imprint-web@0.2.0` 39 modules，dist 生成
+- `git diff --check`：无空白/尾随错误
+
+Claude Code 交付后由 Hermes 独立跑验证发现并修复的问题：
+
+1. `apps/web/src/components/InspectorPanel.tsx`：本地 `uploadResource` 函数与 `import { uploadResource }` 同名冲突（TS 2339），本地函数改名为 `handleUpload`。
+2. `apps/api/src/api/main.py`：Claude Code 将 legacy 检测错误码从 `legacy_config_removed` (410) 擅自改为 `invalid_config` (422)，恢复原语义并同步 message 到 Kari Imprint 命名。
+3. `apps/web/src/styles.css` + `InspectorPanel.tsx`：遗漏的 `.inspector-v3` CSS 类名（5 处）+ JSX（1 处）改为 `.inspector-imprint`。
+
+未做：commit / push / tag / deploy —— 等待卡林 UI/视觉验收后决定。
 
 ## 0.1.2 - 2026-07-24
 

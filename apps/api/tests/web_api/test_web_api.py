@@ -11,7 +11,7 @@ import api.processing as web_processing
 from api.main import app
 from api.settings import WebApiSettings, settings
 
-API_PREFIX = "/tools/watermark-v3/api"
+API_PREFIX = "/tools/kari-imprint/api"
 client = TestClient(app)
 
 
@@ -21,7 +21,7 @@ def _make_image(path: Path, size: tuple[int, int] = (320, 240)) -> Path:
     return path
 
 
-def _minimal_v3_config(custom_text: str = "V3 WEB") -> dict:
+def _minimal_imprint_config(custom_text: str = "WEB") -> dict:
     return {
         "canvas": {
             "margins": {"top": 0, "right": 0, "bottom": 80, "left": 0},
@@ -75,7 +75,7 @@ def _post_image(endpoint: str, image_path: Path, config: dict | None = None):
         return client.post(
             endpoint,
             files={"file": (image_path.name, file, "image/jpeg")},
-            data={"config": json.dumps(config if config is not None else _minimal_v3_config())},
+            data={"config": json.dumps(config if config is not None else _minimal_imprint_config())},
         )
 
 
@@ -106,7 +106,10 @@ def test_builtin_logo_endpoint_resolves_safe_stem_across_extensions(tmp_path: Pa
 
     listed = client.get(f"{API_PREFIX}/logos")
     assert listed.status_code == 200
-    assert listed.json()["logos"] == ["DJI", "fujifilm"]
+    assert listed.json()["logos"] == [
+        {"stem": "DJI", "variants": []},
+        {"stem": "fujifilm", "variants": []},
+    ]
 
     response = client.get(f"{API_PREFIX}/builtin-logos/DJI")
     assert response.status_code == 200
@@ -116,8 +119,8 @@ def test_builtin_logo_endpoint_resolves_safe_stem_across_extensions(tmp_path: Pa
     assert client.get(f"{API_PREFIX}/builtin-logos/DJI.jpg").status_code == 400
 
 
-def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
-    image_path = _make_image(tmp_path / "input-v3.jpg")
+def test_process_image_generates_downloadable_file(tmp_path: Path) -> None:
+    image_path = _make_image(tmp_path / "input.jpg")
 
     response = _post_image(f"{API_PREFIX}/process", image_path)
 
@@ -135,7 +138,7 @@ def test_v3_process_image_generates_downloadable_file(tmp_path: Path) -> None:
 
 
 
-def test_v3_process_download_is_valid_image_bytes(tmp_path: Path) -> None:
+def test_process_download_is_valid_image_bytes(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "valid-download.jpg")
 
     response = _post_image(f"{API_PREFIX}/process", image_path)
@@ -149,8 +152,8 @@ def test_v3_process_download_is_valid_image_bytes(tmp_path: Path) -> None:
     with Image.open(output) as img:
         img.verify()
 
-def test_v3_preview_image_generates_downloadable_file(tmp_path: Path) -> None:
-    image_path = _make_image(tmp_path / "input-v3.jpg", size=(900, 600))
+def test_preview_image_generates_downloadable_file(tmp_path: Path) -> None:
+    image_path = _make_image(tmp_path / "input.jpg", size=(900, 600))
 
     response = _post_image(f"{API_PREFIX}/preview", image_path)
 
@@ -251,15 +254,15 @@ def test_rejects_unsupported_extension(tmp_path: Path) -> None:
         response = client.post(
             f"{API_PREFIX}/process",
             files={"file": ("input.txt", file, "text/plain")},
-            data={"config": json.dumps(_minimal_v3_config())},
+            data={"config": json.dumps(_minimal_imprint_config())},
         )
 
     assert response.status_code == 415
     assert response.json()["error"]["code"] == "unsupported_file_type"
 
 
-def test_v3_custom_text_is_never_evaluated_as_jinja(tmp_path: Path, monkeypatch) -> None:
-    image_path = _make_image(tmp_path / "literal-v3.jpg")
+def test_custom_text_is_never_evaluated_as_jinja(tmp_path: Path, monkeypatch) -> None:
+    image_path = _make_image(tmp_path / "literal.jpg")
     captured: dict = {}
 
     def fake_start_process(**kwargs):
@@ -270,11 +273,11 @@ def test_v3_custom_text_is_never_evaluated_as_jinja(tmp_path: Path, monkeypatch)
     response = _post_image(
         f"{API_PREFIX}/process",
         image_path,
-        _minimal_v3_config(custom_text="probe={{ 7 * 7 }}"),
+        _minimal_imprint_config(custom_text="probe={{ 7 * 7 }}"),
     )
 
     assert response.status_code == 200
-    chips = captured["data"][0]["v3_config"]["regions"][0]["slots"]["primary-start"]["content"]["chips"]
+    chips = captured["data"][0]["imprint_config"]["regions"][0]["slots"]["primary-start"]["content"]["chips"]
     assert chips[0]["custom_text"] == "probe={{ 7 * 7 }}"
 
 
@@ -317,7 +320,7 @@ def test_rejects_non_finite_and_oversized_config(tmp_path: Path) -> None:
 
 def test_rejects_arbitrary_server_resource_path(tmp_path: Path) -> None:
     image_path = _make_image(tmp_path / "path.jpg")
-    config = _minimal_v3_config()
+    config = _minimal_imprint_config()
     slot = config["regions"][0]["slots"].setdefault("asset", {"enabled": True, "style": None})
     slot["content"] = {"path": "/etc/passwd", "size_level": "medium"}
 
@@ -335,7 +338,7 @@ def test_upload_once_then_process_by_image_id(tmp_path: Path) -> None:
 
     response = client.post(
         f"{API_PREFIX}/preview",
-        data={"image_id": upload.json()["image_id"], "config": json.dumps(_minimal_v3_config())},
+        data={"image_id": upload.json()["image_id"], "config": json.dumps(_minimal_imprint_config())},
     )
 
     assert response.status_code == 200

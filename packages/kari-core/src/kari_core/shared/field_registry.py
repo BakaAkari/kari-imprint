@@ -1,4 +1,4 @@
-"""Shared watermark field registry.
+"""Shared imprint field registry.
 
 This registry is the stable mapping between persisted field IDs, legacy Chinese
 labels, legacy template source IDs, and the Jinja expressions used by the image
@@ -19,7 +19,7 @@ _JINJA_DATE = (
 
 @dataclass(frozen=True)
 class FieldDef:
-    """Metadata for a watermark field."""
+    """Metadata for an imprint field."""
 
     field_id: str
     label_zh: str
@@ -117,7 +117,7 @@ _FIELDS: list[FieldDef] = [
 
 
 class FieldRegistry:
-    """Registry of supported watermark fields."""
+    """Registry of supported imprint fields."""
 
     def __init__(self, fields: list[FieldDef] | None = None) -> None:
         self._fields: list[FieldDef] = list(fields) if fields is not None else list(_FIELDS)
