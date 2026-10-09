@@ -6,10 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 [tool.uv.workspace]
-members = ["packages/*", "apps/api"]
+members = ["packages/*", "apps/api", "apps/immich-wm/worker"]
 
 [tool.uv.sources]
 kari-core = { workspace = true }
+kari-imprint-api = { workspace = true }
 
 [tool.ruff]
 line-length = 120

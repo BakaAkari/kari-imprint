@@ -74,3 +74,6 @@ packages/kari-core/config/templates/*.json
 
 # ===== 旧路径兜底（历史遗留） =====
 logos/logo_psds
+
+# companion web build artifacts
+apps/immich-wm/web/node_modules/

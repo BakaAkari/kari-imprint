@@ -266,7 +266,7 @@ def _get_exif_pillow(path: str | Path) -> dict:
         return {}
 
 
-def get_exif(path) -> dict:
+def get_exif(path, *, timeout: float | None = None) -> dict:
     """
     获取exif信息（Phase 5.2：自动 mtime 失效缓存）。
     当 exiftool 不可用时，自动回退到 Pillow EXIF 读取。
@@ -283,7 +283,7 @@ def get_exif(path) -> dict:
     # Try exiftool first (best quality, most comprehensive)
     try:
         output_bytes = subprocess.check_output(
-            [EXIFTOOL_PATH, "-d", "%Y-%m-%d %H:%M:%S%3f%z", str(path)]
+            [EXIFTOOL_PATH, "-d", "%Y-%m-%d %H:%M:%S%3f%z", str(path)], timeout=timeout
         )
         output = output_bytes.decode("utf-8", errors="ignore")
         parsed = _parse_exiftool_block(output)
