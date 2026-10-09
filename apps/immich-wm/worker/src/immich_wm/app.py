@@ -26,6 +26,13 @@ from immich_wm.client import ImmichClient, UpstreamError
 from immich_wm.service import Conflict, Service
 from immich_wm.settings import Settings
 
+PUBLIC_VALUE_ERRORS = {
+    'not_source_asset', 'file_too_large', 'invalid_image', 'source_changed',
+    'unsupported_path', 'unsafe_path', 'not_regular_file', 'invalid_preview',
+    'invalid_resource', 'output_too_large', 'renderer_changed', 'queue_full',
+    'job_not_found', 'insufficient_disk_space', 'must_not_exist', 'checksum_mismatch',
+}
+
 
 class Login(StrictModel):
     token: str = Field(min_length=32, max_length=256)
@@ -127,8 +134,9 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
         return JSONResponse({'error': 'invalid_request'}, 422)
 
     @app.exception_handler(ValueError)
-    async def invalid_value(_request, _exc):
-        return JSONResponse({'error': 'invalid_input_or_asset'}, 422)
+    async def invalid_value(_request, exc):
+        code = str(exc)
+        return JSONResponse({'error': code if code in PUBLIC_VALUE_ERRORS else 'invalid_input_or_asset'}, 422)
 
     @app.exception_handler(Conflict)
     async def conflict(_request, exc):

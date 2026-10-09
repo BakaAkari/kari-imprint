@@ -570,6 +570,17 @@ def test_albums_endpoint_degrades_when_scope_missing(setup):
         assert client.get('/api/albums').status_code == 502
 
 
+def test_value_errors_expose_only_safe_codes(setup):
+    settings, fake = setup
+    with TestClient(create_app(settings, fake, background=False)) as client:
+        client.post('/api/login', json={'token': settings.token})
+        assert client.get('/api/assets/not-a-uuid/config').status_code == 422
+        response = client.get(f"/api/assets/{fake.asset_id}/metadata")
+        assert response.status_code == 200, response.text
+        fake.asset = lambda _id: {'id': _id, 'libraryId': str(uuid4()), 'type': 'IMAGE', 'originalPath': '/external/other/x.jpg'}
+        assert client.get(f'/api/assets/{uuid4()}/config').json() == {'error': 'not_source_asset'}
+
+
 def test_logo_catalog_and_protected_bytes(setup, monkeypatch, tmp_path):
     from kari_core.processor import renderer
     logo_root=tmp_path/'logos'
