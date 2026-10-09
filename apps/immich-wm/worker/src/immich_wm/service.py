@@ -180,7 +180,7 @@ class Service:
                 'maxPixels': self.settings.max_pixels, 'maxOutputPixels': self.settings.max_output_pixels,
                 'maxOutputEdge': self.settings.max_output_edge}))
             subprocess.run([sys.executable, '-m', 'immich_wm.render', str(request)], check=True,
-                           timeout=600, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                           timeout=900, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             with Image.open(target) as image:
                 if image.width * image.height > self.settings.max_output_pixels:
                     raise ValueError('output_too_large')

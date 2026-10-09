@@ -8,9 +8,9 @@ export type Job = {id: string; asset_id: string; revision: number; generation: n
 const errorLabels: Record<string, string> = {
   not_source_asset: '该照片不在源图库或已被移走',
   file_too_large: '文件超过 256MB 上限',
-  image_too_large: '照片超过 1.6 亿像素上限',
+  image_too_large: '照片超过 4 亿像素上限',
   unsupported_image: '仅支持 JPEG/PNG 图像',
-  invalid_image: '仅支持 JPEG/PNG，且不超过 1.6 亿像素',
+  invalid_image: '仅支持 JPEG/PNG，且不超过 4 亿像素',
   source_changed: '源文件读取时发生变化，请重试',
   unsupported_path: '源文件路径或格式不受支持',
   invalid_preview: '预览生成失败',

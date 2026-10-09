@@ -585,9 +585,9 @@ def test_settings_reject_limits_above_validation_caps(setup):
     from dataclasses import replace
     settings, _ = setup
     assert settings.max_bytes == 256 * 1024 * 1024
-    assert settings.max_pixels == 160_000_000
+    assert settings.max_pixels == 400_000_000
     with pytest.raises(ValueError, match='invalid_limit'):
-        replace(settings, max_pixels=250_000_000)
+        replace(settings, max_pixels=600_000_000)
     with pytest.raises(ValueError, match='invalid_limit'):
         replace(settings, max_output_edge=65536)
 

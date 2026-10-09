@@ -19,12 +19,12 @@ class Settings:
     source_prefix: str = "/external/camera-exports"
     output_prefix: str = "/external/camera-watermarked"
     max_bytes: int = 256 * 1024 * 1024
-    max_pixels: int = 160_000_000
-    max_output_pixels: int = 200_000_000
+    max_pixels: int = 400_000_000
+    max_output_pixels: int = 460_000_000
     max_queue: int = 20
     preview_edge: int = 1440
     min_free_bytes: int = 512 * 1024 * 1024
-    max_output_edge: int = 32768
+    max_output_edge: int = 56000
     # Explicit M0 renderer identifier; bump whenever render inputs/implementation change.
     renderer_version: str = "m0-photo-srgb-v1"
     token: str = field(default="", repr=False)
@@ -65,7 +65,7 @@ class Settings:
         roots = [p.resolve() for p in (self.imports, self.output, self.data)]
         if any(a == b or a in b.parents or b in a.parents for i,a in enumerate(roots) for b in roots[i+1:]):
             raise ValueError("overlapping_roots")
-        for value, limit in [(self.max_bytes, 1024**3), (self.max_pixels, 200_000_000), (self.max_output_pixels, 300_000_000), (self.max_queue, 100), (self.preview_edge, 4096), (self.min_free_bytes, 1024**4), (self.max_output_edge, 32768)]:
+        for value, limit in [(self.max_bytes, 1024**3), (self.max_pixels, 500_000_000), (self.max_output_pixels, 600_000_000), (self.max_queue, 100), (self.preview_edge, 4096), (self.min_free_bytes, 1024**4), (self.max_output_edge, 60000)]:
             if type(value) is not int or not 1 <= value <= limit:
                 raise ValueError("invalid_limit")
 
