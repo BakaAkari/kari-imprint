@@ -581,6 +581,17 @@ def test_value_errors_expose_only_safe_codes(setup):
         assert client.get(f'/api/assets/{uuid4()}/config').json() == {'error': 'not_source_asset'}
 
 
+def test_settings_reject_limits_above_validation_caps(setup):
+    from dataclasses import replace
+    settings, _ = setup
+    assert settings.max_bytes == 256 * 1024 * 1024
+    assert settings.max_pixels == 160_000_000
+    with pytest.raises(ValueError, match='invalid_limit'):
+        replace(settings, max_pixels=250_000_000)
+    with pytest.raises(ValueError, match='invalid_limit'):
+        replace(settings, max_output_edge=65536)
+
+
 def test_logo_catalog_and_protected_bytes(setup, monkeypatch, tmp_path):
     from kari_core.processor import renderer
     logo_root=tmp_path/'logos'

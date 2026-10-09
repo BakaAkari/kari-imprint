@@ -22,7 +22,7 @@ services:
       - /mnt/user/camera-workspace/exports:/imports:ro
       - /mnt/user/camera-workspace/watermarked-m0:/output:rw
       - /mnt/user/appdata/app-immich-wm-m0:/data:rw
-    mem_limit: 2g
+    mem_limit: 4g
     cpus: 2
     pids_limit: 64
     init: true

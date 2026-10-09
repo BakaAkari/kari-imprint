@@ -18,13 +18,13 @@ class Settings:
     data: Path
     source_prefix: str = "/external/camera-exports"
     output_prefix: str = "/external/camera-watermarked"
-    max_bytes: int = 100 * 1024 * 1024
-    max_pixels: int = 60_000_000
-    max_output_pixels: int = 100_000_000
+    max_bytes: int = 256 * 1024 * 1024
+    max_pixels: int = 160_000_000
+    max_output_pixels: int = 200_000_000
     max_queue: int = 20
     preview_edge: int = 1440
     min_free_bytes: int = 512 * 1024 * 1024
-    max_output_edge: int = 16384
+    max_output_edge: int = 32768
     # Explicit M0 renderer identifier; bump whenever render inputs/implementation change.
     renderer_version: str = "m0-photo-srgb-v1"
     token: str = field(default="", repr=False)

@@ -31,6 +31,7 @@ PUBLIC_VALUE_ERRORS = {
     'unsupported_path', 'unsafe_path', 'not_regular_file', 'invalid_preview',
     'invalid_resource', 'output_too_large', 'renderer_changed', 'queue_full',
     'job_not_found', 'insufficient_disk_space', 'must_not_exist', 'checksum_mismatch',
+    'image_too_large', 'unsupported_image',
 }
 
 
