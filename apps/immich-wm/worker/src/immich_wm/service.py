@@ -23,7 +23,7 @@ from PIL import Image
 from immich_wm.client import UpstreamError
 from immich_wm.logos import bundle_hash
 from immich_wm.logos import resolve as resolve_logo
-from immich_wm.paths import digest_file, open_source, parent_fd, relative_path, snapshot
+from immich_wm.paths import digest_file, open_source, output_relative, parent_fd, relative_path, snapshot
 from immich_wm.store import Store, canonical
 
 # Existing core diagnostics include EXIF dictionaries and source paths.
@@ -214,9 +214,9 @@ class Service:
                 shutil.rmtree(directory, ignore_errors=True)
         return job['id']
 
-    def _output_hash(self, path):
+    def _output_hash(self, source_path):
         try:
-            with open_source(self.settings.output, path) as file:
+            with open_source(self.settings.output, output_relative(source_path, self.settings.imprint_dir)) as file:
                 return digest_file(file, self.settings.max_bytes)
         except FileNotFoundError:
             return None
@@ -245,7 +245,7 @@ class Service:
                 with temp.open('rb') as file:
                     if digest_file(file, self.settings.max_bytes) != job['output_hash']:
                         raise ValueError('invalid_publication')
-                with parent_fd(self.settings.output, asset['path'], create=True) as (fd, name):
+                with parent_fd(self.settings.output, output_relative(asset['path'], self.settings.imprint_dir), create=True) as (fd, name):
                     os.replace(temp, name, dst_dir_fd=fd)
                     os.fsync(fd)
                 db.execute('UPDATE assets SET published_hash=? WHERE id=?', (job['output_hash'], asset['id']))
@@ -308,7 +308,7 @@ class Service:
             if asset['published_hash'] != job['output_hash']:
                 raise Conflict('output_not_current')
             from io import BytesIO
-            with open_source(self.settings.output, asset['path']) as file:
+            with open_source(self.settings.output, output_relative(asset['path'], self.settings.imprint_dir)) as file:
                 if digest_file(file, self.settings.max_bytes) != job['output_hash']:
                     raise Conflict('output_conflict')
                 file.seek(0)
@@ -334,7 +334,7 @@ class Service:
             if not current:
                 db.execute("UPDATE jobs SET state='superseded' WHERE id=?", (job_id,))
                 return self.store.job(job_id)
-            path = self.settings.output_prefix.rstrip('/') + '/' + asset['path']
+            path = self.settings.output_prefix.rstrip('/') + '/' + output_relative(asset['path'], self.settings.imprint_dir)
         matches = []
         for page in range(1, 11):
             result = self.client.search(self.settings.output_library, page, path=path)

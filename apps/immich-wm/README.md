@@ -19,6 +19,7 @@
 | `WM_DATA_ROOT` | 持久化目录，默认 `/data` |
 | `WM_SOURCE_PREFIX` | Immich 内源目录，默认 `/external/camera-exports` |
 | `WM_OUTPUT_PREFIX` | Immich 内输出目录，默认 `/external/camera-watermarked` |
+| `WM_IMPRINT_DIR` | 成品在输出库内的文件夹名，默认 `Imprint`；重新生成原位覆盖同一路径，不追加文件 |
 | `WM_M0_TOKEN` | `uv run immich-wm --new-token` 生成的独立面板访问令牌 |
 | `WM_WEB_ROOT` | 可选，覆盖静态网页构建目录 |
 

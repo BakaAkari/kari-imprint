@@ -80,7 +80,7 @@ def test_a_b_a_source_and_renderer_changes(service):
         assert row['state'] == 'awaiting_import', row
         hashes.append(row['output_hash'])
     assert hashes[0] == hashes[2] != hashes[1]
-    with Image.open(service.settings.output / 'photo.jpg') as image:
+    with Image.open(service.settings.output / service.settings.imprint_dir / 'photo.jpg') as image:
         assert image.size == (120, 100)
         assert image.getexif()[274] == 1
         assert image.info['icc_profile']
@@ -98,7 +98,7 @@ def test_conflict_and_superseded(service):
     service.save(service.client.asset_id, deepcopy(CONFIG), 1)
     service.render_next()
     assert service.store.job(job['id'])['state'] == 'superseded'
-    assert not (service.settings.output / 'photo.jpg').exists()
+    assert not (service.settings.output / service.settings.imprint_dir / 'photo.jpg').exists()
 
 
 def test_published_file_then_crash_recovers(service, monkeypatch):
@@ -112,14 +112,15 @@ def test_published_file_then_crash_recovers(service, monkeypatch):
     monkeypatch.setattr('os.fsync', crash)
     service.render_next()
     assert service.store.job(job['id'])['state'] == 'publishing'
-    assert (service.settings.output / 'photo.jpg').exists()
+    assert (service.settings.output / service.settings.imprint_dir / 'photo.jpg').exists()
     monkeypatch.setattr('os.fsync', original)
     service.recover()
     assert service.store.job(job['id'])['state'] == 'awaiting_import'
 
 
 def test_foreign_output_never_overwritten(service):
-    output = service.settings.output / 'photo.jpg'
+    output = service.settings.output / service.settings.imprint_dir / 'photo.jpg'
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(b'foreign')
     job = save_job(service)
     service.render_next()
@@ -190,7 +191,7 @@ def test_source_change_before_publish_does_not_replace(service):
     Image.new('RGB', (120, 80), 'blue').save(service.settings.imports / 'photo.jpg')
     service.render_next()
     assert service.store.job(job['id'])['error'] == 'source_changed'
-    assert not (service.settings.output / 'photo.jpg').exists()
+    assert not (service.settings.output / service.settings.imprint_dir / 'photo.jpg').exists()
 
 
 def test_renderer_upgrade_changes_key_and_does_not_reuse_completed_job(service):
@@ -278,7 +279,7 @@ def test_output_preview_rejects_old_generation_and_foreign_bytes(service):
     with pytest.raises(Conflict, match='output_not_current'):
         service.output_preview(service.client.asset_id, job['generation'])
     service.render_next()
-    (service.settings.output / 'photo.jpg').write_bytes(b'foreign')
+    (service.settings.output / service.settings.imprint_dir / 'photo.jpg').write_bytes(b'foreign')
     with pytest.raises(Conflict, match='output_conflict'):
         service.output_preview(service.client.asset_id, next_job['generation'])
 
@@ -450,7 +451,8 @@ def test_maintenance_reports_output_conflict_without_deleting(service):
     import time
     save_job(service)
     service.render_next()
-    output = service.settings.output/'photo.jpg'
+    output = service.settings.output/service.settings.imprint_dir/'photo.jpg'
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(b'foreign-data')
     service.maintenance.tick(time.time()+1000)
     assert service.maintenance.status()['issues'][0]['issue'] == 'output_changed'
@@ -505,7 +507,7 @@ def test_backup_restore_checksums_resources_and_safe_job_recovery(service, tmp_p
         new_job = restored_service.enqueue(service.client.asset_id, 1)
         restored_service.render_next()
         assert restored_service.store.job(new_job['id'])['state'] == 'awaiting_import'
-        assert (restored_output/'photo.jpg').exists()
+        assert (restored_output/restored_service.settings.imprint_dir/'photo.jpg').exists()
     finally:
         restored_service.store.close()
     with pytest.raises(ValueError, match='must_not_exist'):
@@ -581,6 +583,25 @@ def test_value_errors_expose_only_safe_codes(setup):
         assert client.get(f'/api/assets/{uuid4()}/config').json() == {'error': 'not_source_asset'}
 
 
+def test_output_relative_imprint_prefix_and_validation():
+    from immich_wm.paths import output_relative
+    assert output_relative('2026/02/DSCF8543.jpg', 'Imprint') == 'Imprint/2026/02/DSCF8543.jpg'
+    for bad in ('', '.', '..', '.hidden', 'a/b', '/abs', 'x' * 65, '.wm-tmp'):
+        with pytest.raises(ValueError, match='invalid_imprint_dir'):
+            output_relative('a.jpg', bad)
+    with pytest.raises(ValueError, match='unsafe_path'):
+        output_relative('../a.jpg', 'Imprint')
+
+
+def test_settings_reject_bad_imprint_dir(setup):
+    from dataclasses import replace
+    settings, _ = setup
+    assert settings.imprint_dir == 'Imprint'
+    for bad in ('a/b', '..', '.hidden', '.wm-tmp', 'x' * 65):
+        with pytest.raises(ValueError, match='invalid_imprint_dir'):
+            replace(settings, imprint_dir=bad)
+
+
 def test_settings_reject_limits_above_validation_caps(setup):
     from dataclasses import replace
     settings, _ = setup
@@ -605,3 +626,101 @@ def test_logo_catalog_and_protected_bytes(setup, monkeypatch, tmp_path):
         assert client.get('/api/logos').json()['logos']==[{'stem':'canon','variants':[]}]
         assert client.get('/api/builtin-logos/canon').status_code==200
         assert client.get('/api/builtin-logos/canon',params={'variant':'../escape'}).status_code==422
+
+
+def test_immich_key_login_success_and_single_operator_revocation(setup):
+    import httpx
+    settings, fake = setup
+
+    def upstream(request):
+        assert request.url.path == '/api/users/me'
+        if request.headers['x-api-key'] == 'good-key':
+            return httpx.Response(200, json={'email': 'akari@example.com'})
+        return httpx.Response(401)
+
+    app = create_app(settings, fake, background=False)
+    app.state.immich_key_transport = httpx.MockTransport(upstream)
+    with TestClient(app) as client:
+        assert client.get('/api/auth/session').json()['methods'] == ['immich_key', 'token']
+        assert client.get('/api/assets').status_code == 401
+        response = client.post('/api/auth/immich-key', json={'key': 'good-key'})
+        assert response.status_code == 200
+        assert client.get('/api/auth/session').json()['authenticated'] is True
+        assert client.get('/api/assets').status_code == 200
+        previous = client.cookies.get('wm_session')
+        assert client.post('/api/auth/immich-key', json={'key': 'good-key'}).status_code == 200
+        assert client.cookies.get('wm_session') != previous
+        client.cookies.set('wm_session', previous)
+        assert client.get('/api/assets').status_code == 401
+
+
+def test_immich_key_login_rejects_scoped_unreachable_and_malformed(setup):
+    import httpx
+    settings, fake = setup
+
+    def upstream(request):
+        key = request.headers['x-api-key']
+        if key == 'scoped-key':
+            return httpx.Response(403)
+        if key == 'broken-upstream':
+            raise httpx.ConnectError('refused')
+        return httpx.Response(401)
+
+    app = create_app(settings, fake, background=False)
+    app.state.immich_key_transport = httpx.MockTransport(upstream)
+    with TestClient(app) as client:
+        response = client.post('/api/auth/immich-key', json={'key': 'bad-key'})
+        assert response.status_code == 401 and response.json()['error'] == 'invalid_key'
+        response = client.post('/api/auth/immich-key', json={'key': 'scoped-key'})
+        assert response.status_code == 403 and response.json()['error'] == 'key_scope_insufficient'
+        response = client.post('/api/auth/immich-key', json={'key': 'broken-upstream'})
+        assert response.status_code == 502 and response.json()['error'] == 'immich_unreachable'
+        assert client.post('/api/auth/immich-key', json={'key': '   '}).status_code == 422
+        assert client.post('/api/auth/immich-key', json={'key': 'x' * 257}).status_code == 422
+        assert client.post('/api/auth/immich-key', json={'key': 'good-key'}).status_code == 401
+        assert client.get('/api/auth/session').json()['authenticated'] is False
+
+
+def test_immich_key_login_rate_limits_failures(setup):
+    import httpx
+    settings, fake = setup
+    app = create_app(settings, fake, background=False)
+    app.state.immich_key_transport = httpx.MockTransport(lambda request: httpx.Response(401))
+    with TestClient(app) as client:
+        for _ in range(5):
+            assert client.post('/api/auth/immich-key', json={'key': 'bad-key'}).status_code == 401
+        response = client.post('/api/auth/immich-key', json={'key': 'bad-key'})
+        assert response.status_code == 429 and response.json()['error'] == 'login_rate_limited'
+
+
+def test_immich_key_login_never_logs_the_key(setup, caplog):
+    import logging
+
+    import httpx
+    settings, fake = setup
+    secret = 'ik-must-not-appear-in-logs-0123456789'
+
+    def upstream(request):
+        if request.headers['x-api-key'] == secret:
+            return httpx.Response(200, json={'email': 'akari@example.com'})
+        return httpx.Response(401)
+
+    app = create_app(settings, fake, background=False)
+    app.state.immich_key_transport = httpx.MockTransport(upstream)
+    with caplog.at_level(logging.INFO, logger='immich_wm.auth'):
+        with TestClient(app) as client:
+            assert client.post('/api/auth/immich-key', json={'key': secret}).status_code == 200
+            assert client.post('/api/auth/immich-key', json={'key': secret + '-wrong'}).status_code == 401
+    assert secret not in caplog.text
+    assert secret + '-wrong' not in caplog.text
+    assert 'akari@example.com' in caplog.text
+
+
+def test_session_methods_keep_oidc_alongside_immich_key(setup):
+    from dataclasses import replace
+    settings, fake = setup
+    settings = replace(settings, public_origin='https://panel.example.com', oidc_issuer='https://id.example.com',
+                       oidc_client_id='client', oidc_client_secret='secret', oidc_allowed_group='kari-imprint-admin')
+    app = create_app(settings, fake, background=False)
+    with TestClient(app, base_url='https://panel.example.com') as client:
+        assert client.get('/api/auth/session').json()['methods'] == ['oidc', 'immich_key']

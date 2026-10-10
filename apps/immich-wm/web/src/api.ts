@@ -20,6 +20,10 @@ const errorLabels: Record<string, string> = {
   login_required: '登录已失效，请重新登录',
   invalid_origin: '请求来源校验失败',
   immich_unavailable: 'Immich 暂时不可用，请稍后重试',
+  invalid_key: 'API Key 无效，请检查后重试',
+  key_scope_insufficient: '该 key 权限不足，请在 Immich 生成包含用户信息读取权限的 key（默认全权限即可）',
+  login_rate_limited: '尝试次数过多，请 5 分钟后再试',
+  invalid_request: '请求不合法',
 };
 export async function api<T>(path: string, method='GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api${path}`, {method, signal, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});

@@ -25,6 +25,7 @@ class Settings:
     preview_edge: int = 1440
     min_free_bytes: int = 512 * 1024 * 1024
     max_output_edge: int = 56000
+    imprint_dir: str = "Imprint"
     # Explicit M0 renderer identifier; bump whenever render inputs/implementation change.
     renderer_version: str = "m0-photo-srgb-v1"
     token: str = field(default="", repr=False)
@@ -60,6 +61,8 @@ class Settings:
         UUID(self.output_library)
         if self.source_library == self.output_library:
             raise ValueError("libraries_must_differ")
+        from immich_wm.paths import output_relative
+        output_relative('probe.jpg', self.imprint_dir)
         if not self.api_key or (not self.oidc_issuer and len(self.token) < 32):
             raise ValueError("missing_credentials")
         roots = [p.resolve() for p in (self.imports, self.output, self.data)]
@@ -79,6 +82,7 @@ class Settings:
             min_free_bytes=int(os.environ.get("WM_MIN_FREE_BYTES", str(512 * 1024 * 1024))),
             source_prefix=os.environ.get("WM_SOURCE_PREFIX", "/external/camera-exports"),
             output_prefix=os.environ.get("WM_OUTPUT_PREFIX", "/external/camera-watermarked"),
+            imprint_dir=os.environ.get("WM_IMPRINT_DIR", "Imprint"),
             token=os.environ.get("WM_M0_TOKEN", ""),
             public_origin=os.environ.get("WM_PUBLIC_ORIGIN", ""),
             oidc_issuer=os.environ.get("WM_OIDC_ISSUER", ""),

@@ -121,10 +121,11 @@ immich-wm-worker ──► Immich API (http://app-immich-server:2283, 内网)
 
 ```text
 源:  /imports/2026/2026-10/Photos/DSCF1234.jpg
-输出: /output/2026/2026-10/Photos/DSCF1234.jpg
+输出: /output/Imprint/2026/2026-10/Photos/DSCF1234.jpg
 临时: /output/.wm-tmp/<job-id>/result.jpg
 ```
 
+- 成品统一发布到输出库内的 Imprint 文件夹（`WM_IMPRINT_DIR`，默认 `Imprint`），路径由 `output_relative()` 单点推导；
 - 保持相对目录、名称和 JPEG/PNG 格式；编码器与后缀一致，PNG 的透明度处理须显式定义并测试。
 - API 只接受不透明资产 ID。worker 从 Immich 获取 `originalPath`，按完整路径组件匹配源前缀，再映射到只读 `/imports`。禁止字符串前缀误匹配、`..` 越界和符号链接逃逸；实际打开文件时也必须保证根目录约束，不能仅做一次字符串校验。
 - 输出路径完全由 worker 推导；输出父目录也执行边界与符号链接检查。拒绝已有路径被其他源资产占用，不覆盖无法确认归属的文件。

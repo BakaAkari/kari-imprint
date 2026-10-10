@@ -63,6 +63,10 @@ small{color:var(--dim);line-height:1.7}
 .login-action:hover{background:var(--bg);color:var(--text)}
 .login form{display:flex;flex-direction:column;gap:20px}
 .login-alert{font:11px var(--mono);color:var(--accent)}
+.login-alt{margin-top:20px;border:1px solid var(--line-strong);padding:14px}
+.login-alt summary{font:11px var(--mono);letter-spacing:.15em;color:var(--dim);cursor:pointer}
+.login-alt[open] summary{margin-bottom:14px;color:var(--text)}
+.login-hint{font:10px var(--mono);color:var(--faint);line-height:1.7;margin:12px 0 2px}
 
 /* library rail */
 .library{border-right:1px solid var(--line);padding:18px 14px}

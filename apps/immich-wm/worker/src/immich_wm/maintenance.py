@@ -126,7 +126,8 @@ class Maintenance:
                          for p in staging.rglob('*') if p.is_file()}
                 manifest = {'version': 1, 'renderer': s.renderer_version, 'sourceLibrary': s.settings.source_library,
                             'outputLibrary': s.settings.output_library, 'sourcePrefix': s.settings.source_prefix,
-                            'outputPrefix': s.settings.output_prefix, 'created': time.time(), 'files': files}
+                            'outputPrefix': s.settings.output_prefix, 'imprintDir': s.settings.imprint_dir,
+                            'created': time.time(), 'files': files}
                 (staging/'manifest.json').write_text(json.dumps(manifest, sort_keys=True))
                 for p in staging.rglob('*'):
                     if p.is_file():

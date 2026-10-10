@@ -18,6 +18,18 @@ def relative_path(original: str, prefix: str) -> str:
     return relative.as_posix()
 
 
+def output_relative(relative: str, imprint: str) -> str:
+    """Map a source-relative path to its published location under the Imprint dir."""
+    imprint_parts = PurePosixPath(imprint).parts
+    if (not imprint or PurePosixPath(imprint).is_absolute() or len(imprint_parts) != 1
+            or imprint in {'.', '..'} or imprint.startswith('.') or len(imprint) > 64):
+        raise ValueError('invalid_imprint_dir')
+    parts = PurePosixPath(relative).parts
+    if not parts or relative.startswith('/') or any(p in {'.', '..'} for p in parts):
+        raise ValueError('unsafe_path')
+    return f'{imprint}/{relative}'
+
+
 @contextmanager
 def parent_fd(root: Path, relative: str, *, create: bool = False):
     parts = PurePosixPath(relative).parts

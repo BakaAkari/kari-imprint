@@ -1,19 +1,51 @@
-"""OIDC authentication. Transient credentials and opaque sessions stay server-side."""
+"""OIDC and Immich API key authentication. Transient credentials and opaque sessions stay server-side."""
 from __future__ import annotations
 
+import logging
 import secrets
 import time
 
+import httpx
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
-PUBLIC_AUTH_PATHS = {'/api/auth/session', '/api/auth/oidc/login', '/api/auth/oidc/callback'}
+logger = logging.getLogger('immich_wm.auth')
+
+PUBLIC_AUTH_PATHS = {'/api/auth/session', '/api/auth/oidc/login', '/api/auth/oidc/callback', '/api/auth/immich-key'}
+
+_KEY_LOGIN_WINDOW_SECONDS = 300
+_KEY_LOGIN_MAX_FAILURES = 5
+_KEY_MAX_LENGTH = 256
+
+
+def _validate_immich_key(url: str, key: str, transport) -> tuple[str, str]:
+    """Check a user-supplied key against Immich. Returns (email, error_code)."""
+    try:
+        with httpx.Client(base_url=url.rstrip('/') + '/api/', headers={'x-api-key': key},
+                          timeout=10, follow_redirects=False, transport=transport) as client:
+            response = client.get('users/me')
+    except httpx.HTTPError:
+        return '', 'immich_unreachable'
+    if response.status_code == 401:
+        return '', 'invalid_key'
+    if response.status_code == 403:
+        return '', 'key_scope_insufficient'
+    if response.status_code != 200:
+        return '', 'immich_unreachable'
+    try:
+        email = str(response.json().get('email') or '')
+    except ValueError:
+        email = ''
+    return email, ''
 
 
 def install_auth(app, settings, sessions):
     enabled = bool(settings.oidc_issuer)
     transactions = {}
+    key_failures: dict[str, list[float]] = {}
+    app.state.immich_key_transport = None  # Tests inject an httpx transport here.
     oauth = OAuth()
     provider = None
     if enabled:
@@ -26,8 +58,50 @@ def install_auth(app, settings, sessions):
 
     @app.get('/api/auth/session')
     def session(request: Request):
-        return {'mode': 'oidc' if enabled else 'token',
+        methods = ['immich_key']
+        if enabled:
+            methods.insert(0, 'oidc')
+        elif settings.token:
+            methods.append('token')
+        return {'mode': 'oidc' if enabled else 'token', 'methods': methods,
                 'authenticated': sessions.get(request.cookies.get('wm_session', ''), 0) > time.monotonic()}
+
+    @app.post('/api/auth/immich-key')
+    async def immich_key_login(request: Request):
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({'error': 'invalid_request'}, 422)
+        key = body.get('key', '') if isinstance(body, dict) else ''
+        if not isinstance(key, str) or not key.strip() or len(key.strip()) > _KEY_MAX_LENGTH:
+            return JSONResponse({'error': 'invalid_request'}, 422)
+        key = key.strip()
+        host = request.client.host if request.client else ''
+        now = time.monotonic()
+        failures = [t for t in key_failures.get(host, ()) if t > now - _KEY_LOGIN_WINDOW_SECONDS]
+        if len(failures) >= _KEY_LOGIN_MAX_FAILURES:
+            return JSONResponse({'error': 'login_rate_limited'}, 429)
+        email, error = await run_in_threadpool(
+            _validate_immich_key, settings.immich_url, key, request.app.state.immich_key_transport)
+        if error:
+            # The key itself never reaches logs or responses; only the outcome does.
+            logger.info('immich key login failed: %s', error)
+            if error in {'invalid_key', 'key_scope_insufficient'}:
+                failures.append(now)
+                key_failures[host] = failures
+            status = {'invalid_key': 401, 'key_scope_insufficient': 403}.get(error, 502)
+            return JSONResponse({'error': error}, status)
+        logger.info('immich key login ok for %s', email)
+        now = time.monotonic()
+        sessions.clear()  # Single operator; a new login revokes the previous session.
+        session_id = secrets.token_urlsafe(32)
+        sessions[session_id] = now + 8 * 3600
+        response = JSONResponse({'ok': True})
+        response.set_cookie('wm_session', session_id, httponly=True, samesite='strict',
+                            secure=(settings.public_origin.startswith('https://') if settings.public_origin
+                                    else request.url.scheme == 'https'), max_age=8 * 3600)
+        return response
+
 
     @app.get('/api/auth/oidc/login')
     async def start(request: Request):
