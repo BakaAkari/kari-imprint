@@ -1,9 +1,7 @@
-"""Companion preview same-origin API. Session login uses a random operator token, not Immich key."""
+"""Companion preview same-origin API. The panel's sole credential is one Immich API key."""
 from __future__ import annotations
 
-import hashlib
 import os
-import secrets
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -23,6 +21,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from immich_wm.auth import PUBLIC_AUTH_PATHS, install_auth
 from immich_wm.client import ImmichClient, UpstreamError
+from immich_wm.keyconfig import resolve_panel_key
 from immich_wm.service import Conflict, Service
 from immich_wm.settings import Settings
 
@@ -35,8 +34,14 @@ PUBLIC_VALUE_ERRORS = {
 }
 
 
-class Login(StrictModel):
-    token: str = Field(min_length=32, max_length=256)
+class PanelState:
+    """Mutable runtime credential state shared between the app, auth endpoints and the worker loop."""
+
+    def __init__(self, key: str, initialized: bool, upstream: ImmichClient, on_key=None) -> None:
+        self.key = key
+        self.initialized = initialized
+        self.upstream = upstream
+        self.on_key = on_key or (lambda _key: None)
 
 
 class SaveConfig(StrictModel):
@@ -54,16 +59,27 @@ def public_job(job):
 
 def create_app(settings: Settings | None = None, client=None, *, background=True):
     settings = settings or Settings.from_env()
-    upstream = client or ImmichClient(settings.immich_url, settings.api_key)
+    key, initialized = resolve_panel_key(settings.data, settings.api_key)
+    upstream = client or ImmichClient(settings.immich_url, key)
+
+    def swap_upstream_key(new_key: str) -> None:
+        # Test fakes without a real httpx client are left untouched.
+        http = getattr(upstream, 'http', None)
+        if http is not None:
+            http.headers['x-api-key'] = new_key
+
+    panel = PanelState(key, initialized, upstream, swap_upstream_key)
     service = Service(settings, upstream)
     sessions = {}
-    login_times = []
     stopped = threading.Event()
 
     def run():
         next_maintenance = 0.0
         while not stopped.wait(0.5):
             try:
+                if not panel.initialized:
+                    # Init mode: never touch Immich with an empty key.
+                    continue
                 if service.render_next() is None:
                     service.reconcile_next()
                 if time.monotonic() >= next_maintenance:
@@ -87,7 +103,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.service = service
-    install_auth(app, settings, sessions)
+    install_auth(app, settings, sessions, panel)
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
 
     @app.middleware('http')
@@ -96,9 +112,11 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
             if request.method not in {'GET', 'HEAD'}:
                 origin = request.headers.get('origin')
                 expected_origin = settings.public_origin or str(request.base_url).rstrip('/')
-                if (origin and origin != expected_origin) or (settings.oidc_issuer and origin != expected_origin):
+                if origin and origin != expected_origin:
                     return JSONResponse({'error': 'invalid_origin'}, 403)
-            if request.url.path not in {'/api/login', '/api/health'} | PUBLIC_AUTH_PATHS:
+            if request.url.path not in {'/api/health'} | PUBLIC_AUTH_PATHS:
+                if not panel.initialized:
+                    return JSONResponse({'error': 'init_required'}, 403)
                 session = request.cookies.get('wm_session', '')
                 if sessions.get(session, 0) < time.monotonic():
                     sessions.pop(session, None)
@@ -149,25 +167,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
 
     @app.get('/api/health')
     def health():
-        return {'ok': not stopped.is_set(), 'phase': 'M1-preview'}
-
-    @app.post('/api/login')
-    def login(body: Login, request: Request):
-        if settings.oidc_issuer:
-            return JSONResponse({'error': 'token_login_disabled'}, 404)
-        now = time.monotonic()
-        login_times[:] = [t for t in login_times if t > now - 60]
-        if len(login_times) >= 10:
-            raise HTTPException(429)
-        login_times.append(now)
-        if not secrets.compare_digest(hashlib.sha256(body.token.encode()).digest(), hashlib.sha256(settings.token.encode()).digest()):
-            raise HTTPException(401)
-        sessions.clear()  # M0 single operator; new login revokes previous session.
-        session = secrets.token_urlsafe(32)
-        sessions[session] = now + 8 * 3600
-        response = JSONResponse({'ok': True})
-        response.set_cookie('wm_session', session, httponly=True, samesite='strict', secure=(settings.public_origin.startswith('https://') if settings.public_origin else request.url.scheme == 'https'), max_age=8*3600)
-        return response
+        return {'ok': not stopped.is_set(), 'phase': 'M1-preview', 'initialized': panel.initialized}
 
     @app.get('/api/maintenance')
     def maintenance_status():

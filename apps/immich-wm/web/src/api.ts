@@ -24,6 +24,8 @@ const errorLabels: Record<string, string> = {
   key_scope_insufficient: '该 key 权限不足，请在 Immich 生成包含用户信息读取权限的 key（默认全权限即可）',
   login_rate_limited: '尝试次数过多，请 5 分钟后再试',
   invalid_request: '请求不合法',
+  init_required: '面板尚未关联 Immich，请先输入 API Key 完成初始化',
+  already_initialized: '面板已完成初始化',
 };
 export async function api<T>(path: string, method='GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api${path}`, {method, signal, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});

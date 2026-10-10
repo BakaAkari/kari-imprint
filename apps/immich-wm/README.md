@@ -1,6 +1,6 @@
 # Immich WM — M1 第一批预览版
 
-复用 kari-core 和现有 Canvas 的伴侣应用。当前能浏览源库、读取预览/EXIF、使用共享 Inspector 编辑底栏/左右侧栏、单/双轨、文字和资源、上传 Logo/签名、保存配置并生成独立成品。生成后自动检查入库并请求刷新，支持版本化成品预览。图库提供已出图状态角标与相册过滤（key 缺少 album.read 时过滤自动隐藏）。已接入 Pocket ID 登录、已管理资产巡检、磁盘预检、资源 GC 和联合备份恢复；完整孤儿扫描、共享前端包边界与正式图库切换仍待验收。
+复用 kari-core 和现有 Canvas 的伴侣应用。当前能浏览源库、读取预览/EXIF、使用共享 Inspector 编辑底栏/左右侧栏、单/双轨、文字和资源、上传 Logo/签名、保存配置并生成独立成品。生成后自动检查入库并请求刷新，支持版本化成品预览。图库提供已出图状态角标与相册过滤（key 缺少 album.read 时过滤自动隐藏）。凭据为单一 Immich API Key（init 模式页面关联、配置文件持久化），另有已管理资产巡检、磁盘预检、资源 GC 和联合备份恢复；完整孤儿扫描、共享前端包边界与正式图库切换仍待验收。
 
 ## 本地运行
 
@@ -11,7 +11,7 @@
 | 变量 | 用途 |
 |---|---|
 | `IMMICH_URL` | Immich 根 URL，不带 `/api`；远程使用可访问的 HTTPS 地址，同机容器使用 Docker 内网地址 |
-| `IMMICH_API_KEY` | asset.read / asset.view / job.create（完整相册功能另需 album.read） |
+| `IMMICH_API_KEY` | 可选。仅首次部署未使用 init 模式时作为初始 key，启动后自动迁移到数据目录配置文件；留空则面板进入 init 模式等待页面输入 |
 | `WM_SOURCE_LIBRARY_ID` | 唯一输入外部库 UUID |
 | `WM_OUTPUT_LIBRARY_ID` | 独立测试输出外部库 UUID，必须与输入不同 |
 | `WM_IMPORTS_ROOT` | 本机只读源目录，默认 `/imports` |
@@ -20,10 +20,9 @@
 | `WM_SOURCE_PREFIX` | Immich 内源目录，默认 `/external/camera-exports` |
 | `WM_OUTPUT_PREFIX` | Immich 内输出目录，默认 `/external/camera-watermarked` |
 | `WM_IMPRINT_DIR` | 成品在输出库内的文件夹名，默认 `Imprint`；重新生成原位覆盖同一路径，不追加文件 |
-| `WM_M0_TOKEN` | `uv run immich-wm --new-token` 生成的独立面板访问令牌 |
 | `WM_WEB_ROOT` | 可选，覆盖静态网页构建目录 |
 
-运行 `uv run immich-wm`，访问 `http://127.0.0.1:2285`。该入口默认只绑定本机。登录使用面板令牌，不使用 Immich key。开发 Vite 页面在 2286，代理 API 到 2285。
+运行 `uv run immich-wm`，访问 `http://127.0.0.1:2285`。该入口默认只绑定本机。开发 Vite 页面在 2286，代理 API 到 2285。
 
 只启动一个 worker。默认限制：输入/输出文件 256 MiB、输入 400MP、输出 460MP、资源 10 MiB/4MP、20 个待渲染任务、单次渲染子进程超时 900 秒。每次入库检查最多扫描 10 页；后台重试间隔从 5 秒退避到 5 分钟，计划写入 SQLite 并跨重启保留。首次入库仍依赖 Immich 的扫描，不使用管理员扫描权限。
 
@@ -69,19 +68,15 @@ Python 依赖由 worker/requirements.lock 约束；更新 uv.lock 后运行文�
 
 公网反向代理部署时设置 `WM_PUBLIC_ORIGIN=https://面板域名:端口`（不带末尾斜杠或路径）。来源校验使用此精确地址，HTTPS 入口的会话 Cookie 强制 Secure；无需信任任意客户端提供的转发头。变更后重新创建伴侣容器。
 
-### Pocket ID 登录
+### API Key 关联（init 模式）与登录
 
-设置以下服务端环境变量，并保留 `WM_PUBLIC_ORIGIN`：
+面板的唯一凭据是一把 Immich API Key（需要 asset.read / asset.view / job.create，完整相册功能另需 album.read），保存在 `WM_DATA_ROOT/config.json`（原子写入、0600，备份数据目录时即备份该配置）。
 
-- `WM_OIDC_ISSUER`：HTTPS issuer 根地址，无末尾斜杠。
-- `WM_OIDC_CLIENT_ID` / `WM_OIDC_CLIENT_SECRET`：机密客户端凭据，仅保存在 NAS 受保护的环境文件。
-- `WM_OIDC_ALLOWED_GROUP`：允许访问照片及生成接口的管理员组，当前为 `kari-imprint-admin`。
-
-回调地址为 `${WM_PUBLIC_ORIGIN}/api/auth/oidc/callback`。使用 Authlib 校验 OIDC 身份令牌、state、nonce 和 PKCE S256，登录事务保存在服务端，五分钟后失效、仅可使用一次。启用 OIDC 后旧 `/api/login` 令牌入口关闭。业务写请求必须携带正确 Origin。
-
-会话为服务端内存中的随机不透明 ID，Secure/HttpOnly/SameSite=Strict Cookie，有效期一小时；支持多设备及页面刷新，服务重启后需重新登录。退出面板立即撤销当前面板会话，不退出 Pocket ID 或其他应用。未实现后台通道注销；移出用户组不立即撤销已建立的面板会话，最多保留到一小时有效期结束，紧急撤销全部会话可重启伴侣容器。当前组内用户均拥有同一隔离图库的操作权限，不提供多租户隔离。
-
-默认关闭应用 HTTP access log，避免记录 OIDC 回调 code；反向代理也应避免记录回调查询参数。不要将 Client Secret 放进前端环境变量或仓库。服务启动时，缺失部分 OIDC 配置会直接报错，不降级到令牌登录。
+- **首次部署 / 配置缺失**：数据目录没有有效的 `config.json` 且环境变量 `IMMICH_API_KEY` 为空时，面板进入 init 模式——除健康检查和初始化接口外所有 API 返回 `init_required`，登录页显示初始化表单。输入 key 后面板调用 Immich `GET /api/users/me` 验证（无效 key、scope 不足、Immich 不可达分别明确报错，每 IP 限流 5 次失败 / 5 分钟），验证通过即写入配置文件、替换上游凭据并直接建立操作员会话。
+- **旧部署迁移**：已用 `IMMICH_API_KEY` 环境变量部署的实例启动时自动把该 key 写入配置文件，无需手动操作。
+- **日常登录**：初始化之后，浏览器会话过期或重启后，在登录页输入同一把 API Key 即可（与服务端存储比对，不经过 Immich，短暂离线也能登录）；新登录吊销旧会话。key 不落日志、不回显。
+- **更换 key**：停止容器 → 删除数据目录 `config.json`（若环境变量里还留有 `IMMICH_API_KEY` 需一并移除）→ 启动重新进入 init 模式。
+- 会话为服务端内存随机不透明 ID，Secure/HttpOnly/SameSite=Strict Cookie，有效期八小时；服务重启后需重新登录，紧急撤销全部会话可重启容器。
 
 ### M1 运维与资源包
 
@@ -91,4 +86,4 @@ Python 依赖由 worker/requirements.lock 约束；更新 uv.lock 后运行文�
 - 每小时清理超过一天且不属于活动任务的临时目录，以及超过一天、未被任何历史配置引用的上传资源。历史成品不自动过期；备份不自动删除。
 - 面板“维护与备份”可创建 `/data/backups/<backupId>`：包含一致性 SQLite 快照、自定义资源及文件摘要、库 ID、前缀和渲染版本。备份不含原图、成品、密钥和任务临时快照，请独立保护照片、compose 与 `.env`，并将备份复制到其他存储位置。
 - 离线恢复：`immich-wm --restore-backup /data/backups/<backupId> /new-data`。目标必须不存在；先校验摘要、数据库和资源引用，再创建数据目录。进行中的旧任务标为 `restored_requires_review`，不会重放发布。停止原服务后，核对 manifest 中库 ID/前缀/镜像版本，再切换数据挂载并手动重新生成；不要直接覆盖正在运行的数据库。
-- 会话仍为一小时内存会话；Pocket ID 后台注销推送尚未实现。完整共享前端包边界和正式图库迁移尚未验收，不应把本批称为所有 M1 门槛已关闭。
+- 会话仍为八小时内存会话；API Key 在线轮换端点尚未实现（删除配置文件重启即重新 init）。完整共享前端包边界和正式图库迁移尚未验收，不应把本批称为所有 M1 门槛已关闭。

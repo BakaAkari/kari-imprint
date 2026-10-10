@@ -9,12 +9,7 @@ services:
     environment:
       WM_PUBLIC_ORIGIN: ${WM_PUBLIC_ORIGIN:-}
       IMMICH_URL: http://app-immich-server:2283
-      IMMICH_API_KEY: ${IMMICH_API_KEY:?required}
-      WM_M0_TOKEN: ${WM_M0_TOKEN:-}
-      WM_OIDC_ISSUER: ${WM_OIDC_ISSUER:-}
-      WM_OIDC_CLIENT_ID: ${WM_OIDC_CLIENT_ID:-}
-      WM_OIDC_CLIENT_SECRET: ${WM_OIDC_CLIENT_SECRET:-}
-      WM_OIDC_ALLOWED_GROUP: ${WM_OIDC_ALLOWED_GROUP:-}
+      IMMICH_API_KEY: ${IMMICH_API_KEY:-}
       WM_SOURCE_LIBRARY_ID: ${WM_SOURCE_LIBRARY_ID:?required}
       WM_OUTPUT_LIBRARY_ID: ${WM_OUTPUT_LIBRARY_ID:?required}
       WM_OUTPUT_PREFIX: /external/camera-watermarked-m0

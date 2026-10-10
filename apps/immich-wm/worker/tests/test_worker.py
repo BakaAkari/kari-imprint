@@ -50,7 +50,7 @@ def setup(tmp_path):
     imports.mkdir()
     output.mkdir()
     Image.new('RGB', (120, 80), 'red').save(imports / 'photo.jpg')
-    settings = Settings('http://localhost:2283', 'secret', str(uuid4()), str(uuid4()), imports, output, tmp_path / 'data', token='x'*32)
+    settings = Settings('http://localhost:2283', 'secret', str(uuid4()), str(uuid4()), imports, output, tmp_path / 'data')
     return settings, FakeImmich(settings)
 
 
@@ -157,8 +157,8 @@ def test_auth_origin_strict_payload_and_no_paths(setup):
     with TestClient(create_app(settings, fake, background=False)) as client:
         endpoint = f'/api/assets/{fake.asset_id}/config'
         assert client.get(endpoint).status_code == 401
-        assert client.post('/api/login', json={'token': settings.token}, headers={'origin': 'http://evil.test'}).status_code == 403
-        assert client.post('/api/login', json={'token': settings.token}).status_code == 200
+        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}, headers={'origin': 'http://evil.test'}).status_code == 403
+        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).status_code == 200
         assert client.put(endpoint, json={'expectedRevision': '0', 'config': CONFIG}).status_code == 422
         response = client.put(endpoint, json={'expectedRevision': 0, 'config': CONFIG})
         assert response.status_code == 200, response.text
@@ -169,7 +169,7 @@ def test_auth_origin_strict_payload_and_no_paths(setup):
 def test_resource_survives_restart_and_database_backup(setup, tmp_path):
     settings, fake = setup
     with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/login', json={'token': settings.token})
+        client.post('/api/auth/immich-key', json={'key': settings.api_key})
         from io import BytesIO
         data = BytesIO()
         Image.new('RGBA', (40, 10), 'black').save(data, format='PNG')
@@ -289,7 +289,7 @@ def test_editor_upload_and_latest_job_contract(setup):
     settings, fake = setup
     app = create_app(settings, fake, background=False)
     with TestClient(app) as client:
-        client.post('/api/login', json={'token': settings.token})
+        client.post('/api/auth/immich-key', json={'key': settings.api_key})
         endpoint = f'/api/assets/{fake.asset_id}'
         assert client.get(endpoint+'/job').json() == {'job': None}
         image = BytesIO()
@@ -325,7 +325,7 @@ def test_public_static_cache_and_compression_keep_api_private(setup, tmp_path, m
         assert 'Accept-Encoding' in result.headers['vary']
         assert client.get('/').headers['cache-control'] == 'no-cache'
         assert client.get('/api/health').headers['cache-control'] == 'no-store'
-        assert client.post('/api/login', json={'token': settings.token}).headers['cache-control'] == 'no-store'
+        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).headers['cache-control'] == 'no-store'
         assert client.get('/api/assets').headers['cache-control'] == 'no-store'
         assert client.get('/assets/missing.js').headers['cache-control'] == 'no-cache'
 
@@ -336,11 +336,11 @@ def test_public_origin_behind_http_proxy(setup):
     origin = 'https://immt.baka-akari.icu:18443'
     settings = replace(settings, public_origin=origin)
     with TestClient(create_app(settings, fake, background=False), base_url='http://internal:2285') as client:
-        response = client.post('/api/login', json={'token': settings.token}, headers={'Origin': origin})
+        response = client.post('/api/auth/immich-key', json={'key': settings.api_key}, headers={'Origin': origin})
         assert response.status_code == 200
         assert 'Secure' in response.headers['set-cookie']
         for bad in ['https://evil.example', origin + '.evil.example', 'null', 'http://internal:2285']:
-            response = client.post('/api/login', json={'token': settings.token}, headers={
+            response = client.post('/api/auth/immich-key', json={'key': settings.api_key}, headers={
                 'Origin': bad, 'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': bad,
             })
             assert response.status_code == 403
@@ -354,80 +354,6 @@ def test_invalid_public_origin_configuration(setup, origin):
     from dataclasses import replace
     with pytest.raises(ValueError):
         replace(setup[0], public_origin=origin)
-
-
-@pytest.mark.parametrize('fault', [None, 'nonce', 'aud', 'iss', 'expired', 'signature', 'group', 'state', 'binding'])
-def test_oidc_signed_tokens_and_browser_binding(setup, fault):
-    import time
-    from dataclasses import replace
-    from urllib.parse import parse_qs, urlsplit
-
-    import httpx
-    from joserfc import jwt
-    from joserfc.jwk import RSAKey
-
-    settings, fake = setup
-    issuer = 'https://id.example.com'
-    origin = 'https://panel.example.com'
-    settings = replace(settings, public_origin=origin, oidc_issuer=issuer,
-                       oidc_client_id='test-client', oidc_client_secret='test-secret',
-                       oidc_allowed_group='kari-imprint-admin')
-    app = create_app(settings, fake, background=False)
-    key = RSAKey.generate_key(2048)
-    key.ensure_kid()
-    pending = {}
-
-    def upstream(request):
-        if request.url.path == '/.well-known/openid-configuration':
-            return httpx.Response(200, json={
-                'issuer': issuer, 'authorization_endpoint': issuer+'/authorize',
-                'token_endpoint': issuer+'/token', 'jwks_uri': issuer+'/jwks',
-                'id_token_signing_alg_values_supported': ['RS256'],
-            })
-        if request.url.path == '/jwks':
-            return httpx.Response(200, json={'keys': [key.as_dict(private=False)]})
-        assert request.url.path == '/token'
-        form = parse_qs(request.content.decode())
-        import base64
-        import hashlib
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(form['code_verifier'][0].encode()).digest()).rstrip(b'=').decode()
-        assert challenge == pending['code_challenge'][0]
-        claims = {'iss': issuer, 'aud': 'test-client', 'sub': 'user-1', 'iat': int(time.time()),
-                  'exp': int(time.time())+300, 'nonce': pending['nonce'][0], 'groups': ['kari-imprint-admin']}
-        if fault in {'iss', 'aud', 'nonce'}:
-            claims[fault] = 'wrong'
-        if fault == 'expired':
-            claims['exp'] = int(time.time())-600
-        if fault == 'group':
-            claims['groups'] = ['other']
-        signing_key = RSAKey.generate_key(2048) if fault == 'signature' else key
-        encoded = jwt.encode({'alg': 'RS256', 'kid': key.kid}, claims, signing_key)
-        return httpx.Response(200, json={'access_token': 'test-access', 'token_type': 'Bearer', 'id_token': encoded})
-
-    app.state.oidc_provider.client_kwargs['transport'] = httpx.MockTransport(upstream)
-    with TestClient(app, base_url=origin) as client:
-        assert client.get('/api/assets').status_code == 401
-        assert client.post('/api/login', json={'token': settings.token}, headers={'Origin': origin}).status_code == 404
-        start = client.get('/api/auth/oidc/login', follow_redirects=False)
-        assert start.status_code == 302
-        pending.update(parse_qs(urlsplit(start.headers['location']).query))
-        assert pending['code_challenge_method'] == ['S256']
-        assert pending['redirect_uri'] == [origin+'/api/auth/oidc/callback']
-        assert 'Secure' in start.headers['set-cookie'] and 'HttpOnly' in start.headers['set-cookie']
-        if fault == 'binding':
-            client.cookies.clear()
-        params = {'code': 'one-time-code', 'state': 'wrong' if fault == 'state' else pending['state'][0]}
-        callback = client.get('/api/auth/oidc/callback', params=params, follow_redirects=False)
-        assert callback.status_code == 303
-        assert client.get('/api/auth/session').json()['authenticated'] is (fault is None)
-        assert client.get('/api/assets').status_code == (200 if fault is None else 401)
-        if fault is None:
-            assert 'Secure' in callback.headers['set-cookie']
-            replay = client.get('/api/auth/oidc/callback', params=params, follow_redirects=False)
-            assert 'auth_error' in replay.headers['location']
-            assert client.post('/api/auth/logout').status_code == 403
-            assert client.post('/api/auth/logout', headers={'Origin': origin}).status_code == 200
-            assert not client.get('/api/auth/session').json()['authenticated']
 
 
 def test_metadata_orientation_cache_and_file_changes(service, monkeypatch):
@@ -533,7 +459,7 @@ def test_low_space_blocks_enqueue_without_temporary_files(service, monkeypatch):
 def test_gallery_status_badges_and_album_filter(setup):
     settings, fake = setup
     with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/login', json={'token': settings.token})
+        client.post('/api/auth/immich-key', json={'key': settings.api_key})
         listed = client.get('/api/assets').json()
         assert listed['items'][0]['status'] == {'configured': False, 'job': None, 'published': False}
         albums = client.get('/api/albums').json()
@@ -559,7 +485,7 @@ def test_albums_endpoint_degrades_when_scope_missing(setup):
         raise UpstreamError(403)
     fake.albums = forbidden
     with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/login', json={'token': settings.token})
+        client.post('/api/auth/immich-key', json={'key': settings.api_key})
         response = client.get('/api/albums')
         assert response.status_code == 200
         assert response.json() == {'albums': [], 'available': False}
@@ -568,14 +494,14 @@ def test_albums_endpoint_degrades_when_scope_missing(setup):
         raise UpstreamError(503)
     fake.albums = offline
     with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/login', json={'token': settings.token})
+        client.post('/api/auth/immich-key', json={'key': settings.api_key})
         assert client.get('/api/albums').status_code == 502
 
 
 def test_value_errors_expose_only_safe_codes(setup):
     settings, fake = setup
     with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/login', json={'token': settings.token})
+        client.post('/api/auth/immich-key', json={'key': settings.api_key})
         assert client.get('/api/assets/not-a-uuid/config').status_code == 422
         response = client.get(f"/api/assets/{fake.asset_id}/metadata")
         assert response.status_code == 200, response.text
@@ -622,105 +548,126 @@ def test_logo_catalog_and_protected_bytes(setup, monkeypatch, tmp_path):
     settings,fake=setup
     with TestClient(create_app(settings,fake,background=False)) as client:
         assert client.get('/api/builtin-logos/canon').status_code==401
-        client.post('/api/login',json={'token':settings.token})
+        client.post('/api/auth/immich-key',json={'key':settings.api_key})
         assert client.get('/api/logos').json()['logos']==[{'stem':'canon','variants':[]}]
         assert client.get('/api/builtin-logos/canon').status_code==200
         assert client.get('/api/builtin-logos/canon',params={'variant':'../escape'}).status_code==422
 
 
-def test_immich_key_login_success_and_single_operator_revocation(setup):
-    import httpx
+
+
+def test_env_key_migrates_into_config_file(setup):
     settings, fake = setup
+    with TestClient(create_app(settings, fake, background=False)) as client:
+        session = client.get('/api/auth/session').json()
+    assert session['initialized'] is True and session['mode'] == 'immich_key'
+    config = settings.data / 'config.json'
+    assert config.is_file()
+    assert config.stat().st_mode & 0o777 == 0o600
+    import json
+    assert json.loads(config.read_text()) == {'apiKey': 'secret'}
 
-    def upstream(request):
-        assert request.url.path == '/api/users/me'
-        if request.headers['x-api-key'] == 'good-key':
-            return httpx.Response(200, json={'email': 'akari@example.com'})
-        return httpx.Response(401)
 
-    app = create_app(settings, fake, background=False)
-    app.state.immich_key_transport = httpx.MockTransport(upstream)
-    with TestClient(app) as client:
-        assert client.get('/api/auth/session').json()['methods'] == ['immich_key', 'token']
+def test_immich_key_login_success_and_single_operator_revocation(setup):
+    settings, fake = setup
+    with TestClient(create_app(settings, fake, background=False)) as client:
+        assert client.get('/api/auth/session').json()['authenticated'] is False
         assert client.get('/api/assets').status_code == 401
-        response = client.post('/api/auth/immich-key', json={'key': 'good-key'})
+        response = client.post('/api/auth/immich-key', json={'key': settings.api_key})
         assert response.status_code == 200
         assert client.get('/api/auth/session').json()['authenticated'] is True
         assert client.get('/api/assets').status_code == 200
         previous = client.cookies.get('wm_session')
-        assert client.post('/api/auth/immich-key', json={'key': 'good-key'}).status_code == 200
+        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).status_code == 200
         assert client.cookies.get('wm_session') != previous
         client.cookies.set('wm_session', previous)
         assert client.get('/api/assets').status_code == 401
 
 
-def test_immich_key_login_rejects_scoped_unreachable_and_malformed(setup):
-    import httpx
+def test_immich_key_login_rejects_wrong_key_and_rate_limits(setup):
     settings, fake = setup
-
-    def upstream(request):
-        key = request.headers['x-api-key']
-        if key == 'scoped-key':
-            return httpx.Response(403)
-        if key == 'broken-upstream':
-            raise httpx.ConnectError('refused')
-        return httpx.Response(401)
-
     app = create_app(settings, fake, background=False)
-    app.state.immich_key_transport = httpx.MockTransport(upstream)
     with TestClient(app) as client:
-        response = client.post('/api/auth/immich-key', json={'key': 'bad-key'})
-        assert response.status_code == 401 and response.json()['error'] == 'invalid_key'
-        response = client.post('/api/auth/immich-key', json={'key': 'scoped-key'})
-        assert response.status_code == 403 and response.json()['error'] == 'key_scope_insufficient'
-        response = client.post('/api/auth/immich-key', json={'key': 'broken-upstream'})
-        assert response.status_code == 502 and response.json()['error'] == 'immich_unreachable'
+        assert client.post('/api/auth/immich-key', json={'key': 'wrong-key'}).status_code == 401
         assert client.post('/api/auth/immich-key', json={'key': '   '}).status_code == 422
         assert client.post('/api/auth/immich-key', json={'key': 'x' * 257}).status_code == 422
-        assert client.post('/api/auth/immich-key', json={'key': 'good-key'}).status_code == 401
         assert client.get('/api/auth/session').json()['authenticated'] is False
-
-
-def test_immich_key_login_rate_limits_failures(setup):
-    import httpx
-    settings, fake = setup
-    app = create_app(settings, fake, background=False)
-    app.state.immich_key_transport = httpx.MockTransport(lambda request: httpx.Response(401))
-    with TestClient(app) as client:
-        for _ in range(5):
-            assert client.post('/api/auth/immich-key', json={'key': 'bad-key'}).status_code == 401
-        response = client.post('/api/auth/immich-key', json={'key': 'bad-key'})
+        for _ in range(4):
+            assert client.post('/api/auth/immich-key', json={'key': 'wrong-key'}).status_code == 401
+        response = client.post('/api/auth/immich-key', json={'key': settings.api_key})
         assert response.status_code == 429 and response.json()['error'] == 'login_rate_limited'
 
 
 def test_immich_key_login_never_logs_the_key(setup, caplog):
     import logging
 
+    settings, fake = setup
+    app = create_app(settings, fake, background=False)
+    with caplog.at_level(logging.INFO, logger='immich_wm.auth'):
+        with TestClient(app) as client:
+            assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).status_code == 200
+            assert client.post('/api/auth/immich-key', json={'key': settings.api_key + '-wrong'}).status_code == 401
+    assert settings.api_key not in caplog.text
+    assert settings.api_key + '-wrong' not in caplog.text
+
+
+def test_init_mode_gates_api_and_init_success_persists_key(setup):
+    import json
+    from dataclasses import replace
+
     import httpx
     settings, fake = setup
-    secret = 'ik-must-not-appear-in-logs-0123456789'
+    settings = replace(settings, api_key='')
+    assert not (settings.data / 'config.json').exists()
 
     def upstream(request):
-        if request.headers['x-api-key'] == secret:
+        assert request.url.path == '/api/users/me'
+        if request.headers['x-api-key'] == 'good-key':
             return httpx.Response(200, json={'email': 'akari@example.com'})
+        if request.headers['x-api-key'] == 'scoped-key':
+            return httpx.Response(403)
         return httpx.Response(401)
 
     app = create_app(settings, fake, background=False)
     app.state.immich_key_transport = httpx.MockTransport(upstream)
-    with caplog.at_level(logging.INFO, logger='immich_wm.auth'):
-        with TestClient(app) as client:
-            assert client.post('/api/auth/immich-key', json={'key': secret}).status_code == 200
-            assert client.post('/api/auth/immich-key', json={'key': secret + '-wrong'}).status_code == 401
-    assert secret not in caplog.text
-    assert secret + '-wrong' not in caplog.text
-    assert 'akari@example.com' in caplog.text
+    with TestClient(app) as client:
+        session = client.get('/api/auth/session').json()
+        assert session['mode'] == 'init' and session['initialized'] is False
+        response = client.get('/api/assets')
+        assert response.status_code == 403 and response.json()['error'] == 'init_required'
+        assert client.get('/api/health').json()['initialized'] is False
+        # Login is closed before initialization.
+        assert client.post('/api/auth/immich-key', json={'key': 'good-key'}).status_code == 403
+        response = client.post('/api/init', json={'key': 'bad-key'})
+        assert response.status_code == 401 and response.json()['error'] == 'invalid_key'
+        response = client.post('/api/init', json={'key': 'scoped-key'})
+        assert response.status_code == 403 and response.json()['error'] == 'key_scope_insufficient'
+        response = client.post('/api/init', json={'key': 'good-key'})
+        assert response.status_code == 200
+        assert client.get('/api/auth/session').json()['initialized'] is True
+        assert client.get('/api/assets').status_code == 200
+        # Init is single-use.
+        assert client.post('/api/init', json={'key': 'good-key'}).status_code == 409
+    config = settings.data / 'config.json'
+    assert json.loads(config.read_text()) == {'apiKey': 'good-key'}
+    assert config.stat().st_mode & 0o777 == 0o600
+    # A restart with the config file present comes up initialized, no init mode.
+    with TestClient(create_app(settings, fake, background=False)) as client:
+        assert client.get('/api/auth/session').json()['initialized'] is True
+        assert client.get('/api/assets').status_code == 401
 
 
-def test_session_methods_keep_oidc_alongside_immich_key(setup):
+def test_init_success_swaps_upstream_key(setup):
     from dataclasses import replace
-    settings, fake = setup
-    settings = replace(settings, public_origin='https://panel.example.com', oidc_issuer='https://id.example.com',
-                       oidc_client_id='client', oidc_client_secret='secret', oidc_allowed_group='kari-imprint-admin')
-    app = create_app(settings, fake, background=False)
-    with TestClient(app, base_url='https://panel.example.com') as client:
-        assert client.get('/api/auth/session').json()['methods'] == ['oidc', 'immich_key']
+
+    import httpx
+    from immich_wm.client import ImmichClient
+    settings, _fake = setup
+    settings = replace(settings, api_key='')
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={'email': 'akari@example.com'}))
+    http = ImmichClient(settings.immich_url, '', transport=transport)
+    app = create_app(settings, http, background=False)
+    app.state.immich_key_transport = transport
+    with TestClient(app) as client:
+        assert client.post('/api/init', json={'key': 'swapped-key'}).status_code == 200
+    assert http.http.headers['x-api-key'] == 'swapped-key'

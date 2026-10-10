@@ -7,7 +7,6 @@ dependencies = [
     "kari-core",
     "kari-imprint-api",
     "httpx>=0.28.1",
-    "authlib>=1.6,<2",
 ]
 
 [project.scripts]

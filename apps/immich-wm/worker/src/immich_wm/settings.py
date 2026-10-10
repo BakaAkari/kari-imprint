@@ -28,12 +28,7 @@ class Settings:
     imprint_dir: str = "Imprint"
     # Explicit M0 renderer identifier; bump whenever render inputs/implementation change.
     renderer_version: str = "m0-photo-srgb-v1"
-    token: str = field(default="", repr=False)
     public_origin: str = ""
-    oidc_issuer: str = ""
-    oidc_client_id: str = ""
-    oidc_client_secret: str = field(default="", repr=False)
-    oidc_allowed_group: str = ""
 
     def __post_init__(self):
         parsed = urlsplit(self.immich_url)
@@ -48,23 +43,16 @@ class Settings:
                 raise ValueError("invalid_public_origin")
             if origin.port is not None and not 1 <= origin.port <= 65535:
                 raise ValueError("invalid_public_origin")
-        oidc_values = (self.oidc_issuer, self.oidc_client_id, self.oidc_client_secret, self.oidc_allowed_group)
-        if any(oidc_values):
-            issuer = urlsplit(self.oidc_issuer)
-            if (not all(oidc_values) or not self.public_origin.startswith('https://')
-                    or issuer.scheme != 'https' or not issuer.hostname or issuer.path
-                    or issuer.username or issuer.password or issuer.query or issuer.fragment
-                    or any(c.isspace() for c in self.oidc_issuer)
-                    or any(len(v) > 2048 for v in oidc_values)):
-                raise ValueError('invalid_oidc_configuration')
         UUID(self.source_library)
         UUID(self.output_library)
         if self.source_library == self.output_library:
             raise ValueError("libraries_must_differ")
         from immich_wm.paths import output_relative
         output_relative('probe.jpg', self.imprint_dir)
-        if not self.api_key or (not self.oidc_issuer and len(self.token) < 32):
-            raise ValueError("missing_credentials")
+        # api_key may be empty at startup: the panel then enters init mode and
+        # waits for the operator to associate an Immich API key via /api/init.
+        if not isinstance(self.api_key, str) or len(self.api_key) > 256:
+            raise ValueError("invalid_api_key")
         roots = [p.resolve() for p in (self.imports, self.output, self.data)]
         if any(a == b or a in b.parents or b in a.parents for i,a in enumerate(roots) for b in roots[i+1:]):
             raise ValueError("overlapping_roots")
@@ -75,7 +63,7 @@ class Settings:
     @classmethod
     def from_env(cls):
         return cls(
-            immich_url=os.environ["IMMICH_URL"], api_key=os.environ["IMMICH_API_KEY"],
+            immich_url=os.environ["IMMICH_URL"], api_key=os.environ.get("IMMICH_API_KEY", ""),
             source_library=os.environ["WM_SOURCE_LIBRARY_ID"], output_library=os.environ["WM_OUTPUT_LIBRARY_ID"],
             imports=Path(os.environ.get("WM_IMPORTS_ROOT", "/imports")),
             output=Path(os.environ.get("WM_OUTPUT_ROOT", "/output")), data=Path(os.environ.get("WM_DATA_ROOT", "/data")),
@@ -83,10 +71,5 @@ class Settings:
             source_prefix=os.environ.get("WM_SOURCE_PREFIX", "/external/camera-exports"),
             output_prefix=os.environ.get("WM_OUTPUT_PREFIX", "/external/camera-watermarked"),
             imprint_dir=os.environ.get("WM_IMPRINT_DIR", "Imprint"),
-            token=os.environ.get("WM_M0_TOKEN", ""),
             public_origin=os.environ.get("WM_PUBLIC_ORIGIN", ""),
-            oidc_issuer=os.environ.get("WM_OIDC_ISSUER", ""),
-            oidc_client_id=os.environ.get("WM_OIDC_CLIENT_ID", ""),
-            oidc_client_secret=os.environ.get("WM_OIDC_CLIENT_SECRET", ""),
-            oidc_allowed_group=os.environ.get("WM_OIDC_ALLOWED_GROUP", ""),
         )
