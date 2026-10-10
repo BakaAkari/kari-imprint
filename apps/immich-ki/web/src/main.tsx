@@ -1,21 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { KariImprintCanvas } from '../../../web/src/KariImprintCanvas';
-import { defaultStyle, defaultFlowLayout, type ImprintConfig } from '../../../web/src/types';
+import type { ImprintConfig } from '../../../web/src/types';
 import type { ExifFieldValues, RuntimeCapabilities } from '../../../web/src/api';
 import { api, type Album, type Asset, type AssetStatus, type Job, type Saved, type MaintenanceStatus } from './api';
 import { Editor, editableConfig } from './editor';
+import { buildDefaultConfig } from './defaults';
 import '../../../web/src/styles.css';
 import './style.css';
 
-const initial: ImprintConfig = {
-  schema_version: 3, canvas: {margins: {top:0,right:0,bottom:0,left:0},background:'#FFFFFF',border_radius:0,border:{enabled:false,width_level:'medium',color:'#FFFFFF'}},
-  regions: [{id:'footer',type:'footer-bar',enabled:true,height:0.15,layout:defaultFlowLayout(),slots:{
-    'primary-start': {enabled:true,style:null,content:{chips:[{field_id:'camera_model'},{field_id:'lens_model'}],separator:' '}},
-    'secondary-start': {enabled:true,style:null,content:{chips:[{field_id:'focal_length'},{field_id:'aperture'},{field_id:'shutter'},{field_id:'iso'}],separator:' · '}},
-    asset: {enabled:true,style:null,content:{path:'',size_level:'medium',size_ratio:null,orientation:'upright',placement:'end',track:'span'}}
-  }}], defaults:defaultStyle,custom_text:'',logo_position:'right',
-};
+const initial: ImprintConfig = buildDefaultConfig();
 const labels: Record<Job['state'],string> = {queued:'排队中',running:'渲染中',publishing:'保存成品',awaiting_import:'待入库',refresh_pending:'已请求刷新',done:'完成',failed:'失败',superseded:'已替代'};
 function Thumbnail({id}:{id:string}) {
   const [failed,setFailed]=useState(false);
@@ -109,6 +103,26 @@ function App() {
       if(id===epoch.current)setJob(task);
     }catch(e){if(id===epoch.current)setMessage(String(e));}finally{if(id===epoch.current)setBusy(false);}
   }
+  const saveRef=useRef(saveRender);
+  saveRef.current=saveRender;
+  useEffect(()=>{
+    if(!logged)return;
+    const onKey=(e:KeyboardEvent)=>{
+      const tag=(e.target as HTMLElement|null)?.tagName||'';
+      const typing=tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT';
+      if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!typing)void saveRef.current();return;}
+      if(typing||!assets.length)return;
+      const step=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;
+      if(!step)return;
+      const index=assets.findIndex(a=>a.id===active?.id);
+      const target=assets[index+step];
+      if(!target)return;
+      if(dirty&&!window.confirm('放弃当前未保存的修改？'))return;
+      setActive(target);
+    };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[logged,assets,active?.id,dirty,busy]);
   const editorEpoch=epoch.current;
   if(!logged)return <main className="login"><h1>KARI IMPRINT</h1><p className="login-sub">IMMICH · KI — M1</p>{authMode==='loading'?<p className="login-wait">正在检查登录状态…</p>:authMode==='ready'?initialized?<form onSubmit={e=>{e.preventDefault();setAuthBusy(true);setMessage('');api('/auth/immich-login','POST',{email,password}).then(()=>{setLogged(true);setPassword('');}).catch(e=>setMessage(String(e))).finally(()=>setAuthBusy(false));}}><p className="login-hint-top">使用 Immich 账户登录（与关联面板同一个账户）。</p><label>Immich 邮箱<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username"/></label><label>Immich 密码<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password"/></label><button className="login-action" disabled={authBusy||!email||!password}>进入图库</button></form>:<form onSubmit={e=>{e.preventDefault();setAuthBusy(true);setMessage('');api('/init','POST',{key}).then(()=>{setInitialized(true);setLogged(true);setKey('');}).catch(e=>setMessage(String(e))).finally(()=>setAuthBusy(false));}}><p className="login-hint-top">首次部署或配置缺失：输入 Immich API Key 完成关联。之后日常使用下方的 Immich 账户密码登录。</p><label>Immich API Key<input type="password" value={key} onChange={e=>setKey(e.target.value)} autoComplete="off"/></label><button className="login-action" disabled={authBusy||!key}>关联并进入</button></form>:null}<p role="alert" className="login-alert">{message}</p></main>;
   return <div className="immich-app"><header><strong className="wordmark">KARI IMPRINT<span>IMMICH·KI / M1</span></strong><span className="head-note">源照片只读 · 成品独立保存</span><button className="head-logout" onClick={()=>{if(dirty&&!window.confirm('退出将放弃未保存的修改，继续？'))return;api('/auth/logout','POST').then(()=>location.replace('/')).catch(()=>setMessage('退出失败，请重试。'));}}>退出</button></header>
@@ -122,7 +136,7 @@ function App() {
       </main>
       <aside className="controls"><h2 className="rail-title">02 · 参数{active?` / ${active.name}`:''}</h2><div className="save-bar"><button className="save-action" disabled={!bitmap||busy} onClick={saveRender}>保存并生成{dirty?' *':''}</button><span className="rev-tag">REV {revision}</span></div>
         <fieldset disabled={!bitmap||busy} key={active?.id||'empty'}><Editor config={config} onChange={value=>{if(epoch.current!==editorEpoch)return;setConfig(value);setDirty(true);}}/></fieldset>
-        {job&&['awaiting_import','refresh_pending'].includes(job.state)&&<button disabled={busy} onClick={()=>{setBusy(true);api<Job>(`/jobs/${job.id}/sync`,'POST').then(setJob).catch(e=>setMessage(String(e))).finally(()=>setAuthBusy(false));}}>重新检查入库</button>}
+        {job&&['awaiting_import','refresh_pending'].includes(job.state)&&<button disabled={busy} onClick={()=>{setBusy(true);api<Job>(`/jobs/${job.id}/sync`,'POST').then(setJob).catch(e=>setMessage(String(e))).finally(()=>setBusy(false));}}>重新检查入库</button>}
         <details className="maintenance"><summary>系统 · 维护与备份{maintenance?.issues.length?` [${maintenance.issues.length}]`:''}</summary>
           {maintenance?<><p className="sys-line">FREE {(maintenance.freeBytes/1024**3).toFixed(1)} GB</p>{maintenance.freeBytes<maintenance.minimumFreeBytes&&<p role="alert" className="alert-line">可用空间不足，暂不能生成或上传资源。</p>}{maintenance.issues.length>0&&<p role="alert" className="alert-line">发现源照片、成品或资源异常，已保留文件，请检查后再生成。</p>}{maintenance.issues.map(issue=><p className="sys-line" key={issue.assetId}>{assets.find(a=>a.id===issue.assetId)?.name||issue.assetId.slice(0,8)} — {({source_moved:'源照片路径已变更',source_missing:'源照片已不可用',upstream_unavailable:'暂时无法连接 Immich',output_missing:'成品文件缺失',output_changed:'成品被外部修改',source_or_resource_unavailable:'源照片或资源缺失'} as Record<string,string>)[issue.issue]||'需要检查'}</p>)}</>:<p className="sys-line">正在读取维护状态…</p>}
           <button disabled={backingUp} onClick={()=>{setBackingUp(true);setBackupMessage('正在备份配置和资源…');api<{backupId:string;files:number}>('/maintenance/backup','POST').then(result=>setBackupMessage(`备份已保存：${result.backupId}`)).catch(()=>setBackupMessage('备份失败，请检查可用空间。')).finally(()=>setBackingUp(false));}}>备份配置与资源</button><p role="status" className="sys-line">{backupMessage}</p></details>

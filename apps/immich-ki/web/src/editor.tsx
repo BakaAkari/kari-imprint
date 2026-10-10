@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { fetchLogos, type LogoVariant } from '../../../web/src/api';
 import { InspectorPanel } from '../../../web/src/components/InspectorPanel';
-import { defaultStyle, defaultFlowLayout, mergeSlotOverride, normalizeStylePatch, type ImprintConfig, type RegionConfig, type RootOverrides, type SlotOverride } from '../../../web/src/types';
+import { defaultStyle, defaultFlowLayout, fieldOptions, mergeSlotOverride, normalizeStylePatch, type FieldChip, type FieldId, type ImprintConfig, type RegionConfig, type RootOverrides, type SlotOverride, type TextContent } from '../../../web/src/types';
+import { QUICK_FIELD_OPTIONS } from './defaults';
 
 /** Add disabled editing slots without changing the saved composition. */
 export function editableConfig(value: ImprintConfig): ImprintConfig {
@@ -22,6 +23,19 @@ export function editableConfig(value: ImprintConfig): ImprintConfig {
     config.regions.push({id,type:'free',enabled:false,anchor:'bottom-right',offset_x:-0.02,offset_y:-0.02,offset_unit:'short_edge_ratio',slots:{sig1:{enabled:true,style:null,content:{path:'',invert_mono:false,size_level:'small',size_ratio:null,orientation:'upright',placement:'end',track:'span'}}}});
   }
   return config;
+}
+
+function TrackFields({title, chips, separator, onChange}: {title:string; chips:FieldChip[]; separator:string; onChange:(chips:FieldChip[], separator:string)=>void}) {
+  const active = new Set(chips.map(c => c.field_id));
+  const toggle = (id:FieldId, checked:boolean) => {
+    // Keep canonical option order; preserve any non-quick fields (e.g. custom_text) as-is.
+    const extras = chips.filter(c => !QUICK_FIELD_OPTIONS.includes(c.field_id)).map(c => c.field_id);
+    const nextIds = QUICK_FIELD_OPTIONS.filter(f => (f === id ? checked : active.has(f)));
+    onChange([...nextIds, ...extras].map(fid => chips.find(c => c.field_id === fid) ?? { field_id: fid }), separator);
+  };
+  return <fieldset className="track-fields"><legend>{title}</legend>
+    {QUICK_FIELD_OPTIONS.map(id => <label key={id} className="inline"><input type="checkbox" checked={active.has(id)} onChange={e=>toggle(id, e.target.checked)}/>{fieldOptions.find(o=>o.id===id)?.label||id}</label>)}
+  </fieldset>;
 }
 
 export function Editor({config,onChange}: {config:ImprintConfig;onChange:(update:(value:ImprintConfig)=>ImprintConfig)=>void}) {
@@ -53,6 +67,19 @@ export function Editor({config,onChange}: {config:ImprintConfig;onChange:(update
       }}><option value="footer">底栏</option><option value="left">左侧栏</option><option value="right">右侧栏</option></select></label>
       <label>排版轨道<select aria-label="排版轨道" value={flow.layout?.mode||'single-track'} onChange={e=>region(flow.id,{layout:{...defaultFlowLayout(),...flow.layout,mode:e.target.value as 'single-track'|'dual-track'}})}><option value="single-track">单轨</option><option value="dual-track">双轨</option></select></label>
       {flow.type==='footer-bar' && <label>底栏高度<input type="range" min="0.05" max="0.35" step="0.01" value={flow.height||0.15} onChange={e=>region(flow.id,{height:Number(e.target.value)})}/></label>}
+    </div>}
+    {flow && <div className="editor-typography">
+      <label>字号比例<input type="range" min={0.5} max={2} step={0.05} value={config.defaults?.font_size_ratio ?? 1} onChange={e=>root({defaults:{font_size_ratio:Number(e.target.value)}})}/></label>
+      <div className="type-row">
+        <label>文字颜色<input type="color" value={config.defaults?.color||'#222222'} onChange={e=>root({defaults:{color:e.target.value}})}/></label>
+        <label>字体<select aria-label="字体" value={config.defaults?.font_family||'NotoSansCJKsc-Bold.otf'} onChange={e=>root({defaults:{font_family:e.target.value as 'NotoSansCJKsc-Bold.otf'|'NotoSansCJKsc-Regular.otf'}})}><option value="NotoSansCJKsc-Bold.otf">粗体</option><option value="NotoSansCJKsc-Regular.otf">常规</option></select></label>
+        <label className="inline"><input type="checkbox" checked={config.defaults?.bold ?? true} onChange={e=>root({defaults:{bold:e.target.checked}})}/>加粗</label>
+      </div>
+      {(['primary-start','secondary-start'] as const).map(key => {
+        const slotConfig = flow.slots?.[key];
+        const content = slotConfig?.content && 'chips' in slotConfig.content ? slotConfig.content as TextContent : {chips:[],separator:key==='primary-start'?' ':' · '};
+        return <TrackFields key={key} title={key==='primary-start'?'上排文字字段':'下排文字字段'} chips={content.chips} separator={content.separator} onChange={(next,sep)=>slot(`${flow.id}:${key}`,{content:{chips:next,separator:sep}})}/>;
+      })}
     </div>}
     <label>自定义文字<input maxLength={500} value={config.custom_text||''} onChange={e=>{const text=e.target.value;onChange(current=>({...current,custom_text:text}));}}/></label>
     <details className="advanced-params">
