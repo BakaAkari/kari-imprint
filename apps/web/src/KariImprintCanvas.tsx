@@ -62,7 +62,9 @@ function resolveLogoConfig(
     }
     return { ...region, slots };
   });
-  return { ...config, regions };
+  // The layout engine resolves proportional regions into margin pixels.
+  // Keep those derived values out of the editor's persisted configuration.
+  return { ...config, canvas: { ...config.canvas, margins: { ...config.canvas.margins } }, regions };
 }
 
 /**
@@ -82,6 +84,34 @@ function resolveLogoElementPath(
     variant: resolution.variant,
     dark: resolution.dark,
   };
+}
+
+/**
+ * Find the aspect ratio (naturalWidth / naturalHeight) of the Logo image that
+ * will be rendered for the first enabled asset slot in `config`. Returns
+ * `undefined` when the image is not yet loaded or when no Logo is matched;
+ * the layout engine falls back to its 3.0 constant in that case.
+ */
+function resolveAssetAspectRatio(
+  config: ImprintConfig,
+  logos: Map<string, HTMLImageElement>,
+  fieldValues: ExifFieldValues,
+  builtins: readonly LogoRegistryEntry[],
+  scheme: string,
+  logoVariant: string,
+): number | undefined {
+  for (const region of config.regions) {
+    if (!region.enabled) continue;
+    const asset = region.slots?.asset;
+    if (!asset?.enabled || !asset.content || !('path' in asset.content) || 'invert_mono' in asset.content) continue;
+    const resolved = resolveLogoElementPath(asset.content as { path: string }, fieldValues, builtins, scheme, logoVariant);
+    if (!resolved.path) return undefined;
+    const src = resolveAssetSrc(resolved.path, 'logo', resolved.variant, resolved.dark);
+    const img = logos.get(src);
+    if (!img || img.naturalWidth <= 0 || img.naturalHeight <= 0) return undefined;
+    return img.naturalWidth / img.naturalHeight;
+  }
+  return undefined;
 }
 
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
@@ -416,6 +446,7 @@ function anchorOrigin(rect: ComputedElement['rect'], anchor: string): { x: numbe
 export function KariImprintCanvas({
   config,
   image,
+  originalImageSize,
   placeholderAspectRatio = '3:2',
   runtimeCaps,
   fieldValues = {},
@@ -424,6 +455,8 @@ export function KariImprintCanvas({
 }: {
   config: ImprintConfig;
   image: ImageBitmap | null;
+  /** Oriented source dimensions when `image` is an upstream thumbnail. */
+  originalImageSize?: { width: number; height: number } | null;
   placeholderAspectRatio?: PreviewAspectRatio;
   runtimeCaps?: RuntimeCapabilities | null;
   fieldValues?: ExifFieldValues;
@@ -454,9 +487,18 @@ export function KariImprintCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 确定图片尺寸（无图时使用所选预览比例）
+    // 确定图片尺寸（无图或 bitmap 已被 close() 时使用所选预览比例）。
+    // ImageBitmap.close() 后对象仍存在，但 .width/.height 归零；直接用会让
+    // fitPreviewDimensions 抛错并把整棵组件树推下悬崖。
+    const hasValidBitmap = !!image && image.width > 0 && image.height > 0;
+    const hasOriginalSize = hasValidBitmap && !!originalImageSize
+      && Number.isSafeInteger(originalImageSize.width) && originalImageSize.width > 0
+      && Number.isSafeInteger(originalImageSize.height) && originalImageSize.height > 0;
     let sourceW: number, sourceH: number;
-    if (image) {
+    if (hasOriginalSize) {
+      sourceW = originalImageSize.width;
+      sourceH = originalImageSize.height;
+    } else if (hasValidBitmap) {
       sourceW = image.width;
       sourceH = image.height;
     } else {
@@ -470,14 +512,18 @@ export function KariImprintCanvas({
     // the entire canvas (photo and imprint) silently disappear.
     if (!runtimeCaps) return;
     const previewSize = fitPreviewDimensions(sourceW, sourceH, runtimeCaps.preview.max_edge);
-    const imgW = previewSize.width;
-    const imgH = previewSize.height;
+    // Keep pixel-valued margins, offsets and font sizes in source coordinates.
+    // Only the raster backing store is reduced for upstream thumbnails.
+    const previewScale = hasOriginalSize ? Math.min(previewSize.width / sourceW, previewSize.height / sourceH) : 1;
+    const imgW = hasOriginalSize ? sourceW : previewSize.width;
+    const imgH = hasOriginalSize ? sourceH : previewSize.height;
 
     // 在 computeLayout 之前解析 auto-logo：
     // - 匹配到 → 填充 path → layout 预留空间 + 推开文字
     // - 未匹配 → disable slot → layout 不产生 logo 元素 → 无空白
     const resolvedConfig = resolveLogoConfig(config, fieldValues, builtinLogos, scheme, logoVariant);
-    const layout = computeLayout(resolvedConfig, imgW, imgH);
+    const assetAspectRatio = resolveAssetAspectRatio(resolvedConfig, logoImages, fieldValues, builtinLogos, scheme, logoVariant);
+    const layout = computeLayout(resolvedConfig, imgW, imgH, assetAspectRatio);
 
     // 容器显示尺寸
     const rect = container.getBoundingClientRect();
@@ -507,9 +553,9 @@ export function KariImprintCanvas({
     // A 1600px preview at DPR 2 is already sharp on Retina screens. Capping
     // DPR avoids recreating another oversized backing store on DPR 3+ devices.
     const dpr = Math.min(window.devicePixelRatio || 1, runtimeCaps.preview.device_pixel_ratio_limit);
-    canvas.width = layout.canvas.w * dpr;
-    canvas.height = layout.canvas.h * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = hasOriginalSize ? Math.max(1, Math.round(layout.canvas.w * previewScale * dpr)) : layout.canvas.w * dpr;
+    canvas.height = hasOriginalSize ? Math.max(1, Math.round(layout.canvas.h * previewScale * dpr)) : layout.canvas.h * dpr;
+    ctx.setTransform(dpr * previewScale, 0, 0, dpr * previewScale, 0, 0);
 
     // 圆角裁剪（如果需要）
     if (config.canvas.border_radius > 0) {
@@ -546,13 +592,14 @@ export function KariImprintCanvas({
       }
     }
 
-    // 绘制（可能尚未加载 logo，先占位）。Closed ImageBitmap should
-    // never reach this point, but a defensive fallback keeps the workspace
-    // usable if a stale async render races with file removal.
+    // 绘制（可能尚未加载 logo，先占位）。若 bitmap 已 close()（hasValidBitmap
+    // 为 false）则以 null 走占位分支；仍保留 DOMException 兜底以防第三方
+    // ImageSource 在 drawImage 内部抛错，避免整个组件树被卸载。
+    const drawImageSource = hasValidBitmap ? image : null;
     try {
-      renderCanvas(ctx, layout, image, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
+      renderCanvas(ctx, layout, drawImageSource, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
     } catch (error) {
-      if (image && error instanceof DOMException) {
+      if (drawImageSource && error instanceof DOMException) {
         renderCanvas(ctx, layout, null, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
       } else {
         throw error;
@@ -580,7 +627,7 @@ export function KariImprintCanvas({
           // 失败时保持占位状态
         });
     }
-  }, [config, image, placeholderAspectRatio, logoImages, runtimeCaps, fieldValues, builtinLogos, scheme, logoVariant]);
+  }, [config, image, originalImageSize, placeholderAspectRatio, logoImages, runtimeCaps, fieldValues, builtinLogos, scheme, logoVariant]);
 
   return (
     <div ref={containerRef} className="canvas-scaler">

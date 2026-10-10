@@ -97,6 +97,27 @@ class TestHelpers:
 class TestRenderPil:
     """集成测试：render_pil 主入口。"""
 
+    def test_free_signature_with_fractional_ratio_offsets(self, tmp_path):
+        from kari_core.processor.kari_imprint import _dict_to_imprint_config
+
+        signature = tmp_path / "signature.png"
+        Image.new("RGBA", (240, 80), (0, 0, 0, 255)).save(signature)
+        config = _dict_to_imprint_config({
+            "schema_version": 3,
+            "regions": [{
+                "id": "signature", "type": "free", "enabled": True,
+                "anchor": "bottom-right", "offset_x": -0.02, "offset_y": -0.02,
+                "offset_unit": "short_edge_ratio",
+                "slots": {"sig1": {"enabled": True, "content": {
+                    "path": str(signature), "invert_mono": False, "size_level": "small",
+                }}},
+            }],
+        })
+        layout = compute_layout(config, 961, 962)
+        result = render_pil(layout, Image.new("RGB", (961, 962), "white"))
+        assert result.size == (961, 962)
+        assert result.convert("RGB").getextrema() == ((0, 255), (0, 255), (0, 255))
+
     def _make_test_image(self, w: int = 800, h: int = 600) -> Image.Image:
         return Image.new("RGB", (w, h), (128, 128, 128))
 

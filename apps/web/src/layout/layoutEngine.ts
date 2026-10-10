@@ -190,7 +190,29 @@ export interface LayoutResultWithDiagnostics {
 
 // ── 布局引擎 ────────────────────────────────────────────
 
-export function computeLayout(config: ImprintConfig, imageW: number, imageH: number): LayoutResult {
+const DEFAULT_ASSET_ASPECT_RATIO = 3.0;
+const ASSET_ASPECT_RATIO_MIN = 0.3;
+const ASSET_ASPECT_RATIO_MAX = 6.0;
+
+function resolveAssetAspectRatio(assetAspectRatio: number | undefined): number {
+  if (assetAspectRatio === undefined || assetAspectRatio === null) return DEFAULT_ASSET_ASPECT_RATIO;
+  if (!Number.isFinite(assetAspectRatio) || assetAspectRatio <= 0) return DEFAULT_ASSET_ASPECT_RATIO;
+  return Math.min(ASSET_ASPECT_RATIO_MAX, Math.max(ASSET_ASPECT_RATIO_MIN, assetAspectRatio));
+}
+
+/**
+ * `assetAspectRatio` is the width/height ratio of the Logo image about to be
+ * rendered. Passing it replaces the hard-coded `height × 3` box in horizontal
+ * layouts so the reserved slot tracks the real logo aspect ratio. Values are
+ * clamped to `[0.3, 6.0]`; `undefined` falls back to the legacy `3.0` constant.
+ */
+export function computeLayout(
+  config: ImprintConfig,
+  imageW: number,
+  imageH: number,
+  assetAspectRatio?: number,
+): LayoutResult {
+  const aspect = resolveAssetAspectRatio(assetAspectRatio);
   // Step 1: 画布尺寸
   const margins = config.canvas.margins;
   const shortEdge = Math.min(imageW, imageH);
@@ -243,10 +265,11 @@ export function computeLayout(config: ImprintConfig, imageW: number, imageH: num
           config.defaults,
           shortEdge,
           longEdge,
+          aspect,
         ));
         break;
       case 'side-bar':
-        elements.push(...computeSideBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge));
+        elements.push(...computeSideBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge, aspect));
         break;
       case 'free':
         elements.push(...computeFree(region, imageRect, config.defaults, shortEdge, longEdge));
@@ -261,8 +284,9 @@ export function computeLayoutWithDiagnostics(
   config: ImprintConfig,
   imageW: number,
   imageH: number,
+  assetAspectRatio?: number,
 ): LayoutResultWithDiagnostics {
-  const layout = computeLayout(config, imageW, imageH);
+  const layout = computeLayout(config, imageW, imageH, assetAspectRatio);
   const diagnostics = diagnoseLayout(layout, config);
   return { layout, diagnostics };
 }
@@ -294,10 +318,10 @@ function activeFlowSlots(region: RegionConfig): Record<string, SlotConfig> {
 
 function computeFooterBar(
   region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
-  shortEdge: number, longEdge: number,
+  shortEdge: number, longEdge: number, assetAspectRatio: number,
 ): ComputedElement[] {
   const bounds = rect(0, rectBottom(imageRect), canvas.w, canvas.h - rectBottom(imageRect));
-  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'horizontal');
+  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'horizontal', assetAspectRatio);
 }
 
 function resolveSideWidth(region: RegionConfig, shortEdge: number): number {
@@ -309,12 +333,12 @@ function resolveSideWidth(region: RegionConfig, shortEdge: number): number {
 
 function computeSideBar(
   region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
-  shortEdge: number, longEdge: number,
+  shortEdge: number, longEdge: number, assetAspectRatio: number,
 ): ComputedElement[] {
   const bounds = region.edge === 'left'
     ? rect(0, 0, imageRect.x, canvas.h)
     : rect(rectRight(imageRect), 0, canvas.w - rectRight(imageRect), canvas.h);
-  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical');
+  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical', assetAspectRatio);
 }
 
 /**
@@ -358,6 +382,7 @@ function resolveAssetOrientation(region: RegionConfig, orientation: string): str
 function computeFlowRegion(
   region: RegionConfig, bounds: Rect, defaults: StyleConfig,
   shortEdge: number, longEdge: number, flow: 'horizontal' | 'vertical',
+  assetAspectRatio: number,
 ): ComputedElement[] {
   const layout = flowConfig(region);
   const slots = activeFlowSlots(region);
@@ -410,8 +435,8 @@ function computeFlowRegion(
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoSize = resolveLogoSize(asset.content, sizeRef);
     const logoDim = flow === 'horizontal'
-      ? Math.min(inner.w, logoSize * 3)
-      : Math.min(inner.h, logoSize);
+      ? Math.min(inner.w, Math.round(logoSize * assetAspectRatio))
+      : Math.min(inner.h, Math.round(logoSize / assetAspectRatio));
     const physicalPlacement = flow === 'vertical'
       ? sidePlacement(region, asset.content.placement)
       : asset.content.placement;
@@ -473,8 +498,8 @@ function computeFlowRegion(
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
     const logoH = resolveLogoSize(asset.content, sizeRef);
     const logoDim = flow === 'horizontal'
-      ? Math.min(inner.w, logoH * 3)
-      : Math.min(inner.h, logoH);
+      ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
+      : Math.min(inner.h, Math.round(logoH / assetAspectRatio));
     const physicalPlacement = flow === 'vertical'
       ? sidePlacement(region, asset.content.placement)
       : asset.content.placement;
@@ -513,7 +538,13 @@ function computeFlowRegion(
       : (physicalPlacement === 'start' ? 'top-center' : physicalPlacement === 'end' ? 'bottom-center' : 'middle-center');
     const pos = applyAnchor(inner, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
-    elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, Math.min(inner.w, logoH * 3), logoH),
+    const assetW = flow === 'horizontal'
+      ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
+      : Math.min(inner.w, logoH);
+    const assetH = flow === 'horizontal'
+      ? logoH
+      : Math.min(inner.h, Math.round(logoH / assetAspectRatio));
+    elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, assetW, assetH),
       anchor, content, style: defaults });
   }
   return elements;

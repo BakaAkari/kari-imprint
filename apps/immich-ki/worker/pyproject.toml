@@ -1,0 +1,26 @@
+[project]
+name = "immich-ki"
+version = "0.1.0"
+description = "Kari Imprint Immich companion M0"
+requires-python = ">=3.13"
+dependencies = [
+    "kari-core",
+    "kari-imprint-api",
+    "httpx>=0.28.1",
+]
+
+[project.scripts]
+immich-ki = "immich_ki.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3.0", "ruff>=0.7.0"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

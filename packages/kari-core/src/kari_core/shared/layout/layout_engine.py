@@ -208,8 +208,35 @@ class LayoutResultWithDiagnostics:
 
 # ── 布局引擎 ─────────────────────────────────
 
-def compute_layout(config: ImprintConfig, image_w: int, image_h: int) -> LayoutResult:
-    """主入口：计算每个边框元素在画布上的绝对位置和尺寸。"""
+_DEFAULT_ASSET_ASPECT_RATIO = 3.0
+_ASSET_ASPECT_RATIO_MIN = 0.3
+_ASSET_ASPECT_RATIO_MAX = 6.0
+
+
+def _resolve_asset_aspect_ratio(asset_aspect_ratio: float | None) -> float:
+    """Clamp caller-provided aspect ratio; fall back to the legacy 3.0 constant when unset."""
+    if asset_aspect_ratio is None:
+        return _DEFAULT_ASSET_ASPECT_RATIO
+    if asset_aspect_ratio <= 0:
+        return _DEFAULT_ASSET_ASPECT_RATIO
+    return max(_ASSET_ASPECT_RATIO_MIN, min(_ASSET_ASPECT_RATIO_MAX, float(asset_aspect_ratio)))
+
+
+def compute_layout(
+    config: ImprintConfig,
+    image_w: int,
+    image_h: int,
+    asset_aspect_ratio: float | None = None,
+) -> LayoutResult:
+    """主入口：计算每个边框元素在画布上的绝对位置和尺寸。
+
+    ``asset_aspect_ratio`` 是即将渲染的 Logo 图片的宽/高比。传入后会替换
+    logo 占位盒子在横向布局下 ``height × 3`` 的硬编码常量，让占位宽度按
+    真实图片比例伸缩。取值被 clamp 到 ``[0.3, 6.0]``；``None`` 或非正数
+    回退到旧常量 ``3.0`` 以保持向后兼容。
+    """
+
+    aspect = _resolve_asset_aspect_ratio(asset_aspect_ratio)
 
     # ── Step 1: 画布尺寸 ─────────────────────────────
     margins = config.canvas.margins
@@ -265,18 +292,26 @@ def compute_layout(config: ImprintConfig, image_w: int, image_h: int) -> LayoutR
                 config.defaults,
                 short_edge,
                 long_edge,
+                aspect,
             ))
         elif region.type == "side-bar":
-            elements.extend(_compute_side_bar(region, image_rect, canvas, config.defaults, short_edge, long_edge))
+            elements.extend(_compute_side_bar(
+                region, image_rect, canvas, config.defaults, short_edge, long_edge, aspect,
+            ))
         elif region.type == "free":
             elements.extend(_compute_free(region, image_rect, config.defaults, short_edge, long_edge))
 
     return LayoutResult(canvas=canvas, image_rect=image_rect, elements=elements)
 
 
-def compute_layout_with_diagnostics(config: ImprintConfig, image_w: int, image_h: int) -> LayoutResultWithDiagnostics:
+def compute_layout_with_diagnostics(
+    config: ImprintConfig,
+    image_w: int,
+    image_h: int,
+    asset_aspect_ratio: float | None = None,
+) -> LayoutResultWithDiagnostics:
     """带诊断的布局计算。"""
-    layout = compute_layout(config, image_w, image_h)
+    layout = compute_layout(config, image_w, image_h, asset_aspect_ratio)
     diagnostics = diagnose_layout(layout, config)
     return LayoutResultWithDiagnostics(layout=layout, diagnostics=diagnostics)
 
@@ -402,9 +437,10 @@ def _compute_footer_bar(
     defaults: StyleConfig,
     short_edge: int,
     long_edge: int,
+    asset_aspect_ratio: float,
 ) -> list[ComputedElement]:
     bounds = Rect(x=0, y=image_rect.bottom, w=canvas.w, h=canvas.h - image_rect.bottom)
-    return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "horizontal")
+    return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "horizontal", asset_aspect_ratio)
 
 
 def _resolve_side_width(region: RegionConfig, short_edge: int) -> int:
@@ -422,12 +458,13 @@ def _compute_side_bar(
     defaults: StyleConfig,
     short_edge: int,
     long_edge: int,
+    asset_aspect_ratio: float,
 ) -> list[ComputedElement]:
     if region.edge == "left":
         bounds = Rect(x=0, y=0, w=image_rect.x, h=canvas.h)
     else:
         bounds = Rect(x=image_rect.right, y=0, w=canvas.w - image_rect.right, h=canvas.h)
-    return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "vertical")
+    return _compute_flow_region(region, bounds, defaults, short_edge, long_edge, "vertical", asset_aspect_ratio)
 
 
 def _side_endpoint(region: RegionConfig, endpoint: str) -> str:
@@ -472,6 +509,7 @@ def _compute_flow_region(
     short_edge: int,
     long_edge: int,
     flow: Literal["horizontal", "vertical"],
+    asset_aspect_ratio: float,
 ) -> list[ComputedElement]:
     layout = _flow_config(region)
     slots = _active_flow_slots(region)
@@ -521,9 +559,9 @@ def _compute_flow_region(
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_size = _resolve_logo_size(asset.content, size_ref)
         logo_dim = (
-            min(inner.w, logo_size * 3)
+            min(inner.w, round(logo_size * asset_aspect_ratio))
             if flow == "horizontal"
-            else min(inner.h, logo_size)
+            else min(inner.h, round(logo_size / asset_aspect_ratio))
         )
         physical_placement = (
             _side_placement(region, asset.content.placement)
@@ -596,9 +634,9 @@ def _compute_flow_region(
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)
         logo_dim = (
-            min(inner.w, logo_h * 3)
+            min(inner.w, round(logo_h * asset_aspect_ratio))
             if flow == "horizontal"
-            else min(inner.h, logo_h)
+            else min(inner.h, round(logo_h / asset_aspect_ratio))
         )
         physical_placement = (
             _side_placement(region, asset.content.placement)
@@ -655,9 +693,15 @@ def _compute_flow_region(
             asset.content,
             orientation=_resolve_asset_orientation(region, asset.content.orientation),
         )
+        if flow == "horizontal":
+            asset_w = min(inner.w, round(logo_h * asset_aspect_ratio))
+            asset_h = logo_h
+        else:
+            asset_w = min(inner.w, logo_h)
+            asset_h = min(inner.h, round(logo_h / asset_aspect_ratio))
         elements.append(ComputedElement(
             id=f"{region.id}-asset", type="logo",
-            rect=Rect(pos.x, pos.y, min(inner.w, logo_h * 3), logo_h),
+            rect=Rect(pos.x, pos.y, asset_w, asset_h),
             anchor=anchor, content=content, style=defaults,
         ))
     return elements

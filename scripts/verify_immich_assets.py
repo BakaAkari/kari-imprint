@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-manifest = json.loads((root/'apps/immich-wm/logo-manifest.json').read_text())
+manifest = json.loads((root/'apps/immich-ki/logo-manifest.json').read_text())
 for name, expected in manifest.items():
     path = root/'assets/logos'/name
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:

@@ -1,6 +1,6 @@
 """Export hash-pinned CPython 3.13 / Linux amd64 runtime wheels from uv.lock.
 
-Run after regenerating apps/immich-wm/worker/requirements.lock. The deployment
+Run after regenerating apps/immich-ki/worker/requirements.lock. The deployment
 fallback uses direct artifact URLs to avoid unreliable package index lookups.
 """
 import tomllib
@@ -15,7 +15,7 @@ from packaging.utils import parse_wheel_filename
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    worker = root / 'apps/immich-wm/worker'
+    worker = root / 'apps/immich-ki/worker'
     packages = {p['name']: p for p in tomllib.loads((root / 'uv.lock').read_text())['package']}
     platforms = [f'manylinux_2_{v}_x86_64' for v in range(36, 4, -1)] + [
         'manylinux2014_x86_64', 'manylinux2010_x86_64', 'manylinux1_x86_64', 'linux_x86_64',

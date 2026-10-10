@@ -23,6 +23,7 @@ from kari_core.core.config_loader import load_config_ini as load_config  # noqa:
 from kari_core.core.exceptions import ProcessorNotFoundError, ProcessorRuntimeError  # noqa: E402
 from kari_core.core.image_io import load_image_safely  # noqa: E402
 from kari_core.core.logger import logger  # noqa: E402
+from kari_core.core.output_metadata import OutputMetadata  # noqa: E402
 from kari_core.core.util import get_exif  # noqa: E402
 
 
@@ -367,7 +368,9 @@ class PipelineEngine:
         pre_loaded_exif: dict | None = None,
         emit_exif_json: bool = False,
         perf_record: Any | None = None,
+        output_metadata: OutputMetadata | None = None,
     ) -> None:
+        self.output_metadata = output_metadata
         self.data = data
         self.input_path = input_path
         self.output_path = output_path
@@ -490,6 +493,7 @@ class PipelineEngine:
             self.output_path,
             quality=quality,
             subsampling=subsampling,
+            **(self.output_metadata.save_options(first_image.size) if self.output_metadata else {}),
         )
         logger.success(f"Generated new image: {self.output_path}")
 
@@ -560,6 +564,7 @@ def start_process(
     pre_loaded_exif: dict | None = None,
     emit_exif_json: bool = False,
     perf_record: Any | None = None,
+    output_metadata: OutputMetadata | None = None,
 ) -> Image.Image:
     """向后兼容的过程式入口 — 内部委托给 :class:`PipelineEngine`。
 
@@ -569,6 +574,7 @@ def start_process(
         output_path: 输出文件路径；若为 ``None`` 则只在内存中处理。
         initial_buffer: 直接提供的初始图像列表（绕过 ``input_path`` 加载）。
         pre_loaded_exif: 已读取好的 EXIF dict；若提供，将跳过 exiftool 调用。
+        output_metadata: 显式输出元数据策略；默认 None 保持历史行为。
         emit_exif_json: 是否同时写出 ``<basename>.exif.json`` sidecar 文件。
         perf_record: 可选的 :class:`processor.perf.PerfRecord`；若提供，
             管道运行时会自动累加各 processor 耗时与端到端 total_ms。
@@ -584,4 +590,5 @@ def start_process(
         pre_loaded_exif=pre_loaded_exif,
         emit_exif_json=emit_exif_json,
         perf_record=perf_record,
+        output_metadata=output_metadata,
     ).execute()

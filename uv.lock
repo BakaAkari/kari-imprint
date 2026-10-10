@@ -8,7 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "immich-wm",
+    "immich-ki",
     "kari-core",
     "kari-imprint",
     "kari-imprint-api",
@@ -261,9 +261,9 @@ wheels = [
 ]
 
 [[package]]
-name = "immich-wm"
+name = "immich-ki"
 version = "0.1.0"
-source = { editable = "apps/immich-wm/worker" }
+source = { editable = "apps/immich-ki/worker" }
 dependencies = [
     { name = "httpx" },
     { name = "kari-core" },

@@ -437,7 +437,7 @@ export interface RootOverrides {
   defaults?: Partial<StyleConfig>;
 }
 
-function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): StyleConfig {
+export function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): StyleConfig {
   const next = { ...base, ...patch };
   if (patch.font_size !== undefined && patch.font_size !== null) {
     next.font_size_level = null;
@@ -452,7 +452,7 @@ function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): St
   return next;
 }
 
-function mergeSlotOverride(slot: SlotConfig, override: SlotOverride): SlotConfig {
+export function mergeSlotOverride(slot: SlotConfig, override: SlotOverride): SlotConfig {
   const next = structuredClone(slot);
   if (override.enabled !== undefined) next.enabled = override.enabled;
   if (override.style) next.style = normalizeStylePatch(next.style ?? defaultStyle, override.style);

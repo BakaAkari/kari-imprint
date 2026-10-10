@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from kari_core.processor.core import PipelineContext, register
 from kari_core.processor.filters import FilterProcessor
-from kari_core.processor.renderer import render_pil
+from kari_core.processor.renderer import render_pil, resolve_logo_asset_aspect_ratio
 from kari_core.shared.layout.layout_engine import TextContent, compute_layout
 from kari_core.shared.render_values import resolve_field_values
 
@@ -30,11 +30,14 @@ class KariImprintFilter(FilterProcessor):
         config = _dict_to_imprint_config(config_dict)
         img = ctx.get_buffer()[0]
 
-        layout = compute_layout(config, img.width, img.height)
-
         exif = ctx.get_exif() or {}
         file_path = ctx.get("input_path", "")
         field_values = resolve_field_values(exif, file_path)
+
+        asset_aspect_ratio = resolve_logo_asset_aspect_ratio(
+            config, field_values, bg_color=config.canvas.background,
+        )
+        layout = compute_layout(config, img.width, img.height, asset_aspect_ratio)
 
         canvas = render_pil(
             layout,

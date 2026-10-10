@@ -54,7 +54,7 @@ def build(case: dict) -> ImprintConfig:
 def main() -> None:
     output = []
     for case in json.loads(FIXTURES.read_text()):
-        layout = compute_layout(build(case), *case["image"])
+        layout = compute_layout(build(case), *case["image"], case.get("asset_aspect_ratio"))
         output.append({
             "id": case["id"],
             "canvas": {"w": layout.canvas.w, "h": layout.canvas.h},

@@ -1,6 +1,6 @@
 """Browser regression for source-coordinate layout with Immich thumbnails.
 
-Build apps/immich-wm/web first, then run:
+Build apps/immich-ki/web first, then run:
   uv run --with playwright python scripts/verify_immich_preview.py
 Uses generated images and mocked API responses; no NAS credentials or mutations.
 """
@@ -22,9 +22,9 @@ from playwright.sync_api import sync_playwright
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    dist = root / 'apps/immich-wm/web/dist'
+    dist = root / 'apps/immich-ki/web/dist'
     if not (dist / 'index.html').is_file():
-        raise RuntimeError('Build apps/immich-wm/web before running this check')
+        raise RuntimeError('Build apps/immich-ki/web before running this check')
     cases = [
         ('small', (960, 640), (960, 640), 100, None),
         ('large-pixel-margin', (6000, 4000), (1440, 960), 100, None),
@@ -52,8 +52,8 @@ def main():
             def handle(route, *, name=name, config=config, source=source, image=image, saved_payloads=saved_payloads):
                 path = urlparse(route.request.url).path
                 if path == '/api/auth/session':
-                    payload = {'mode': 'token', 'authenticated': False}
-                elif path == '/api/login':
+                    payload = {'mode': 'token', 'initialized': True, 'authenticated': False}
+                elif path in {'/api/auth/immich-login', '/api/login', '/api/init'}:
                     payload = {'ok': True}
                 elif path == '/api/assets':
                     payload = {'items': [{'id': '11111111-1111-4111-8111-111111111111', 'name': name,
@@ -89,7 +89,8 @@ def main():
 
             page.route('**/*', handle)
             page.goto('http://immich-preview.test')
-            page.get_by_label('面板访问令牌').fill('x' * 32)
+            page.get_by_label('Immich 邮箱').fill('demo@example.com')
+            page.get_by_label('Immich 密码').fill('x' * 12)
             page.get_by_role('button', name='进入图库').click()
             page.get_by_role('button', name=name, exact=True).click()
             page.wait_for_function("document.querySelector('canvas')?.width > 300 && !document.querySelector('.controls button')?.disabled")

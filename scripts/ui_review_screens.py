@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-DIST = ROOT / 'apps/immich-wm/web/dist'
+DIST = ROOT / 'apps/immich-ki/web/dist'
 OUT = ROOT / '.ui-review'
 OUT.mkdir(exist_ok=True)
 
@@ -17,8 +17,8 @@ ASSET = '11111111-1111-4111-8111-111111111111'
 
 def payload_for(path: str, method: str):
     if path == '/api/auth/session':
-        return {'mode': 'token', 'authenticated': False}
-    if path == '/api/login':
+        return {'mode': 'token', 'initialized': True, 'authenticated': False}
+    if path in {'/api/auth/immich-login', '/api/login', '/api/init'}:
         return {'ok': True}
     if path == '/api/assets':
         items = []
@@ -37,10 +37,10 @@ def payload_for(path: str, method: str):
     if path.endswith('/config'):
         return {'revision': 0, 'config': None}
     if path.endswith('/metadata'):
-        return {'fields': {'camera_model': 'FUJIFILM X-T5', 'lens_model': 'XF 35mm F1.4 R',
-                           'aperture': 'f/1.4', 'shutter': '1/250', 'iso': 'ISO 125'}, 'width': 960, 'height': 640}
+        return {'fields': {'make': 'FUJIFILM', 'camera_model': 'FUJIFILM X-T5', 'lens_model': 'XF 35mm F1.4 R',
+                           'focal_length': '35mm', 'aperture': 'f/1.4', 'shutter': '1/250', 'iso': 'ISO 125'}, 'width': 960, 'height': 640}
     if path == '/api/logos':
-        return {'ok': True, 'logos': [{'stem': 'fujifilm', 'variants': []}]}
+        return {'ok': True, 'logos': [{'stem': 'fujifilm', 'variants': []}, {'stem': 'nikon', 'variants': []}]}
     return None
 
 
@@ -64,6 +64,10 @@ def main():
                     route.fulfill(json=payload)
                 elif path.endswith('/preview') or (path.startswith('/api/assets/') and path.endswith('/thumbnail')):
                     route.fulfill(body=image.getvalue(), content_type='image/png')
+                elif path.startswith('/api/builtin-logos/'):
+                    logo = BytesIO()
+                    Image.new('RGBA', (120, 40), (30, 30, 30, 255)).save(logo, format='PNG')
+                    route.fulfill(body=logo.getvalue(), content_type='image/png')
                 else:
                     file = DIST / (path.lstrip('/') or 'index.html')
                     if file.is_file():
@@ -73,7 +77,8 @@ def main():
             page.route('**/*', handle)
             page.goto('http://panel.test')
             page.screenshot(path=str(OUT / f'{label}-1-login.png'))
-            page.get_by_label('面板访问令牌').fill('x' * 32)
+            page.get_by_label('Immich 邮箱').fill('demo@example.com')
+            page.get_by_label('Immich 密码').fill('x' * 12)
             page.get_by_role('button', name='进入图库').click()
             page.wait_for_selector('.asset-card')
             page.screenshot(path=str(OUT / f'{label}-2-gallery.png'))

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 [tool.uv.workspace]
-members = ["packages/*", "apps/api", "apps/immich-wm/worker"]
+members = ["packages/*", "apps/api", "apps/immich-ki/worker"]
 
 [tool.uv.sources]
 kari-core = { workspace = true }

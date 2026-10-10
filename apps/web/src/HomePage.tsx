@@ -5,6 +5,7 @@ import { LeftRail } from './components/LeftRail';
 import MainControls from './components/MainControls';
 import { RightRail } from './components/RightRail';
 import { KariImprintCanvas } from './KariImprintCanvas';
+import { ErrorBoundary } from './ErrorBoundary';
 import { createLocalPreview } from './localPreview';
 import {
   resolveConfig,
@@ -338,15 +339,25 @@ export function HomePage() {
           <LeftRail aspectRatio={previewAspectRatio} onAspectRatioChange={setPreviewAspectRatio} runtimeCaps={runtimeCaps} />
           <main className="main-workspace">
             <div className="canvas-area">
-              <KariImprintCanvas
-                config={config}
-                image={canvasImage}
-                placeholderAspectRatio={previewAspectRatio}
-                runtimeCaps={runtimeCaps}
-                fieldValues={canvasFieldValues}
-                scheme={controls.scheme}
-                logoVariant={controls.logo_variant}
-              />
+              <ErrorBoundary
+                onReset={() => {
+                  setFiles([]);
+                  setActiveFileIndex(0);
+                  clearOutputs();
+                  setStatus('idle');
+                  setMessage('Kari Imprint 编辑器');
+                }}
+              >
+                <KariImprintCanvas
+                  config={config}
+                  image={canvasImage}
+                  placeholderAspectRatio={previewAspectRatio}
+                  runtimeCaps={runtimeCaps}
+                  fieldValues={canvasFieldValues}
+                  scheme={controls.scheme}
+                  logoVariant={controls.logo_variant}
+                />
+              </ErrorBoundary>
             </div>
             <MainControls config={config} onChange={onControlsChange} />
           </main>

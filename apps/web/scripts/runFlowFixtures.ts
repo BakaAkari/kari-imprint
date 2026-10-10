@@ -37,7 +37,7 @@ const output = cases.map((entry) => {
       border: { enabled: false, width_level: 'medium', color: '#FFFFFF' } },
     regions: [region], defaults: defaultStyle,
   };
-  const layout = computeLayout(config, entry.image[0], entry.image[1]);
+  const layout = computeLayout(config, entry.image[0], entry.image[1], entry.asset_aspect_ratio);
   return {
     id: entry.id,
     canvas: layout.canvas,
