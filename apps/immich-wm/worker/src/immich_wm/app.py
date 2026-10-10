@@ -21,7 +21,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from immich_wm.auth import PUBLIC_AUTH_PATHS, install_auth
 from immich_wm.client import ImmichClient, UpstreamError
-from immich_wm.keyconfig import resolve_panel_key
+from immich_wm.keyconfig import resolve_panel_config
 from immich_wm.service import Conflict, Service
 from immich_wm.settings import Settings
 
@@ -37,10 +37,12 @@ PUBLIC_VALUE_ERRORS = {
 class PanelState:
     """Mutable runtime credential state shared between the app, auth endpoints and the worker loop."""
 
-    def __init__(self, key: str, initialized: bool, upstream: ImmichClient, on_key=None) -> None:
+    def __init__(self, key: str, initialized: bool, upstream: ImmichClient,
+                 owner: str = '', on_key=None) -> None:
         self.key = key
         self.initialized = initialized
         self.upstream = upstream
+        self.owner = owner
         self.on_key = on_key or (lambda _key: None)
 
 
@@ -59,7 +61,7 @@ def public_job(job):
 
 def create_app(settings: Settings | None = None, client=None, *, background=True):
     settings = settings or Settings.from_env()
-    key, initialized = resolve_panel_key(settings.data, settings.api_key)
+    key, owner, initialized = resolve_panel_config(settings.data, settings.api_key)
     upstream = client or ImmichClient(settings.immich_url, key)
 
     def swap_upstream_key(new_key: str) -> None:
@@ -68,7 +70,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
         if http is not None:
             http.headers['x-api-key'] = new_key
 
-    panel = PanelState(key, initialized, upstream, swap_upstream_key)
+    panel = PanelState(key, initialized, upstream, owner, swap_upstream_key)
     service = Service(settings, upstream)
     sessions = {}
     stopped = threading.Event()

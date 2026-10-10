@@ -1,13 +1,13 @@
-"""Immich API key authentication: init-mode association and panel sessions.
+"""Immich-backed authentication: init-mode association and Immich account login.
 
-The panel's sole credential is one Immich API key stored in the container
-config directory. Before that key exists the panel runs in init mode and only
-accepts /api/init; afterwards the operator logs in by presenting the same key.
-Transient credentials and opaque sessions stay server-side.
+The API key entered in init mode only associates the panel with Immich and is
+stored server-side. Day-to-day login uses the operator's Immich account
+(email + password), verified against Immich and discarded immediately; the
+panel then issues its own opaque session cookie. Transient credentials stay
+server-side and never reach logs.
 """
 from __future__ import annotations
 
-import hashlib
 import logging
 import secrets
 import time
@@ -17,20 +17,21 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from immich_wm.keyconfig import save_panel_key
+from immich_wm.keyconfig import save_panel_config
 
 logger = logging.getLogger('immich_wm.auth')
 
-PUBLIC_AUTH_PATHS = {'/api/auth/session', '/api/auth/immich-key', '/api/init'}
+PUBLIC_AUTH_PATHS = {'/api/auth/session', '/api/auth/immich-login', '/api/init'}
 INIT_ONLY_PATHS = {'/api/health', '/api/auth/session', '/api/init'}
 
 _WINDOW_SECONDS = 300
 _MAX_FAILURES = 5
 _MAX_KEY_LENGTH = 256
+_MAX_CRED_LENGTH = 256
 
 
 def validate_immich_key(url: str, key: str, transport) -> tuple[str, str]:
-    """Check a user-supplied key against Immich. Returns (email, error_code)."""
+    """Check an API key against Immich. Returns (owner_email, error_code)."""
     try:
         with httpx.Client(base_url=url.rstrip('/') + '/api/', headers={'x-api-key': key},
                           timeout=10, follow_redirects=False, transport=transport) as client:
@@ -48,6 +49,35 @@ def validate_immich_key(url: str, key: str, transport) -> tuple[str, str]:
     except ValueError:
         email = ''
     return email, ''
+
+
+def validate_immich_login(url: str, email: str, password: str, transport) -> tuple[str, str]:
+    """Verify Immich account credentials. Returns (email, error_code); password never persists."""
+    try:
+        with httpx.Client(base_url=url.rstrip('/') + '/api/', timeout=10,
+                          follow_redirects=False, transport=transport) as client:
+            response = client.post('auth/login', json={'email': email, 'password': password})
+            if response.status_code in {400, 401}:
+                return '', 'invalid_credentials'
+            if response.status_code == 429:
+                return '', 'login_rate_limited'
+            if response.status_code != 200:
+                return '', 'immich_unreachable'
+            try:
+                token = str(response.json().get('accessToken') or '')
+            except ValueError:
+                token = ''
+            if not token:
+                return '', 'immich_unreachable'
+            me = client.get('users/me', headers={'Authorization': f'Bearer {token}'})
+            if me.status_code != 200:
+                return '', 'immich_unreachable'
+            try:
+                return str(me.json().get('email') or ''), ''
+            except ValueError:
+                return '', ''
+    except httpx.HTTPError:
+        return '', 'immich_unreachable'
 
 
 def _secure_cookie(settings, request: Request) -> bool:
@@ -93,6 +123,19 @@ def install_auth(app, settings, sessions, panel):
             return '', JSONResponse({'error': 'invalid_request'}, 422)
         return key.strip(), None
 
+    async def _read_credentials(request: Request) -> tuple[str, str, JSONResponse | None]:
+        try:
+            body = await request.json()
+        except Exception:
+            return '', '', JSONResponse({'error': 'invalid_request'}, 422)
+        email = body.get('email', '') if isinstance(body, dict) else ''
+        password = body.get('password', '') if isinstance(body, dict) else ''
+        email = email.strip() if isinstance(email, str) else ''
+        if (not email or len(email) > _MAX_CRED_LENGTH
+                or not isinstance(password, str) or not password or len(password) > _MAX_CRED_LENGTH):
+            return '', '', JSONResponse({'error': 'invalid_request'}, 422)
+        return email, password, None
+
     @app.get('/api/auth/session')
     def session(request: Request):
         return {'mode': 'immich_key' if panel.initialized else 'init',
@@ -100,23 +143,30 @@ def install_auth(app, settings, sessions, panel):
                 'authenticated': panel.initialized
                 and sessions.get(request.cookies.get('wm_session', ''), 0) > time.monotonic()}
 
-    @app.post('/api/auth/immich-key')
-    async def immich_key_login(request: Request):
+    @app.post('/api/auth/immich-login')
+    async def immich_login(request: Request):
         if not panel.initialized:
             return JSONResponse({'error': 'init_required'}, 403)
-        key, error_response = await _read_key(request)
+        email, password, error_response = await _read_credentials(request)
         if error_response is not None:
             return error_response
         if _rate_limited(request):
             return JSONResponse({'error': 'login_rate_limited'}, 429)
-        # Constant-time comparison against the stored key; no Immich roundtrip,
-        # so login still works while Immich is briefly down.
-        if not secrets.compare_digest(hashlib.sha256(key.encode()).digest(),
-                                      hashlib.sha256(panel.key.encode()).digest()):
+        identity, error = await run_in_threadpool(
+            validate_immich_login, settings.immich_url, email, password,
+            request.app.state.immich_key_transport)
+        if error:
+            # The password never reaches logs or responses; only the outcome does.
+            logger.info('immich account login failed: %s', error)
+            if error in {'invalid_credentials', 'login_rate_limited'}:
+                _record_failure(request)
+            status = {'invalid_credentials': 401, 'login_rate_limited': 429}.get(error, 502)
+            return JSONResponse({'error': error}, status)
+        if panel.owner and identity != panel.owner:
             _record_failure(request)
-            logger.info('panel key login failed: invalid_key')
-            return JSONResponse({'error': 'invalid_key'}, 401)
-        logger.info('panel key login ok')
+            logger.info('immich account login rejected: %s is not the panel owner', identity)
+            return JSONResponse({'error': 'forbidden_account'}, 403)
+        logger.info('immich account login ok for %s', identity)
         return _issue_session(request)
 
     @app.post('/api/init')
@@ -137,8 +187,9 @@ def install_auth(app, settings, sessions, panel):
                 _record_failure(request)
             status = {'invalid_key': 401, 'key_scope_insufficient': 403}.get(error, 502)
             return JSONResponse({'error': error}, status)
-        save_panel_key(settings.data, key)
+        save_panel_config(settings.data, key, email)
         panel.key = key
+        panel.owner = email
         panel.on_key(key)
         panel.initialized = True
         logger.info('panel init ok for %s', email)

@@ -68,15 +68,15 @@ Python 依赖由 worker/requirements.lock 约束；更新 uv.lock 后运行文�
 
 公网反向代理部署时设置 `WM_PUBLIC_ORIGIN=https://面板域名:端口`（不带末尾斜杠或路径）。来源校验使用此精确地址，HTTPS 入口的会话 Cookie 强制 Secure；无需信任任意客户端提供的转发头。变更后重新创建伴侣容器。
 
-### API Key 关联（init 模式）与登录
+### API Key 关联（init 模式）与 Immich 账户登录
 
-面板的唯一凭据是一把 Immich API Key（需要 asset.read / asset.view / job.create，完整相册功能另需 album.read），保存在 `WM_DATA_ROOT/config.json`（原子写入、0600，备份数据目录时即备份该配置）。
+面板凭据分两层：**API Key 只负责把面板绑定到 Immich**（服务端凭据，保存在 `WM_DATA_ROOT/config.json`，原子写入、0600，备份数据目录时即备份该配置）；**日常登录使用 Immich 账户**（邮箱+密码）。
 
-- **首次部署 / 配置缺失**：数据目录没有有效的 `config.json` 且环境变量 `IMMICH_API_KEY` 为空时，面板进入 init 模式——除健康检查和初始化接口外所有 API 返回 `init_required`，登录页显示初始化表单。输入 key 后面板调用 Immich `GET /api/users/me` 验证（无效 key、scope 不足、Immich 不可达分别明确报错，每 IP 限流 5 次失败 / 5 分钟），验证通过即写入配置文件、替换上游凭据并直接建立操作员会话。
+- **首次部署 / 配置缺失**：数据目录没有有效的 `config.json` 且环境变量 `IMMICH_API_KEY` 为空时，面板进入 init 模式——除健康检查和初始化接口外所有 API 返回 `init_required`，登录页显示初始化表单。输入 key 后面板调用 Immich `GET /api/users/me` 验证（无效 key、scope 不足、Immich 不可达分别明确报错，每 IP 限流 5 次失败 / 5 分钟），验证通过即写入配置文件（含 key 属主邮箱）、替换上游凭据并直接建立操作员会话。
 - **旧部署迁移**：已用 `IMMICH_API_KEY` 环境变量部署的实例启动时自动把该 key 写入配置文件，无需手动操作。
-- **日常登录**：初始化之后，浏览器会话过期或重启后，在登录页输入同一把 API Key 即可（与服务端存储比对，不经过 Immich，短暂离线也能登录）；新登录吊销旧会话。key 不落日志、不回显。
+- **日常登录**：初始化之后，浏览器会话过期或重启后，在登录页输入 **Immich 账户的邮箱和密码**——面板代向 Immich `POST /api/auth/login` 验证，并用返回的 token 读取用户信息确认身份（key 绑定在哪个账户下，就只有那个 Immich 账户能登录）。密码即验即弃：不落盘、不入日志、不回显。Immich 短暂离线时无法登录（面板本身也依赖 Immich）。
 - **更换 key**：停止容器 → 删除数据目录 `config.json`（若环境变量里还留有 `IMMICH_API_KEY` 需一并移除）→ 启动重新进入 init 模式。
-- 会话为服务端内存随机不透明 ID，Secure/HttpOnly/SameSite=Strict Cookie，有效期八小时；服务重启后需重新登录，紧急撤销全部会话可重启容器。
+- 会话为服务端内存随机不透明 ID，Secure/HttpOnly/SameSite=Strict Cookie，有效期八小时；新登录吊销旧会话；服务重启后需重新登录，紧急撤销全部会话可重启容器。
 
 ### M1 运维与资源包
 

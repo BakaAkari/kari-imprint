@@ -22,6 +22,8 @@ const errorLabels: Record<string, string> = {
   immich_unavailable: 'Immich 暂时不可用，请稍后重试',
   invalid_key: 'API Key 无效，请检查后重试',
   key_scope_insufficient: '该 key 权限不足，请在 Immich 生成包含用户信息读取权限的 key（默认全权限即可）',
+  invalid_credentials: 'Immich 账户或密码错误',
+  forbidden_account: '该 Immich 账户不是面板的关联账户',
   login_rate_limited: '尝试次数过多，请 5 分钟后再试',
   invalid_request: '请求不合法',
   init_required: '面板尚未关联 Immich，请先输入 API Key 完成初始化',

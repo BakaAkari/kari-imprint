@@ -44,6 +44,29 @@ class FakeImmich:
         pass
 
 
+OPERATOR = {'email': 'akari@example.com', 'password': 'panel-password'}
+
+
+def attach_login_transport(app):
+    """Give an app a fake Immich auth backend accepting only OPERATOR credentials."""
+    import json as jsonlib
+
+    import httpx
+
+    def handler(request):
+        if request.url.path == '/api/auth/login':
+            body = jsonlib.loads(request.content)
+            if body.get('email') == OPERATOR['email'] and body.get('password') == OPERATOR['password']:
+                return httpx.Response(200, json={'accessToken': 'op-token'})
+            return httpx.Response(401)
+        if request.url.path == '/api/users/me' and request.headers.get('authorization') == 'Bearer op-token':
+            return httpx.Response(200, json={'email': OPERATOR['email']})
+        return httpx.Response(404)
+
+    app.state.immich_key_transport = httpx.MockTransport(handler)
+    return app
+
+
 @pytest.fixture
 def setup(tmp_path):
     imports, output = tmp_path / 'imports', tmp_path / 'output'
@@ -154,11 +177,11 @@ def test_path_escape_and_symlink(service, tmp_path):
 
 def test_auth_origin_strict_payload_and_no_paths(setup):
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         endpoint = f'/api/assets/{fake.asset_id}/config'
         assert client.get(endpoint).status_code == 401
-        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}, headers={'origin': 'http://evil.test'}).status_code == 403
-        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).status_code == 200
+        assert client.post('/api/auth/immich-login', json=OPERATOR, headers={'origin': 'http://evil.test'}).status_code == 403
+        assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 200
         assert client.put(endpoint, json={'expectedRevision': '0', 'config': CONFIG}).status_code == 422
         response = client.put(endpoint, json={'expectedRevision': 0, 'config': CONFIG})
         assert response.status_code == 200, response.text
@@ -168,8 +191,8 @@ def test_auth_origin_strict_payload_and_no_paths(setup):
 
 def test_resource_survives_restart_and_database_backup(setup, tmp_path):
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/auth/immich-key', json={'key': settings.api_key})
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
         from io import BytesIO
         data = BytesIO()
         Image.new('RGBA', (40, 10), 'black').save(data, format='PNG')
@@ -287,9 +310,9 @@ def test_output_preview_rejects_old_generation_and_foreign_bytes(service):
 def test_editor_upload_and_latest_job_contract(setup):
     from io import BytesIO
     settings, fake = setup
-    app = create_app(settings, fake, background=False)
+    app = attach_login_transport(create_app(settings, fake, background=False))
     with TestClient(app) as client:
-        client.post('/api/auth/immich-key', json={'key': settings.api_key})
+        client.post('/api/auth/immich-login', json=OPERATOR)
         endpoint = f'/api/assets/{fake.asset_id}'
         assert client.get(endpoint+'/job').json() == {'job': None}
         image = BytesIO()
@@ -317,7 +340,7 @@ def test_public_static_cache_and_compression_keep_api_private(setup, tmp_path, m
     (web / 'assets' / 'index-test.js').write_text('const example = 1;\n' * 1000)
     monkeypatch.setenv('WM_WEB_ROOT', str(web))
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         result = client.get('/assets/index-test.js', headers={'Accept-Encoding': 'gzip'})
         assert result.headers['content-encoding'] == 'gzip'
         assert result.headers['cache-control'] == 'public, max-age=31536000, immutable'
@@ -325,7 +348,7 @@ def test_public_static_cache_and_compression_keep_api_private(setup, tmp_path, m
         assert 'Accept-Encoding' in result.headers['vary']
         assert client.get('/').headers['cache-control'] == 'no-cache'
         assert client.get('/api/health').headers['cache-control'] == 'no-store'
-        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).headers['cache-control'] == 'no-store'
+        assert client.post('/api/auth/immich-login', json=OPERATOR).headers['cache-control'] == 'no-store'
         assert client.get('/api/assets').headers['cache-control'] == 'no-store'
         assert client.get('/assets/missing.js').headers['cache-control'] == 'no-cache'
 
@@ -335,12 +358,12 @@ def test_public_origin_behind_http_proxy(setup):
     settings, fake = setup
     origin = 'https://immt.baka-akari.icu:18443'
     settings = replace(settings, public_origin=origin)
-    with TestClient(create_app(settings, fake, background=False), base_url='http://internal:2285') as client:
-        response = client.post('/api/auth/immich-key', json={'key': settings.api_key}, headers={'Origin': origin})
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False)), base_url='http://internal:2285') as client:
+        response = client.post('/api/auth/immich-login', json=OPERATOR, headers={'Origin': origin})
         assert response.status_code == 200
         assert 'Secure' in response.headers['set-cookie']
         for bad in ['https://evil.example', origin + '.evil.example', 'null', 'http://internal:2285']:
-            response = client.post('/api/auth/immich-key', json={'key': settings.api_key}, headers={
+            response = client.post('/api/auth/immich-login', json=OPERATOR, headers={
                 'Origin': bad, 'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': bad,
             })
             assert response.status_code == 403
@@ -458,8 +481,8 @@ def test_low_space_blocks_enqueue_without_temporary_files(service, monkeypatch):
 
 def test_gallery_status_badges_and_album_filter(setup):
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/auth/immich-key', json={'key': settings.api_key})
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
         listed = client.get('/api/assets').json()
         assert listed['items'][0]['status'] == {'configured': False, 'job': None, 'published': False}
         albums = client.get('/api/albums').json()
@@ -484,8 +507,8 @@ def test_albums_endpoint_degrades_when_scope_missing(setup):
     def forbidden():
         raise UpstreamError(403)
     fake.albums = forbidden
-    with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/auth/immich-key', json={'key': settings.api_key})
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
         response = client.get('/api/albums')
         assert response.status_code == 200
         assert response.json() == {'albums': [], 'available': False}
@@ -493,15 +516,15 @@ def test_albums_endpoint_degrades_when_scope_missing(setup):
     def offline():
         raise UpstreamError(503)
     fake.albums = offline
-    with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/auth/immich-key', json={'key': settings.api_key})
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
         assert client.get('/api/albums').status_code == 502
 
 
 def test_value_errors_expose_only_safe_codes(setup):
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
-        client.post('/api/auth/immich-key', json={'key': settings.api_key})
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
         assert client.get('/api/assets/not-a-uuid/config').status_code == 422
         response = client.get(f"/api/assets/{fake.asset_id}/metadata")
         assert response.status_code == 200, response.text
@@ -546,9 +569,9 @@ def test_logo_catalog_and_protected_bytes(setup, monkeypatch, tmp_path):
     Image.new('RGBA',(30,10),'red').save(logo_root/'canon.png')
     monkeypatch.setattr(renderer,'LOGOS_DIR',logo_root)
     settings,fake=setup
-    with TestClient(create_app(settings,fake,background=False)) as client:
+    with TestClient(attach_login_transport(create_app(settings,fake,background=False))) as client:
         assert client.get('/api/builtin-logos/canon').status_code==401
-        client.post('/api/auth/immich-key',json={'key':settings.api_key})
+        client.post('/api/auth/immich-login',json=OPERATOR)
         assert client.get('/api/logos').json()['logos']==[{'stem':'canon','variants':[]}]
         assert client.get('/api/builtin-logos/canon').status_code==200
         assert client.get('/api/builtin-logos/canon',params={'variant':'../escape'}).status_code==422
@@ -558,57 +581,70 @@ def test_logo_catalog_and_protected_bytes(setup, monkeypatch, tmp_path):
 
 def test_env_key_migrates_into_config_file(setup):
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         session = client.get('/api/auth/session').json()
     assert session['initialized'] is True and session['mode'] == 'immich_key'
     config = settings.data / 'config.json'
     assert config.is_file()
     assert config.stat().st_mode & 0o777 == 0o600
     import json
-    assert json.loads(config.read_text()) == {'apiKey': 'secret'}
+    assert json.loads(config.read_text()) == {'apiKey': 'secret', 'ownerEmail': ''}
 
 
 def test_immich_key_login_success_and_single_operator_revocation(setup):
     settings, fake = setup
-    with TestClient(create_app(settings, fake, background=False)) as client:
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         assert client.get('/api/auth/session').json()['authenticated'] is False
         assert client.get('/api/assets').status_code == 401
-        response = client.post('/api/auth/immich-key', json={'key': settings.api_key})
+        response = client.post('/api/auth/immich-login', json=OPERATOR)
         assert response.status_code == 200
         assert client.get('/api/auth/session').json()['authenticated'] is True
         assert client.get('/api/assets').status_code == 200
         previous = client.cookies.get('wm_session')
-        assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).status_code == 200
+        assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 200
         assert client.cookies.get('wm_session') != previous
         client.cookies.set('wm_session', previous)
         assert client.get('/api/assets').status_code == 401
 
 
-def test_immich_key_login_rejects_wrong_key_and_rate_limits(setup):
+def test_immich_login_rejects_wrong_password_malformed_and_rate_limits(setup):
     settings, fake = setup
-    app = create_app(settings, fake, background=False)
+    app = attach_login_transport(create_app(settings, fake, background=False))
     with TestClient(app) as client:
-        assert client.post('/api/auth/immich-key', json={'key': 'wrong-key'}).status_code == 401
-        assert client.post('/api/auth/immich-key', json={'key': '   '}).status_code == 422
-        assert client.post('/api/auth/immich-key', json={'key': 'x' * 257}).status_code == 422
+        wrong = {**OPERATOR, 'password': 'wrong'}
+        assert client.post('/api/auth/immich-login', json=wrong).status_code == 401
+        assert client.post('/api/auth/immich-login', json={'email': '', 'password': 'x'}).status_code == 422
+        assert client.post('/api/auth/immich-login', json={'email': 'a@b.c', 'password': 'y' * 257}).status_code == 422
         assert client.get('/api/auth/session').json()['authenticated'] is False
         for _ in range(4):
-            assert client.post('/api/auth/immich-key', json={'key': 'wrong-key'}).status_code == 401
-        response = client.post('/api/auth/immich-key', json={'key': settings.api_key})
+            assert client.post('/api/auth/immich-login', json=wrong).status_code == 401
+        response = client.post('/api/auth/immich-login', json=OPERATOR)
         assert response.status_code == 429 and response.json()['error'] == 'login_rate_limited'
 
 
-def test_immich_key_login_never_logs_the_key(setup, caplog):
+def test_immich_login_never_logs_credentials(setup, caplog):
     import logging
 
     settings, fake = setup
-    app = create_app(settings, fake, background=False)
+    app = attach_login_transport(create_app(settings, fake, background=False))
     with caplog.at_level(logging.INFO, logger='immich_wm.auth'):
         with TestClient(app) as client:
-            assert client.post('/api/auth/immich-key', json={'key': settings.api_key}).status_code == 200
-            assert client.post('/api/auth/immich-key', json={'key': settings.api_key + '-wrong'}).status_code == 401
-    assert settings.api_key not in caplog.text
-    assert settings.api_key + '-wrong' not in caplog.text
+            assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 200
+            assert client.post('/api/auth/immich-login', json={**OPERATOR, 'password': 'wrong'}).status_code == 401
+    assert OPERATOR['password'] not in caplog.text
+
+
+def test_immich_login_restricted_to_config_owner(setup):
+    from dataclasses import replace
+
+    from immich_wm.keyconfig import save_panel_config
+    settings, fake = setup
+    # A config bound to another account (e.g. after key rotation) rejects other Immich users.
+    save_panel_config(settings.data, 'secret', 'owner@example.com')
+    app = attach_login_transport(create_app(replace(settings, api_key=''), fake, background=False))
+    with TestClient(app) as client:
+        response = client.post('/api/auth/immich-login', json=OPERATOR)
+        assert response.status_code == 403 and response.json()['error'] == 'forbidden_account'
 
 
 def test_init_mode_gates_api_and_init_success_persists_key(setup):
@@ -628,7 +664,7 @@ def test_init_mode_gates_api_and_init_success_persists_key(setup):
             return httpx.Response(403)
         return httpx.Response(401)
 
-    app = create_app(settings, fake, background=False)
+    app = attach_login_transport(create_app(settings, fake, background=False))
     app.state.immich_key_transport = httpx.MockTransport(upstream)
     with TestClient(app) as client:
         session = client.get('/api/auth/session').json()
@@ -637,7 +673,7 @@ def test_init_mode_gates_api_and_init_success_persists_key(setup):
         assert response.status_code == 403 and response.json()['error'] == 'init_required'
         assert client.get('/api/health').json()['initialized'] is False
         # Login is closed before initialization.
-        assert client.post('/api/auth/immich-key', json={'key': 'good-key'}).status_code == 403
+        assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 403
         response = client.post('/api/init', json={'key': 'bad-key'})
         assert response.status_code == 401 and response.json()['error'] == 'invalid_key'
         response = client.post('/api/init', json={'key': 'scoped-key'})
@@ -649,10 +685,10 @@ def test_init_mode_gates_api_and_init_success_persists_key(setup):
         # Init is single-use.
         assert client.post('/api/init', json={'key': 'good-key'}).status_code == 409
     config = settings.data / 'config.json'
-    assert json.loads(config.read_text()) == {'apiKey': 'good-key'}
+    assert json.loads(config.read_text()) == {'apiKey': 'good-key', 'ownerEmail': 'akari@example.com'}
     assert config.stat().st_mode & 0o777 == 0o600
     # A restart with the config file present comes up initialized, no init mode.
-    with TestClient(create_app(settings, fake, background=False)) as client:
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         assert client.get('/api/auth/session').json()['initialized'] is True
         assert client.get('/api/assets').status_code == 401
 

@@ -346,14 +346,15 @@ M0 实现边界：允许用随机访问令牌兑换单操作员 HttpOnly 会话�
 
 本批补齐现有 Logo 包（仅原项目公共品牌资源，不包含 custom）、目录/预览接口与资源指纹；照片先显示预览，再补齐配置/EXIF，元数据不做全图解码且缓存按文件身份失效。运维部分增加已管理资产的启动/周期检查与只读异常提示、磁盘余量门槛、仅回收过期未引用自定义资源/非活动临时目录，以及数据库+资源的可校验备份。任何对账异常均不自动删除或覆盖原图/成品。还原必须停服务、在空数据目录执行并先校验摘要，不自动替换正在运行的数据目录。
 
-## Immich API Key 唯一凭据与 init 模式（2026-10-10）
+## Immich 账户登录与 init 模式（2026-10-10）
 
-身份方案改为单一凭据：完全移除 Pocket ID OIDC（及 M0 共享令牌登录），面板唯一凭据是
-一把 Immich API Key，持久化在数据目录 `config.json`（原子写、0600）。数据目录无有效
-配置且环境变量无 key 时进入 init 模式：仅开放健康检查、会话查询与 `/api/init`，
-登录页提供初始化表单，输入 key 经 Immich `GET /api/users/me` 验证后写入配置、
-替换上游凭据并直接建立会话；旧部署的 `IMMICH_API_KEY` 环境变量启动时自动迁移。
-初始化之后的日常登录为同 key 比对（常量时间，不经过 Immich），8 小时单操作员会话；
-更换 key = 停容器、删 `config.json`、重启重新 init。动机是 passkey 因软件问题无法
-弹出导致登录不可用，单操作员面板不需要独立 IdP。设计、边界与验收清单见
-`docs/immich-wm-immich-key-auth.md`（v2）。
+身份方案改为：**API Key 只用于关联面板与 Immich**（服务端凭据，持久化在数据目录
+`config.json`，原子写、0600，含 key 属主邮箱）；**日常登录使用 Immich 账户**
+（邮箱+密码，经 Immich `POST /api/auth/login` 验证后签发面板自己的 8 小时会话
+cookie，密码即验即弃）。完全移除 Pocket ID OIDC（及 M0 共享令牌登录）。数据目录
+无有效配置且环境变量无 key 时进入 init 模式：仅开放健康检查、会话查询与
+`/api/init`，初始化表单输入 key 经 `GET /api/users/me` 验证后落盘并直接登录；
+旧部署的 `IMMICH_API_KEY` 环境变量启动时自动迁移。key 绑定账户与登录身份
+不一致时拒绝（403 `forbidden_account`）。更换 key = 停容器、删 `config.json`、
+重启重新 init。动机是 passkey 因软件问题无法弹出导致登录不可用，单操作员面板
+不需要独立 IdP。设计、边界与验收清单见 `docs/immich-wm-immich-key-auth.md`（v3）。
