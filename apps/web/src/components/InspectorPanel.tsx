@@ -496,7 +496,7 @@ function LogoContentEditor({
   const [resourceStatus, setResourceStatus] = useState('');
 
   useEffect(() => {
-    void fetchLogos().then(setLogoVariants);
+    void fetchLogos().then(setLogoVariants).catch(() => setResourceStatus('Logo 列表暂不可用'));
   }, []);
 
   const isAuto = !content.path;
@@ -620,16 +620,18 @@ function LogoContentEditor({
 
 // ── Content Editor ───────────────────────────────────────
 
-function ContentEditor({
+export function ContentEditor({
   content,
   style,
   onUpdateContent,
   onUpdateStyle,
+  showStyle = true,
 }: {
   content: Content;
   style: StyleConfig | null;
   onUpdateContent: (c: Content) => void;
   onUpdateStyle: (s: StyleConfig | null) => void;
+  showStyle?: boolean;
 }) {
   const mergedStyle: StyleConfig = style ?? defaultStyle;
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -659,7 +661,7 @@ function ContentEditor({
           separator={content.separator}
           onUpdate={(chips, separator) => onUpdateContent({ chips, separator })}
         />
-        <StyleEditor style={mergedStyle} onUpdate={onUpdateStyle} />
+        {showStyle && <StyleEditor style={mergedStyle} onUpdate={onUpdateStyle} />}
       </div>
     );
   }
@@ -754,6 +756,7 @@ function ChipListEditor({
         {chips.map((chip, i) => (
           <div key={`${chip.field_id}-${i}`} className="chip-item">
             <select
+              aria-label={`字段 ${i + 1}`}
               value={chip.field_id}
               onChange={(e) => updateChip(i, { field_id: e.target.value as FieldId })}
             >
@@ -766,19 +769,20 @@ function ChipListEditor({
             {chip.field_id === 'custom_text' && (
               <input
                 type="text"
+                maxLength={160}
                 value={chip.custom_text ?? ''}
                 placeholder="自定义文本"
                 onChange={(e) => updateChip(i, { custom_text: e.target.value })}
               />
             )}
-            <button className="chip-remove" onClick={() => removeChip(i)}>
+            <button aria-label={`删除字段 ${i + 1}`} className="chip-remove" onClick={() => removeChip(i)}>
               ×
             </button>
           </div>
         ))}
       </div>
       <div className="form-row" style={{ gap: 8, marginTop: 8 }}>
-        <button className="small" onClick={addChip}>
+        <button className="small" disabled={chips.length >= 20} onClick={addChip}>
           + 字段
         </button>
         <label className="small-label">
@@ -786,6 +790,7 @@ function ChipListEditor({
           <input
             type="text"
             value={separator}
+            maxLength={8}
             onChange={(e) => onUpdate(chips, e.target.value)}
             style={{ width: 80 }}
           />

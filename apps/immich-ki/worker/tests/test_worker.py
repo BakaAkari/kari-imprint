@@ -17,9 +17,14 @@ class FakeImmich:
         self.settings = settings
         self.asset_id = str(uuid4())
         self.output_id = str(uuid4())
+        self.source_album_id = str(uuid4())
+        self.result_album_id = str(uuid4())
         self.imported = False
         self.refreshed = []
         self.album_filters = []
+        self.created = []
+        self.attached = []
+        self.thumbnail_asset_id = None
 
     def asset(self, asset_id):
         return {'id': asset_id, 'libraryId': self.settings.source_library, 'type': 'IMAGE', 'originalPath': '/external/camera-exports/photo.jpg'}
@@ -40,7 +45,28 @@ class FakeImmich:
         return {'items': items, 'nextPage': None}
 
     def albums(self):
-        return [{'id': str(uuid4()), 'name': '旅行', 'assetCount': 3}]
+        return [{'id': self.source_album_id, 'name': '旅行', 'assetCount': 3},
+                {'id': self.result_album_id, 'name': '旅行 Imprint', 'assetCount': 1}]
+
+    def album(self, album_id):
+        # Mirror the real client contract: /api/albums/:id returns albumName and
+        # the current membership, which both ownership checks depend on.
+        if str(album_id) == self.source_album_id:
+            return {'id': self.source_album_id, 'albumName': '旅行',
+                    'assets': [{'id': self.asset_id}], 'albumThumbnailAssetId': self.thumbnail_asset_id}
+        if str(album_id) == self.result_album_id:
+            return {'id': self.result_album_id, 'albumName': '旅行 Imprint',
+                    'assets': [{'id': self.output_id}] if self.imported else [],
+                    'albumThumbnailAssetId': self.thumbnail_asset_id}
+        raise ValueError('album_not_found')
+
+    def create_album(self, name):
+        self.created.append(name)
+        self.result_album_id = str(uuid4())
+        return self.result_album_id
+
+    def add_to_album(self, album_id, asset_id):
+        self.attached.append((str(album_id), str(asset_id)))
 
     def refresh(self, asset_id):
         self.refreshed.append(asset_id)
@@ -523,11 +549,80 @@ def test_gallery_status_badges_and_album_filter(setup):
         client.app.state.service.render_next()
         status = client.get('/api/assets').json()['items'][0]['status']
         assert status == {'configured': True, 'job': 'awaiting_import', 'published': True}
-        selected = str(uuid4())
+        selected = fake.source_album_id
         filtered = client.get('/api/assets', params={'album': selected}).json()
         assert filtered['items'][0]['status']['job'] == 'awaiting_import'
         assert fake.album_filters == [[selected]]
         assert client.get('/api/assets', params={'album': 'not-a-uuid'}).status_code == 422
+
+
+def test_imprint_album_is_never_a_source(setup):
+    """A result album may hold watermarked photos; editing it would double-stamp."""
+    settings, fake = setup
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
+        albums = client.get('/api/albums').json()['albums']
+        result = next(a for a in albums if a['name'] == '旅行 Imprint')
+        assert result['isResult'] is True
+        assert next(a for a in albums if a['name'] == '旅行')['isResult'] is False
+        response = client.get('/api/assets', params={'album': result['id']})
+        assert response.status_code == 422 and response.json()['error'] == 'result_album_read_only'
+        enqueue = client.post(f'/api/assets/{fake.asset_id}/render',
+                              json={'revision': 1, 'sourceAlbumId': result['id']})
+        assert enqueue.status_code == 422 and enqueue.json()['error'] == 'result_album_read_only'
+        assert fake.album_filters == [] and fake.attached == []
+
+
+def test_render_pairs_source_album_with_one_imprint_album(setup):
+    """Same-name pairing creates the suffix album once and reuses it, never stacking."""
+    settings, fake = setup
+    fake.result_album_id = ''  # The paired result album does not exist yet.
+    fake.albums = lambda: [{'id': fake.source_album_id, 'name': '旅行', 'assetCount': 3}]
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
+        service = client.app.state.service
+        endpoint = f'/api/assets/{fake.asset_id}'
+        for revision in (1, 2):
+            client.put(endpoint + '/config', json={'expectedRevision': revision - 1, 'config': CONFIG})
+            created = client.post(endpoint + '/render',
+                                  json={'revision': revision, 'sourceAlbumId': fake.source_album_id}).json()
+            fake.imported = True  # The published file is now visible in the output library.
+            service.render_next()
+            synced = client.post(f"/api/jobs/{created['id']}/sync").json()
+            assert synced['state'] == 'refresh_pending'
+        assert fake.created == ['旅行 Imprint']
+        assert fake.attached == [(fake.result_album_id, fake.output_id)] * 2
+
+
+def test_render_rejects_album_that_does_not_contain_the_asset(setup):
+    """Pairing must not widen scope: the photo has to belong to the chosen album."""
+    settings, fake = setup
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
+        fake.album = lambda album_id: {'id': album_id, 'albumName': '旅行', 'assets': []}
+        client.put(f'/api/assets/{fake.asset_id}/config', json={'expectedRevision': 0, 'config': CONFIG})
+        response = client.post(f'/api/assets/{fake.asset_id}/render',
+                               json={'revision': 1, 'sourceAlbumId': str(uuid4())})
+        assert response.status_code == 422 and response.json()['error'] == 'asset_not_in_album'
+        assert fake.attached == []
+
+
+def test_ambiguous_album_pair_is_refused(setup):
+    """Two same-name result albums must be reported, never guessed."""
+    settings, fake = setup
+    fake.albums = lambda: [{'id': str(uuid4()), 'name': '旅行 Imprint', 'assetCount': 0},
+                           {'id': str(uuid4()), 'name': '旅行 Imprint', 'assetCount': 0},
+                           {'id': fake.source_album_id, 'name': '旅行', 'assetCount': 3}]
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
+        client.put(f'/api/assets/{fake.asset_id}/config', json={'expectedRevision': 0, 'config': CONFIG})
+        created = client.post(f'/api/assets/{fake.asset_id}/render',
+                              json={'revision': 1, 'sourceAlbumId': fake.source_album_id}).json()
+        fake.imported = True
+        client.app.state.service.render_next()
+        synced = client.post(f"/api/jobs/{created['id']}/sync")
+        assert synced.status_code == 422 and synced.json()['error'] == 'ambiguous_album_pair'
+        assert fake.created == [] and fake.attached == []
 
 
 def test_albums_endpoint_degrades_when_scope_missing(setup):

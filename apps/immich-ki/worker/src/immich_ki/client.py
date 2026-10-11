@@ -48,7 +48,23 @@ class ImmichClient:
         # Requires the album.read scope; the panel degrades when it is missing.
         result = self.request('GET', 'albums').json()
         return [{'id': str(UUID(album['id'])), 'name': str(album.get('albumName') or '未命名相册'),
-                 'assetCount': int(album.get('assetCount') or 0)} for album in result]
+                 'assetCount': int(album.get('assetCount') or 0),
+                 'thumbnailAssetId': album.get('albumThumbnailAssetId')} for album in result]
+
+    def album(self, album_id):
+        return self.request('GET', f'albums/{UUID(str(album_id))}').json()
+
+    def create_album(self, name):
+        return str(UUID(self.request('POST', 'albums', json={'albumName': name}).json()['id']))
+
+    def add_to_album(self, album_id, asset_id):
+        results = self.request('PUT', f'albums/{UUID(str(album_id))}/assets',
+                               json={'ids': [str(UUID(str(asset_id)))]}).json()
+        if not all(r.get('success') or r.get('error') == 'duplicate' for r in results):
+            raise UpstreamError()
+        # Read back membership; a successful HTTP response alone is insufficient.
+        if not any(a['id'] == asset_id for a in self.album(album_id).get('assets', [])):
+            raise UpstreamError()
 
     def preview(self, asset_id: str, maximum: int = 20 * 1024 * 1024, *, thumbnail: bool = False):
         try:

@@ -57,6 +57,12 @@ class Store:
           job_id TEXT PRIMARY KEY REFERENCES jobs(id), attempts INTEGER NOT NULL,
           next_at REAL NOT NULL, error TEXT
         );
+        CREATE TABLE IF NOT EXISTS album_pairs (
+          source_album_id TEXT PRIMARY KEY, result_album_id TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS job_albums (
+          job_id TEXT PRIMARY KEY REFERENCES jobs(id), source_album_id TEXT NOT NULL
+        );
         PRAGMA user_version=1;
         ''')
 

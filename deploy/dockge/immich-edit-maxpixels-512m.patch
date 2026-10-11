@@ -1,0 +1,13 @@
+diff --git a/crates/raw-pipeline/src/source/wire.rs b/crates/raw-pipeline/src/source/wire.rs
+index ae59e56..4282b09 100644
+--- a/crates/raw-pipeline/src/source/wire.rs
++++ b/crates/raw-pipeline/src/source/wire.rs
+@@ -16,7 +16,7 @@ const PLAIN_MAGIC: &[u8; 4] = b"IESP";
+ const VERSION: u32 = 2;
+ const PREFIX_BYTES: usize = 12;
+ const MAX_HEADER_BYTES: usize = 4096;
+-const MAX_PIXELS: u64 = 64 * 1024 * 1024;
++const MAX_PIXELS: u64 = 512 * 1024 * 1024;
+ #[cfg(feature = "native")]
+ const ZSTD_LEVEL: i32 = 1;
+ 

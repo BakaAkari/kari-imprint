@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, field_validator
 from starlette.middleware.gzip import GZipMiddleware
 
 from immich_ki.auth import PUBLIC_AUTH_PATHS, install_auth
@@ -33,7 +33,8 @@ PUBLIC_VALUE_ERRORS = {
     'unsupported_path', 'unsafe_path', 'not_regular_file', 'invalid_preview',
     'invalid_resource', 'output_too_large', 'renderer_changed', 'queue_full',
     'job_not_found', 'insufficient_disk_space', 'must_not_exist', 'checksum_mismatch',
-    'image_too_large', 'unsupported_image',
+    'image_too_large', 'unsupported_image', 'result_album_read_only', 'asset_not_in_album',
+    'album_pair_changed', 'ambiguous_album_pair',
 }
 
 
@@ -55,7 +56,16 @@ class SaveConfig(StrictModel):
 
 
 class Render(StrictModel):
+    # StrictModel refuses to coerce a string into UUID, and the Immich wire
+    # contract is a canonical UUID string anyway. Validate explicitly here so a
+    # malformed id is a 422 instead of a silent scope widening.
+    sourceAlbumId: str | None = None
     revision: int = Field(ge=1, le=2**31 - 1)
+
+    @field_validator('sourceAlbumId')
+    @classmethod
+    def canonical_album(cls, value: str | None) -> str | None:
+        return None if value is None else str(UUID(value))
 
 
 def public_job(job):
@@ -232,18 +242,32 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     @app.get('/api/albums')
     def list_albums():
         try:
-            return {'albums': upstream.albums(), 'available': True}
+            from immich_ki.albums import is_result
+            return {'albums': [{**a, 'isResult': is_result(a['name'])} for a in upstream.albums()], 'available': True}
         except UpstreamError as exc:
             if exc.status == 403:
                 # The panel key may lack album.read; filtering stays hidden.
                 return {'albums': [], 'available': False}
             raise
 
+    @app.get('/api/albums/{album_id}/thumbnail')
+    def album_thumbnail(album_id: UUID):
+        album = upstream.album(str(album_id))
+        asset_id = album.get('albumThumbnailAssetId')
+        if not asset_id:
+            raise HTTPException(404)
+        data, mime = upstream.preview(str(UUID(asset_id)), maximum=2 * 1024 * 1024, thumbnail=True)
+        if mime.split(';')[0] not in {'image/jpeg', 'image/png', 'image/webp'}:
+            raise ValueError('invalid_preview')
+        return Response(data, media_type=mime)
+
     @app.get('/api/assets')
     def assets(page: Annotated[int, Field(ge=1, le=10000)] = 1,
                album: UUID | None = None):
         # The upstream wire contract takes album ids as strings; pass the
         # validated UUID in its canonical string form.
+        if album:
+            service.albums.source(str(album))
         result = upstream.search(settings.source_library, page, albums=[str(album)] if album else None)
         items = []
         reserved = settings.reserved_output
@@ -256,7 +280,9 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                 if (asset.get('libraryId') != settings.source_library or asset.get('type') != 'IMAGE'
                         or asset.get('isOffline') or asset.get('isTrashed')):
                     continue
-                items.append({'id': asset['id'], 'name': asset['originalFileName']})
+                exif = asset.get('exifInfo') or {}
+                items.append({'id': asset['id'], 'name': asset['originalFileName'],
+                              'width': exif.get('exifImageWidth'), 'height': exif.get('exifImageHeight')})
             except (KeyError, ValueError):
                 continue
         statuses = service.gallery_status([item['id'] for item in items])
@@ -306,7 +332,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
 
     @app.post('/api/assets/{asset_id}/render', status_code=202)
     def render(asset_id: UUID, body: Render):
-        return public_job(service.enqueue(str(asset_id), body.revision))
+        return public_job(service.enqueue(str(asset_id), body.revision, str(body.sourceAlbumId) if body.sourceAlbumId else None))
 
     @app.get('/api/jobs/{job_id}')
     def job(job_id: UUID):

@@ -23,7 +23,11 @@ def render(request):
         if bounds.w * bounds.h > request['maxOutputPixels'] or max(bounds.w, bounds.h) > request.get('maxOutputEdge', 16384):
             raise ValueError('output_too_large')
         processors = imprint_config_to_processors(config)
-        processors[-1].update(quality=95, subsampling=0)
+        # Keep the original pixel dimensions, but use a practical JPEG
+        # compression preset for generated outputs.  Quality 85 with 4:2:0
+        # chroma subsampling materially reduces file size while preserving
+        # photographic detail; this is intentionally not a hard 8 MiB cap.
+        processors[-1].update(quality=85, subsampling=2)
         start_process(processors, input_path=request['source'], output_path=request['target'], initial_buffer=[pixels],
                       pre_loaded_exif=get_exif(request['source']), output_metadata=metadata)
     finally:

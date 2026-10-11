@@ -51,6 +51,8 @@ class Service:
         if not settings.imports.is_dir():
             raise ValueError('missing_mount')
         self.store = Store(settings.data)
+        from immich_ki.albums import AlbumCoordinator
+        self.albums = AlbumCoordinator(self.store, client)
         self.tmp = settings.output / '.ki-tmp'
         self.metadata_tmp = workspace(settings.data, 'metadata-tmp', code='workspace_unavailable')
         self.resources = settings.data / 'resources'
@@ -122,7 +124,9 @@ class Service:
             db.execute('UPDATE assets SET revision=? WHERE id=?', (revision, asset_id))
         return {'revision': revision, 'config': json.loads(encoded)}
 
-    def enqueue(self, asset_id, revision):
+    def enqueue(self, asset_id, revision, source_album_id=None):
+        if source_album_id is not None:
+            self.albums.source(source_album_id, asset_id)
         self.ensure_output()
         self.maintenance.require_space(3 * self.settings.max_bytes)
         _, path = self.source(asset_id)
@@ -143,7 +147,7 @@ class Service:
                         name = (slot.get('content') or {}).get('path', '')
                         if name and not name.startswith('builtin:') and name not in resources:
                             resources[name] = snapshot(self.resources, name, directory / 'resources' / name, 10 * 1024 * 1024)
-                key = sha(canonical([config['hash'], source_hash, resources, self.renderer_version]))
+                key = sha(canonical([config['hash'], source_hash, resources, self.renderer_version, source_album_id]))
                 active = db.execute("SELECT id FROM jobs WHERE asset_id=? AND generation=? AND revision=? AND render_key=? AND state IN ('queued','running')", (asset_id, asset['generation'], revision, key)).fetchone()
                 if active:
                     shutil.rmtree(directory, ignore_errors=True)
@@ -153,6 +157,8 @@ class Service:
                 generation = asset['generation'] + 1
                 db.execute('UPDATE assets SET generation=? WHERE id=?', (generation, asset_id))
                 db.execute('INSERT INTO jobs(id,asset_id,revision,generation,source_hash,render_key,renderer,state) VALUES(?,?,?,?,?,?,?,?)', (job_id, asset_id, revision, generation, source_hash, key, self.renderer_version, 'queued'))
+                if source_album_id is not None:
+                    db.execute('INSERT INTO job_albums(job_id,source_album_id) VALUES(?,?)', (job_id, source_album_id))
             return self.store.job(job_id)
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
@@ -382,6 +388,7 @@ class Service:
                 raise Conflict('superseded')
             if asset['output_id'] and asset['output_id'] != output_id:
                 raise Conflict('output_identity_changed')
+        self.albums.attach(job_id, output_id)
         self.client.refresh(output_id)
         with self.store.transaction() as db:
             asset, current = self._current(db, job)

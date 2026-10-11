@@ -21,8 +21,10 @@ export function buildDefaultConfig(): ImprintConfig {
     regions: [{
       id: 'footer', type: 'footer-bar', enabled: true, height: 0.15, layout: defaultFlowLayout(),
       slots: {
-        'primary-start': { enabled: true, style: null, content: { chips: chips(DEFAULT_TRACK_FIELDS.top), separator: ' ' } },
-        'secondary-start': { enabled: true, style: null, content: { chips: chips(DEFAULT_TRACK_FIELDS.bottom), separator: ' · ' } },
+        // The top-left track is slightly larger; both default tracks use the
+        // bold face so the metadata remains legible over the white footer.
+        'primary-start': { enabled: true, style: { ...defaultStyle, font_size_level: 'medium', font_family: 'NotoSansCJKsc-Bold.otf', bold: true }, content: { chips: chips(DEFAULT_TRACK_FIELDS.top), separator: ' ' } },
+        'secondary-start': { enabled: true, style: { ...defaultStyle, font_size_level: 'small', font_family: 'NotoSansCJKsc-Bold.otf', bold: true }, content: { chips: chips(DEFAULT_TRACK_FIELDS.bottom), separator: ' ' } },
         asset: { enabled: true, style: null, content: { path: '', size_level: 'medium', size_ratio: null, orientation: 'upright', placement: 'end', track: 'span' } },
       },
     }],
