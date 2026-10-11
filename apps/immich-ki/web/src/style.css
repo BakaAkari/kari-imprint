@@ -82,10 +82,11 @@ small{color:var(--dim);line-height:1.7}
 .controls{border-left:1px solid var(--line);padding:18px 16px;display:flex;flex-direction:column;gap:14px}
 .controls fieldset{border:0;padding:0;margin:0;min-width:0}
 .controls fieldset:disabled{opacity:.4}
-.save-bar{display:flex;gap:0;border:1px solid var(--text)}
+.save-bar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:0;border:1px solid var(--text);min-width:0}
 .save-action{flex:1;background:var(--text);color:var(--bg);border:0;font:12px var(--mono);font-weight:700;letter-spacing:.22em;padding:12px}
 .save-action:hover:not(:disabled){background:var(--accent);color:var(--text)}
 .save-action:disabled{background:transparent;color:var(--faint)}
+.reset-action{border:0;border-left:1px solid var(--line-strong);background:transparent;color:var(--dim);font:10px var(--mono);padding:0 10px;white-space:nowrap}.reset-action:hover:not(:disabled){color:var(--text);background:var(--line)}.reset-action:disabled{color:var(--faint)}
 .rev-tag{display:flex;align-items:center;padding:0 12px;font:10px var(--mono);color:var(--faint);letter-spacing:.1em;border-left:1px solid var(--line-strong)}
 .editor-basics{display:grid;gap:12px;margin-bottom:14px}
 .editor-typography{display:grid;gap:12px;margin-bottom:14px;border:1px solid var(--line);padding:12px}
@@ -142,7 +143,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,de
   .immich-app>.workspace{grid-template-columns:minmax(0,1fr)}
   .library{max-height:none;border-right:0;border-bottom:1px solid var(--line)}
   .canvas-area{min-height:46vh;padding:12px}
-  .statusbar{padding:9px 12px}
+  .statusbar{padding:9px 12px}.save-bar{grid-template-columns:minmax(0,1fr) auto}.save-bar .rev-tag{grid-column:1/-1;border-left:0;border-top:1px solid var(--line-strong);justify-content:center;padding:6px}
   .alert-line,.output-link{margin-left:12px;margin-right:12px}
 }
 
@@ -153,7 +154,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,de
 .watermark-editor h3{font-size:12px;margin:0}
 .watermark-editor small{font-size:10px;color:var(--dim);font-weight:normal}
 .watermark-editor .editor-section-title{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.watermark-editor .editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+.watermark-editor .editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0;min-width:0}
 .watermark-editor .editor-fields label{min-width:0;display:flex;flex-direction:column;gap:5px}
 .watermark-editor label.inline{display:flex;flex-direction:row;align-items:center;gap:6px}
 .watermark-editor input,.watermark-editor select{max-width:100%;min-width:0}

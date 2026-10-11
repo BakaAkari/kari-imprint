@@ -49,6 +49,13 @@ function App() {
     if(dirty&&!window.confirm('放弃当前未保存的修改？'))return;
     resetEditor();requestAnimationFrame(()=>{if(galleryNode.current)galleryNode.current.scrollTop=scrollPosition.current;});
   }
+  function resetToDefault(){
+    if(!active||busy)return;
+    if(!window.confirm('将当前照片的草稿恢复为系统默认样式？服务器中已保存的配置不会改变，需点击“保存并生成”后才生效。'))return;
+    setConfig(editableConfig(buildDefaultConfig()));
+    setDirty(true);
+    setMessage('已恢复默认样式；点击“保存并生成”后生效。');
+  }
   function navigate(nextAlbum:string){
     if(nextAlbum===album)return;
     if(dirty&&!window.confirm('放弃当前未保存的修改？'))return;
@@ -133,7 +140,7 @@ function App() {
         {message&&<p role="alert" className="alert-line">{message}</p>}
         {active&&job&&['awaiting_import','refresh_pending','done'].includes(job.state)&&<a className="output-link" href={`/api/assets/${active.id}/output?generation=${job.generation}`} target="_blank" rel="noopener noreferrer">查看成品 ↗ GEN {job.generation}</a>}
       </main>}
-      {active&&<aside className="controls"><h2 className="rail-title">02 · 参数{active?` / ${active.name}`:''}</h2><div className="save-bar"><button className="save-action" disabled={!bitmap||busy} onClick={saveRender}>保存并生成{dirty?' *':''}</button><span className="rev-tag">REV {revision}</span></div>
+      {active&&<aside className="controls"><h2 className="rail-title">02 · 参数{active?` / ${active.name}`:''}</h2><div className="save-bar"><button className="save-action" disabled={!bitmap||busy} onClick={saveRender}>保存并生成{dirty?' *':''}</button><button className="reset-action" disabled={!bitmap||busy} onClick={resetToDefault}>重置为默认</button><span className="rev-tag">REV {revision}</span></div>
         <fieldset disabled={!bitmap||busy} key={active?.id||'empty'}><Editor config={config} onChange={value=>{if(epoch.current!==editorEpoch)return;setConfig(value);setDirty(true);}}/></fieldset>
         {job&&['awaiting_import','refresh_pending'].includes(job.state)&&<button disabled={busy} onClick={()=>{const id=epoch.current;setBusy(true);api<Job>(`/jobs/${job.id}/sync`,'POST').then(value=>{if(id===epoch.current)setJob(value);}).catch(e=>{if(id===epoch.current)setMessage(String(e));}).finally(()=>{if(id===epoch.current)setBusy(false);});}}>重新检查入库</button>}
         <details className="maintenance"><summary>系统 · 维护与备份{maintenance?.issues.length?` [${maintenance.issues.length}]`:''}</summary>
