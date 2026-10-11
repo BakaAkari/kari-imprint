@@ -11,6 +11,20 @@ import './style.css';
 import {Gallery,useGallery} from './gallery';
 
 const initial: ImprintConfig = buildDefaultConfig();
+// Job errors are stable machine codes; show the operator what to do instead.
+const errorLabel = (code: string | null | undefined): string => {
+  switch (code) {
+    case 'sync_unconfirmed': return '已生成，但长时间未能在 Immich 中确认收录，可重新保存';
+    case 'render_failed': return '生成失败，请重试';
+    case 'output_conflict': return '成品文件与已有内容冲突';
+    case 'source_changed': return '源照片已变更，请重新保存';
+    case 'publication_source_missing': return '发布所需的源文件缺失';
+    case 'output_identity_changed': return '成品标识已变更，请重新保存';
+    case 'queue_full': return '处理队列已满，请稍后再试';
+    case 'insufficient_disk_space': return '磁盘空间不足';
+    default: return code ? `处理失败：${code}` : '生成失败';
+  }
+};
 const stateLabel = (job: Job | null, dirty: boolean): string => {
   if (!job) return dirty ? '有未保存的修改' : '未保存';
   switch (job.state) {
@@ -18,7 +32,7 @@ const stateLabel = (job: Job | null, dirty: boolean): string => {
     case 'awaiting_import': return '已生成，等待 Immich 收录…';
     case 'refresh_pending': return '已保存，等待确认…';
     case 'done': return '已保存';
-    case 'failed': return `处理失败：${job.error ?? '生成失败'}`;
+    case 'failed': return errorLabel(job.error);
     case 'superseded': return '已被新版本替代';
   }
 };

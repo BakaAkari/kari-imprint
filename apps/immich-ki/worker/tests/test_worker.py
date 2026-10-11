@@ -447,6 +447,31 @@ def test_reconcile_does_not_refresh_stale_revision(service):
     assert not service.client.refreshed
 
 
+def test_reconcile_gives_up_after_bounded_attempts(setup):
+    from immich_ki.service import MAX_SYNC_ATTEMPTS
+
+    settings, fake = setup
+    service = Service(settings, fake)
+    job = save_job(service)
+    service.render_next()
+    service.reconcile_next(now=100)
+    assert service.store.job(job["id"])["state"] == "awaiting_import"
+    with service.store.transaction() as db:
+        db.execute(
+            "UPDATE sync_schedule SET attempts=?, next_at=0 WHERE job_id=?",
+            (MAX_SYNC_ATTEMPTS, job["id"]),
+        )
+    # A job whose output never becomes confirmable must stop retrying rather
+    # than polling Immich forever behind a permanent "waiting" label.
+    assert service.reconcile_next(now=200) == job["id"]
+    final = service.store.job(job["id"])
+    assert final["state"] == "failed" and final["error"] == "sync_unconfirmed"
+    assert service.store.db.execute(
+        "SELECT * FROM sync_schedule WHERE job_id=?", (job["id"],)
+    ).fetchone() is None
+    assert service.reconcile_next(now=10000) is None
+
+
 def test_output_preview_rejects_old_generation_and_foreign_bytes(service):
     from io import BytesIO
 

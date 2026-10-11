@@ -30,6 +30,11 @@ from immich_ki.workspace import StorageUnavailable, workspace
 # Existing core diagnostics include EXIF dictionaries and source paths.
 logger.disable("kari_core")
 
+# Publication confirmation is retried with capped exponential backoff. A job
+# whose output never becomes confirmable must stop retrying: an unbounded loop
+# leaves the panel showing "waiting" forever and keeps polling Immich.
+MAX_SYNC_ATTEMPTS = 240
+
 
 def sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
@@ -376,6 +381,16 @@ class Service:
             if row is None:
                 return None
             attempt = row["attempts"] + 1
+            if attempt > MAX_SYNC_ATTEMPTS:
+                # Give up honestly instead of retrying forever: the render may
+                # still be on disk, but this panel cannot confirm ingestion.
+                db.execute(
+                    "UPDATE jobs SET state='failed', error='sync_unconfirmed' WHERE id=? "
+                    "AND state IN ('awaiting_import','refresh_pending')",
+                    (row["id"],),
+                )
+                db.execute("DELETE FROM sync_schedule WHERE job_id=?", (row["id"],))
+                return row["id"]
             db.execute(
                 "INSERT OR REPLACE INTO sync_schedule(job_id,attempts,next_at,error) VALUES(?,?,?,NULL)",
                 (row["id"], attempt, now + min(300, 5 * 2 ** min(attempt - 1, 6))),
