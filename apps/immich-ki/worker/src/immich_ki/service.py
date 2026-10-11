@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from copy import deepcopy
+from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -21,6 +22,7 @@ from loguru import logger
 from PIL import Image
 
 from immich_ki.client import UpstreamError
+from immich_ki.fingerprint import implementation_fingerprint
 from immich_ki.logos import bundle_hash
 from immich_ki.logos import resolve as resolve_logo
 from immich_ki.paths import digest_file, open_source, output_relative, parent_fd, relative_path, snapshot
@@ -82,7 +84,7 @@ class Service:
 
     @property
     def renderer_version(self):
-        return self.settings.renderer_version + "-logos-" + self.logo_version
+        return self.settings.renderer_version + "-impl-" + implementation_fingerprint() + "-logos-" + self.logo_version
 
     def source(self, asset_id):
         asset = self.client.asset(asset_id)
@@ -136,6 +138,7 @@ class Service:
     def save(self, asset_id, config, expected):
         _, path = self.source(asset_id)
         encoded = canonical(self.validate(config))
+        new_hash = sha(encoded)
         with self.store.transaction() as db:
             db.execute("INSERT OR IGNORE INTO assets(id,path) VALUES(?,?)", (asset_id, path))
             asset = db.execute("SELECT * FROM assets WHERE id=?", (asset_id,)).fetchone()
@@ -143,10 +146,20 @@ class Service:
                 raise Conflict("path_conflict")
             if asset["revision"] != expected:
                 raise Conflict("revision_conflict")
+            # Idempotent save: re-saving the identical config is a no-op that
+            # keeps the revision. Without this, every identical PUT would bump
+            # the revision and bypass the enqueue dedup (which keys on revision),
+            # turning a repeated save during the waiting state into a duplicate
+            # render and generation.
+            existing = db.execute(
+                "SELECT hash FROM configs WHERE asset_id=? AND revision=?", (asset_id, expected)
+            ).fetchone()
+            if existing and existing["hash"] == new_hash:
+                return {"revision": expected, "config": json.loads(encoded)}
             revision = expected + 1
             db.execute(
                 "INSERT INTO configs(asset_id,revision,config,hash) VALUES(?,?,?,?)",
-                (asset_id, revision, encoded, sha(encoded)),
+                (asset_id, revision, encoded, new_hash),
             )
             db.execute("UPDATE assets SET revision=? WHERE id=?", (revision, asset_id))
         return {"revision": revision, "config": json.loads(encoded)}
@@ -430,9 +443,13 @@ class Service:
                 }
         return statuses
 
-    def output_preview(self, asset_id, generation):
-        # Never serve bytes for a stale URL or a file changed outside this worker.
-        with self.decode_lock, self.store.lock:
+    def published_output(self, asset_id, generation):
+        """Read the full published output bytes under the current-ness guards.
+
+        Returns ``(payload, relative_path)``. Never serves bytes for a stale
+        URL, a superseded job, or a file changed outside this worker.
+        """
+        with self.store.lock:
             job = self.latest_job(asset_id)
             if (
                 not job
@@ -443,16 +460,25 @@ class Service:
             asset = self.store.db.execute("SELECT * FROM assets WHERE id=?", (asset_id,)).fetchone()
             if asset["published_hash"] != job["output_hash"]:
                 raise Conflict("output_not_current")
-            from io import BytesIO
-
-            with open_source(self.settings.output, output_relative(asset["path"], self.settings.imprint_dir)) as file:
+            relative = output_relative(asset["path"], self.settings.imprint_dir)
+            with open_source(self.settings.output, relative) as file:
                 if digest_file(file, self.settings.max_bytes) != job["output_hash"]:
                     raise Conflict("output_conflict")
                 file.seek(0)
-                pixels, metadata = load_photograph(file, max_pixels=self.settings.max_output_pixels)
+                payload = file.read(self.settings.max_bytes + 1)
+        if len(payload) > self.settings.max_bytes:
+            raise ValueError("output_too_large")
+        return payload, relative
+
+    def output_preview(self, asset_id, generation):
+        # Preview is deliberately bounded; the full-resolution file is a separate
+        # variant so a download never silently returns a downscaled image.
+        with self.decode_lock:
+            payload, _ = self.published_output(asset_id, generation)
+            result = BytesIO()
+            pixels, metadata = load_photograph(BytesIO(payload), max_pixels=self.settings.max_output_pixels)
             try:
                 pixels.thumbnail((self.settings.preview_edge, self.settings.preview_edge))
-                result = BytesIO()
                 pixels.save(result, format="JPEG", quality=90, icc_profile=metadata.icc_profile)
                 return result.getvalue()
             finally:
@@ -484,6 +510,13 @@ class Service:
             # actually ingested the output and paired it with the result album.
             if self._refresh_complete(job_id, output_id):
                 with self.store.transaction() as db:
+                    # Re-check currency after the network confirmation: a save or
+                    # render that landed while we were polling must supersede this
+                    # job rather than let a stale revision be reported as saved.
+                    asset, current = self._current(db, job)
+                    if not current:
+                        db.execute("UPDATE jobs SET state='superseded' WHERE id=?", (job_id,))
+                        return self.store.job(job_id)
                     db.execute("UPDATE jobs SET state='done' WHERE id=?", (job_id,))
                 return self.store.job(job_id)
             return job
@@ -523,15 +556,31 @@ class Service:
         """True only when the output asset is discoverable and in the result album.
 
         A successful refresh request alone is never treated as completion: the
-        output must be returned by ``assets/:id`` (ingested) and listed in the
-        paired result album via the real membership query.
+        output must be returned by ``assets/:id`` (ingested) with the correct
+        output library and path, and be listed in the paired result album via
+        the real membership query.
         """
         try:
-            self.client.asset(output_id)
+            output_asset = self.client.asset(output_id)
         except UpstreamError:
             return False
         with self.store.transaction() as db:
             row = db.execute("SELECT source_album_id FROM job_albums WHERE job_id=?", (job_id,)).fetchone()
+            source = db.execute(
+                "SELECT a.path FROM assets a JOIN jobs j ON j.asset_id = a.id WHERE j.id=?", (job_id,)
+            ).fetchone()
+        if source is None:
+            return False
+        # The asset answering for ``output_id`` must actually be the published
+        # output (correct library + path), never some unrelated asset that
+        # happens to resolve the same id.
+        expected_path = (
+            self.settings.output_prefix.rstrip("/") + "/" + output_relative(source["path"], self.settings.imprint_dir)
+        )
+        if output_asset.get("libraryId") != self.settings.output_library:
+            return False
+        if output_asset.get("originalPath") != expected_path:
+            return False
         if row is None:
             return True  # Legacy jobs without an album context have no pairing to verify.
         with self.store.transaction() as db:

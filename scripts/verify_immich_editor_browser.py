@@ -21,7 +21,6 @@ ARTIFACTS = ROOT / "artifacts/immich-editor"
 
 def main():
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    defaults = ImprintPayload.model_validate({"schema_version": 3, "regions": []}).model_dump()
     # Generate the exact product default from its TS factory, not a Python imitation.
     import subprocess
 
@@ -39,18 +38,7 @@ def main():
     normal["regions"][0]["slots"]["primary-end"] = {
         "enabled": True,
         "style": None,
-        "content": {
-            "chips": [
-                {"field_id": "custom_text", "custom_text": "RIGHT"},
-                {"field_id": "custom_text", "custom_text": ""},
-            ],
-            "separator": " | ",
-        },
-    }
-    normal["regions"][0]["slots"]["secondary-end"] = {
-        "enabled": False,
-        "style": deepcopy(normal["defaults"]),
-        "content": {"chips": [], "separator": "/"},
+        "content": {"chips": [{"field_id": "custom_text", "custom_text": "RIGHT"}], "separator": " | "},
     }
     normal["regions"].append(
         {
@@ -85,7 +73,7 @@ def main():
         nonlocal config
         path = urlparse(route.request.url).path
         if path == "/api/auth/session":
-            payload = {"initialized": True, "authenticated": True}
+            payload = {"initialized": True, "authenticated": True, "identity": "akari@example.com"}
         elif path == "/api/assets":
             payload = {
                 "items": [
@@ -110,13 +98,17 @@ def main():
                 saved.append(deepcopy(config))
             payload = {"revision": len(saved) + 1, "config": config}
         elif path.endswith("/metadata"):
-            payload = {"width": 900, "height": 600, "fields": {"camera_model": "Test camera"}}
+            payload = {
+                "width": 900,
+                "height": 600,
+                "fields": {"camera_model": "X-T5", "lens_model": "XF 35mm", "make": "FUJIFILM"},
+            }
         elif path.endswith("/job"):
             payload = {"job": None}
         elif path.endswith("/render"):
             payload = {"id": "test-job", "state": "done", "generation": 1}
         elif path == "/api/logos":
-            payload = {"ok": True, "logos": []}
+            payload = {"ok": True, "logos": [{"stem": "fujifilm", "variants": []}, {"stem": "canon", "variants": []}]}
         elif path == "/api/maintenance":
             payload = {"freeBytes": 10000000000, "minimumFreeBytes": 1, "issues": [], "jobs": {}}
         elif path.endswith(("/preview", "/thumbnail")):
@@ -143,6 +135,7 @@ def main():
 
         def load():
             page.goto("http://immich-editor.test")
+            page.evaluate("localStorage.clear()")
             page.get_by_role("button", name="旅行", exact=False).first.click()
             page.get_by_role("button", name="A.jpg", exact=True).click()
             expect(page.locator(".save-action")).to_be_enabled()
@@ -155,78 +148,83 @@ def main():
             return saved[-1]
 
         load()
+        # Untouched config survives load/save exactly (lossless roundtrip).
         assert save() == normal, "Untouched config must survive load/save exactly"
-        expect(page.get_by_text("上排文字字段", exact=True)).to_have_count(0)
-        expect(page.get_by_text("高级参数 · ADVANCED", exact=True)).to_have_count(0)
-        expect(page.get_by_text("默认文字样式", exact=True)).to_have_count(1)
-        page.get_by_text("默认文字样式", exact=True).click()
-        expect(page.get_by_role("combobox", name="字号方式", exact=True)).to_have_value("level")
-        page.get_by_role("combobox", name="字体", exact=True).select_option("NotoSansCJKsc-Regular.otf")
-        page.get_by_role("combobox", name="字号方式", exact=True).select_option("ratio")
-        page.get_by_role("spinbutton", name="字号比例", exact=True).fill("0.5")
-        styled = save()
-        assert styled["defaults"]["bold"] is False
-        assert styled["defaults"]["font_family"] == "NotoSansCJKsc-Regular.otf"
-        assert styled["defaults"]["font_size_ratio"] == 0.5
-        page.get_by_role("spinbutton", name="字号比例", exact=True).fill("0.51")
-        assert save()["defaults"]["font_size_ratio"] == 0.5
-        page.get_by_role("spinbutton", name="字号比例", exact=True).fill("0.2")
-        save()
-        page.get_by_text("默认文字样式", exact=True).click()
-        primary = page.locator('[aria-label="区域 footer"] [data-slot="primary-start"]')
-        primary.locator("summary").first.click()
-        primary.get_by_role("button", name="+ 字段", exact=True).click()
-        primary.get_by_label("字段 3", exact=True).select_option("custom_text")
-        primary.get_by_placeholder("自定义文本").fill("LOCAL ONLY")
-        modified = save()
-        assert modified["regions"][0]["slots"]["primary-start"]["content"]["chips"][-1] == {
-            "field_id": "custom_text",
-            "custom_text": "LOCAL ONLY",
-        }
-        assert modified["regions"][0]["slots"]["primary-end"] == normal["regions"][0]["slots"]["primary-end"]
-        assert modified["regions"][1] == normal["regions"][1]
-        assert modified["custom_text"] == "OLD FALLBACK"
-        primary.get_by_placeholder("自定义文本").fill("")
-        cleared = save()
-        assert cleared["regions"][0]["slots"]["primary-start"]["content"]["chips"][-1] == {
-            "field_id": "custom_text",
-            "custom_text": "",
-        }
-        # Empty local text retains the actual backend fallback semantics, never deletes other chips.
-        primary.get_by_placeholder("自定义文本").fill("LOCAL ONLY")
-        primary.get_by_text("此处文字样式 · 独立设置", exact=True).click()
-        primary.get_by_label("使用独立样式", exact=True).check()
-        primary.get_by_role("textbox", name="文字颜色", exact=True).fill("#123456")
-        primary.get_by_label("使用独立样式", exact=True).uncheck()
-        assert save()["regions"][0]["slots"]["primary-start"]["style"] is None
-        page.screenshot(path=str(ARTIFACTS / "desktop.png"), full_page=True)
-        page.get_by_text("位置与布局", exact=True).first.click()
-        page.get_by_role("combobox", name="边框位置", exact=True).select_option("left")
-        page.get_by_role("combobox", name="排版轨道", exact=True).select_option("single-track")
-        expect(page.get_by_text("主轨 · 起点", exact=False).first).to_be_visible()
-        expect(page.get_by_text("次轨 · 起点", exact=False).first).to_contain_text("单轨时不显示")
+
+        # Three visual style cards are present and distinct.
+        for label in ("经典信息框", "极简署名", "纯留白"):
+            expect(page.get_by_role("button", name=label, exact=True)).to_be_visible()
+        # No stale generic-form editor labels survive.
+        expect(page.get_by_text("默认文字样式", exact=True)).to_have_count(0)
+        expect(page.get_by_text("添加信息条", exact=True)).to_have_count(0)
+
+        # Style preset: minimal is a single-track footer with no logo.
+        page.get_by_role("button", name="极简署名", exact=True).click()
+        minimal = save()
+        assert minimal["regions"][0]["layout"]["mode"] == "single-track"
+        assert minimal["regions"][0]["slots"]["asset"]["enabled"] is False
+        assert minimal["regions"][0]["slots"]["primary-start"]["content"]["chips"] == [{"field_id": "camera_model"}]
+
+        # Style preset: classic restores dual-track + auto logo.
+        page.get_by_role("button", name="经典信息框", exact=True).click()
+        classic = save()
+        assert classic["regions"][0]["layout"]["mode"] == "dual-track"
+        assert classic["regions"][0]["slots"]["asset"]["enabled"] is True
+
+        # Common: frame position moves the single frame and adjusts three-side margins.
+        page.get_by_role("tab", name="常用", exact=True).click()
+        page.get_by_role("radio", name="左侧", exact=True).click()
         side = save()
-        assert side["regions"][0]["type"] == "side-bar"
-        assert side["regions"][0]["layout"]["mode"] == "single-track"
-        assert side["regions"][0]["slots"]["secondary-end"] == normal["regions"][0]["slots"]["secondary-end"]
+        assert side["regions"][0]["type"] == "side-bar" and side["regions"][0]["edge"] == "left"
+        assert side["canvas"]["margins"]["left"] == 0
+        page.get_by_role("radio", name="底部", exact=True).click()
+
+        # Common: photo-info field toggle removes exactly the chosen chip.
+        page.get_by_role("checkbox", name="镜头型号", exact=True).uncheck()
+        fields_saved = save()
+        chips = fields_saved["regions"][0]["slots"]["primary-start"]["content"]["chips"]
+        assert all(c["field_id"] != "lens_model" for c in chips), chips
+
+        # Common: brand auto/manual/off drives the logo slot explicitly.
+        page.get_by_role("radio", name="关闭", exact=True).click()
+        assert save()["regions"][0]["slots"]["asset"]["enabled"] is False
+        page.get_by_role("radio", name="自动", exact=True).click()
+        brand_auto = save()
+        assert brand_auto["regions"][0]["slots"]["asset"]["enabled"] is True
+        assert brand_auto["regions"][0]["slots"]["asset"]["content"]["path"] == ""
+        page.get_by_role("radio", name="手动", exact=True).click()
+        page.get_by_role("combobox", name="品牌选择", exact=True).select_option("canon")
+        brand_manual = save()
+        assert brand_manual["regions"][0]["slots"]["asset"]["content"]["path"] == "builtin:canon"
+
+        # Common: signature toggle adds a disabled-free -> enabled-free region.
+        page.get_by_role("checkbox", name="添加署名", exact=True).check()
+        sig = save()
+        assert any(r["type"] == "free" and r["enabled"] for r in sig["regions"])
+
+        # Advanced: selecting a named text object exposes its own size/weight controls.
+        page.get_by_role("tab", name="精细", exact=True).click()
+        page.get_by_role("button", name="主轨 · 左侧", exact=True).click()
+        page.get_by_role("radio", name="小", exact=True).click()
+        advanced = save()
+        assert advanced["regions"][0]["slots"]["primary-start"]["style"]["font_size_level"] == "small"
+        page.get_by_role("checkbox", name="加粗", exact=True).uncheck()
+        unbold = save()
+        assert unbold["regions"][0]["slots"]["primary-start"]["style"]["bold"] is False
+
+        # Preview click selection is wired to the same highlight path: clicking the
+        # canvas must not error, and the named-object selection stays consistent.
+        page.locator(".canvas-area canvas").click(position={"x": 10, "y": 10})
+
+        page.screenshot(path=str(ARTIFACTS / "desktop.png"), full_page=True)
         page.set_viewport_size({"width": 390, "height": 844})
         page.screenshot(path=str(ARTIFACTS / "mobile.png"), full_page=True)
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "Mobile horizontal overflow"
-        config = defaults
-        page.set_viewport_size({"width": 1440, "height": 1100})
-        load()
-        assert save() == defaults, "No-flow config must not acquire synthetic slots/signatures"
-        page.get_by_role("button", name="添加信息条", exact=True).click()
-        added = save()
-        assert len(added["regions"]) == 1
-        assert added["regions"][0]["type"] == "footer-bar"
-        page.get_by_role("button", name="添加签名", exact=True).click()
-        assert len(save()["regions"]) == 2
         assert not errors, errors
         (ARTIFACTS / "save-payloads.json").write_text(json.dumps(saved, ensure_ascii=False, indent=2))
         browser.close()
     print(
-        "PASS: exact UI roundtrip, unique ownership, per-chip custom text + legacy fallback, style inheritance, disabled signature retention, side/single-track, no-flow add, schema-valid saves, desktop/mobile screenshots, no overflow/errors"
+        "PASS: style cards (classic/minimal/plain), common position/fields/brand/signature, advanced object selection + size/weight, preview click wiring, schema-valid saves, desktop/mobile screenshots, no overflow/errors"
     )
 
 

@@ -6,3 +6,6 @@
 4. Full waiting-state idempotency must include actual UI flow PUT config then POST render: identical saved config may increment revision and bypass enqueue dedup. Test end-to-end repeated save.
 5. Preserve existing saved configs; enforce single frame at panel save/render boundary with clear legacy remediation, don't silently drop stored regions.
 6. Verify saved output identity and membership before done; do not claim upstream thumbnail refresh completion from accepted request.
+
+## Latest independent review at fff2717
+Auth malformed users/me probe STILL fails: {} returns success empty identity, numeric email accepted, [] crashes. Init grants session even empty owner, middleware no owner guard. _refresh_complete ignores asset response contents (wrong id/library/path still True); after network confirmation recheck current revision/generation transactionally before done. Frontend polling still excludes refresh_pending. Download button points to downscaled output_preview, falsely suggests full export; provide real full-resolution download endpoint or accurately label preview. Keyboard Ctrl+Z in inputs currently preventDefault before typing check; preserve native editing. Fix these alongside UX and explicitly re-read this file before final checks.

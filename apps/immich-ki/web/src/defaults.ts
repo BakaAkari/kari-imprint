@@ -6,6 +6,15 @@ export const DEFAULT_TRACK_FIELDS: { top: FieldId[]; bottom: FieldId[] } = {
   bottom: ['focal_length', 'aperture', 'shutter', 'iso'],
 };
 
+/** The three product styles; all carry at most one information frame. */
+export type StylePresetId = 'classic' | 'minimal' | 'plain';
+
+export const STYLE_PRESETS: { id: StylePresetId; label: string; caption: string }[] = [
+  { id: 'classic', label: '经典信息框', caption: '机身镜头 + 拍摄参数 + 品牌 Logo' },
+  { id: 'minimal', label: '极简署名', caption: '单行机身型号，克制留白' },
+  { id: 'plain', label: '纯留白', caption: '只加留白，不添加文字' },
+];
+
 /** Fields offered as quick toggles in the typography panel. */
 export const QUICK_FIELD_OPTIONS: FieldId[] = [
   'camera_model', 'lens_model', 'focal_length', 'aperture', 'shutter', 'iso', 'datetime',
@@ -44,4 +53,39 @@ export function buildDefaultConfig(): ImprintConfig {
     custom_text: '',
     logo_position: 'right',
   };
+}
+
+/** 极简署名：单行机身型号，无 Logo，克制留白。 */
+export function buildMinimalConfig(): ImprintConfig {
+  return {
+    schema_version: 3,
+    canvas: { margins: marginsForFrame('footer'), background: '#FFFFFF', border_radius: 0, border: { enabled: false, width_level: 'medium', color: '#FFFFFF' } },
+    regions: [{
+      id: 'footer', type: 'footer-bar', enabled: true, height: 0.1,
+      layout: { ...defaultFlowLayout(), mode: 'single-track' },
+      slots: {
+        'primary-start': { enabled: true, style: { ...defaultStyle, font_size_level: 'small', font_family: 'NotoSansCJKsc-Regular.otf', bold: false }, content: { chips: chips(['camera_model']), separator: ' ' } },
+        asset: { enabled: false, style: null, content: null },
+      },
+    }],
+    defaults: defaultStyle,
+    custom_text: '',
+    logo_position: 'right',
+  };
+}
+
+/** 纯留白：不添加信息条，只保留四边留白。 */
+export function buildPlainConfig(): ImprintConfig {
+  return {
+    schema_version: 3,
+    canvas: { margins: { top: DEFAULT_FRAME_MARGIN, right: DEFAULT_FRAME_MARGIN, bottom: DEFAULT_FRAME_MARGIN, left: DEFAULT_FRAME_MARGIN }, background: '#FFFFFF', border_radius: 0, border: { enabled: false, width_level: 'medium', color: '#FFFFFF' } },
+    regions: [],
+    defaults: defaultStyle,
+    custom_text: '',
+    logo_position: 'right',
+  };
+}
+
+export function buildStyleConfig(id: StylePresetId): ImprintConfig {
+  return id === 'classic' ? buildDefaultConfig() : id === 'minimal' ? buildMinimalConfig() : buildPlainConfig();
 }

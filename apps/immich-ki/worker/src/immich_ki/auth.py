@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from immich_ki.keyconfig import save_panel_config
+from immich_ki.owner import resolve_owner_from_key
 
 logger = logging.getLogger("immich_ki.auth")
 
@@ -50,11 +51,18 @@ def validate_immich_key(url: str, key: str, transport) -> tuple[str, str]:
         return "", "key_scope_insufficient"
     if response.status_code != 200:
         return "", "immich_unreachable"
+    # A 200 with an empty/malformed body is an upstream contract violation, not a
+    # usable identity. Never issue a session or persist a non-string owner email.
     try:
-        email = str(response.json().get("email") or "")
+        payload = response.json()
     except ValueError:
-        email = ""
-    return email, ""
+        return "", "key_identity_invalid"
+    if not isinstance(payload, dict):
+        return "", "key_identity_invalid"
+    email = payload.get("email")
+    if not isinstance(email, str) or not email.strip():
+        return "", "key_identity_invalid"
+    return email.strip(), ""
 
 
 def validate_immich_login(url: str, email: str, password: str, transport) -> tuple[str, str]:
@@ -163,11 +171,15 @@ def install_auth(app, settings, sessions, panel):
 
     @app.get("/api/auth/session")
     def session(request: Request):
+        authenticated = panel.initialized and sessions.get(request.cookies.get("ki_session", ""), 0) > time.monotonic()
         return {
             "mode": "immich_key" if panel.initialized else "init",
             "initialized": panel.initialized,
-            "authenticated": panel.initialized
-            and sessions.get(request.cookies.get("ki_session", ""), 0) > time.monotonic(),
+            "authenticated": authenticated,
+            # The panel is single-operator and owner-bound, so the authenticated
+            # identity is always the panel owner. Exposed only for client-side
+            # per-user draft isolation; never used for authorization.
+            "identity": panel.owner if authenticated else "",
         }
 
     @app.post("/api/auth/immich-login")
@@ -179,6 +191,13 @@ def install_auth(app, settings, sessions, panel):
             return error_response
         if _rate_limited(request):
             return JSONResponse({"error": "login_rate_limited"}, 429)
+        if not panel.owner and panel.key:
+            # The owner may have been unresolved at startup (Immich briefly
+            # unreachable). Re-resolve from the service key now so login can
+            # recover without a restart; fail closed until it succeeds.
+            resolved = await run_in_threadpool(resolve_owner_from_key, settings, panel.upstream, panel.key, "")
+            if resolved:
+                panel.owner = resolved
         identity, error = await run_in_threadpool(
             validate_immich_login, settings.immich_url, email, password, request.app.state.immich_key_transport
         )

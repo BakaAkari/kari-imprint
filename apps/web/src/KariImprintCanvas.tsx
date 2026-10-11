@@ -11,7 +11,7 @@
  *   预览区（白色边框/画布背景）在容器内的显示尺寸保持不变，只改变内部比例。
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ImprintConfig, FieldChip, TextContent, PreviewAspectRatio } from './types';
 import { PREVIEW_ASPECT_RATIOS } from './types';
 import { computeLayout } from './layout/layoutEngine';
@@ -452,6 +452,8 @@ export function KariImprintCanvas({
   fieldValues = {},
   scheme = 'dark',
   logoVariant = '',
+  onElementClick,
+  selectedElementId,
 }: {
   config: ImprintConfig;
   image: ImageBitmap | null;
@@ -462,11 +464,40 @@ export function KariImprintCanvas({
   fieldValues?: ExifFieldValues;
   scheme?: string;
   logoVariant?: string;
+  /** When provided, the preview becomes interactive and reports clicked element ids. */
+  onElementClick?: (elementId: string) => void;
+  selectedElementId?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [logoImages, setLogoImages] = useState<Map<string, HTMLImageElement>>(new Map());
   const [builtinLogos, setBuiltinLogos] = useState<readonly LogoRegistryEntry[]>([]);
+  const layoutRef = useRef<LayoutResult | null>(null);
+  const displayRef = useRef<{ w: number; h: number } | null>(null);
+
+  const handleClick = (event: MouseEvent<HTMLCanvasElement>) => {
+    if (!onElementClick) return;
+    const layout = layoutRef.current;
+    const display = displayRef.current;
+    if (!layout || !display || display.w <= 0 || display.h <= 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const lx = (x / display.w) * layout.canvas.w;
+    const ly = (y / display.h) * layout.canvas.h;
+    let best: string | null = null;
+    let bestArea = Infinity;
+    for (const el of layout.elements) {
+      if (el.type !== 'text' && el.type !== 'logo' && el.type !== 'signature') continue;
+      if (lx < el.rect.x || lx > el.rect.x + el.rect.w || ly < el.rect.y || ly > el.rect.y + el.rect.h) continue;
+      const area = el.rect.w * el.rect.h;
+      if (area <= bestArea) {
+        bestArea = area;
+        best = el.id;
+      }
+    }
+    if (best) onElementClick(best);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -548,6 +579,8 @@ export function KariImprintCanvas({
     // 设置 canvas 显示尺寸为 contain 计算结果，居中由外层 flex 保证
     canvas.style.width = `${displayW}px`;
     canvas.style.height = `${displayH}px`;
+    layoutRef.current = layout;
+    displayRef.current = { w: displayW, h: displayH };
 
     // DPR 处理：逻辑分辨率固定为布局尺寸，保证绘制质量
     // A 1600px preview at DPR 2 is already sharp on Retina screens. Capping
@@ -611,6 +644,19 @@ export function KariImprintCanvas({
       ctx.restore();
     }
 
+    // 选中对象高亮（仅编辑态，不进入成品）
+    if (selectedElementId) {
+      const selected = layout.elements.find(el => el.id === selectedElementId);
+      if (selected) {
+        ctx.save();
+        ctx.strokeStyle = '#e0342b';
+        ctx.lineWidth = 2 / (dpr * previewScale);
+        ctx.setLineDash([6, 5]);
+        ctx.strokeRect(selected.rect.x, selected.rect.y, selected.rect.w, selected.rect.h);
+        ctx.restore();
+      }
+    }
+
     // 异步加载缺失的 logo 并重新渲染
     if (logoPaths.length > 0) {
       Promise.all(logoPaths.map(p => loadLogo(p).then(img => ({ p, img }))))
@@ -632,7 +678,7 @@ export function KariImprintCanvas({
   return (
     <div ref={containerRef} className="canvas-scaler">
       {!image && <div className="sample-badge">示例预览 · 上传照片后替换</div>}
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} onClick={handleClick} style={onElementClick ? { cursor: 'pointer' } : undefined} />
     </div>
   );
 }

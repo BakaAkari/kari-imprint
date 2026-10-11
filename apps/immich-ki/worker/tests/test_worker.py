@@ -200,10 +200,32 @@ def test_conflict_and_superseded(service):
     job = save_job(service)
     with pytest.raises(Conflict):
         service.save(service.client.asset_id, deepcopy(CONFIG), 0)
-    service.save(service.client.asset_id, deepcopy(CONFIG), 1)
+    changed = deepcopy(CONFIG)
+    changed["canvas"]["margins"]["bottom"] = 30
+    service.save(service.client.asset_id, changed, 1)
     service.render_next()
     assert service.store.job(job["id"])["state"] == "superseded"
     assert not (service.settings.output / service.settings.imprint_dir / "photo.jpg").exists()
+
+
+def test_repeated_identical_save_and_render_deduplicates(service):
+    """Re-saving the identical config must not create a new revision, so the
+    enqueue dedup (keyed on revision + render_key) holds across the full
+    PUT config → POST render flow during the waiting state."""
+    asset = service.client.asset_id
+    first = service.save(asset, deepcopy(CONFIG), 0)
+    assert first["revision"] == 1
+    job1 = service.enqueue(asset, first["revision"])
+    assert job1["state"] == "queued"
+    # An identical save keeps revision 1 rather than bumping to 2.
+    second = service.save(asset, deepcopy(CONFIG), 1)
+    assert second["revision"] == 1
+    job2 = service.enqueue(asset, second["revision"])
+    assert job2["id"] == job1["id"]
+    with service.store.transaction() as db:
+        assert db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 1
+    with service.store.transaction() as db:
+        assert db.execute("SELECT generation FROM assets WHERE id=?", (asset,)).fetchone()[0] == 1
 
 
 def test_published_file_then_crash_recovers(service, monkeypatch):
@@ -440,7 +462,9 @@ def test_reconcile_retries_survive_restart_and_refresh_once(setup):
 def test_reconcile_does_not_refresh_stale_revision(service):
     job = save_job(service)
     service.render_next()
-    service.save(service.client.asset_id, CONFIG, 1)
+    changed = deepcopy(CONFIG)
+    changed["canvas"]["margins"]["bottom"] = 40
+    service.save(service.client.asset_id, changed, 1)
     service.client.imported = True
     service.reconcile_next(now=100)
     assert service.store.job(job["id"])["state"] == "superseded"
@@ -466,9 +490,7 @@ def test_reconcile_gives_up_after_bounded_attempts(setup):
     assert service.reconcile_next(now=200) == job["id"]
     final = service.store.job(job["id"])
     assert final["state"] == "failed" and final["error"] == "sync_unconfirmed"
-    assert service.store.db.execute(
-        "SELECT * FROM sync_schedule WHERE job_id=?", (job["id"],)
-    ).fetchone() is None
+    assert service.store.db.execute("SELECT * FROM sync_schedule WHERE job_id=?", (job["id"],)).fetchone() is None
     assert service.reconcile_next(now=10000) is None
 
 
@@ -514,6 +536,17 @@ def test_editor_upload_and_latest_job_contract(setup):
         preview = client.get(endpoint + "/output", params={"generation": job["generation"]})
         assert preview.status_code == 200 and preview.headers["cache-control"] == "no-store"
         assert client.get(endpoint + "/output?generation=0").status_code == 422
+        # The download variant must return the published file byte for byte; a
+        # download that silently returns the downscaled preview would mislead.
+        full = client.get(endpoint + "/output", params={"generation": job["generation"], "variant": "full"})
+        assert full.status_code == 200
+        assert full.headers["content-disposition"].startswith("attachment;")
+        published = (settings.output / settings.imprint_dir / "photo.jpg").read_bytes()
+        assert full.content == published
+        assert full.headers["content-type"] in {"image/jpeg", "image/png"}
+        assert client.get(
+            endpoint + "/output", params={"generation": job["generation"], "variant": "tile"}
+        ).status_code == 422
 
 
 def test_public_static_cache_and_compression_keep_api_private(setup, tmp_path, monkeypatch):
@@ -747,8 +780,11 @@ def test_render_pairs_source_album_with_one_imprint_album(setup):
         client.post("/api/auth/immich-login", json=OPERATOR)
         service = client.app.state.service
         endpoint = f"/api/assets/{fake.asset_id}"
-        for revision in (1, 2):
-            client.put(endpoint + "/config", json={"expectedRevision": revision - 1, "config": CONFIG})
+        # A distinct second revision (not an identical re-save, which is idempotent)
+        # so the pairing path is exercised twice while the result album is reused.
+        revisions = [(1, CONFIG), (2, {**deepcopy(CONFIG), "canvas": {"margins": {"bottom": 40}}})]
+        for revision, config in revisions:
+            client.put(endpoint + "/config", json={"expectedRevision": revision - 1, "config": config})
             created = client.post(
                 endpoint + "/render", json={"revision": revision, "sourceAlbumId": fake.source_album_id}
             ).json()
@@ -977,6 +1013,88 @@ def test_login_fails_closed_when_owner_unresolved(setup):
         # A valid Immich account still cannot log in: the panel owner is unbound.
         response = client.post("/api/auth/immich-login", json=OPERATOR)
         assert response.status_code == 403 and response.json()["error"] == "owner_unbound"
+
+
+def test_owner_recovers_at_runtime_without_restart(setup):
+    """A startup owner lookup that fails must not require a restart to recover."""
+    from immich_ki.client import UpstreamError
+
+    settings, fake = setup
+    unreachable = [True]
+
+    def me():
+        if unreachable[0]:
+            raise UpstreamError(502)
+        return {"email": "akari@example.com"}
+
+    fake.me = me
+    app = attach_login_transport(create_app(settings, fake, background=False))
+    with TestClient(app) as client:
+        # Owner still unresolved: login is fail-closed.
+        assert client.post("/api/auth/immich-login", json=OPERATOR).status_code == 403
+        # Immich comes back; the next login re-resolves the owner and succeeds.
+        unreachable[0] = False
+        assert client.post("/api/auth/immich-login", json=OPERATOR).status_code == 200
+        session = client.get("/api/auth/session").json()
+        assert session["authenticated"] is True
+        assert session["identity"] == "akari@example.com"
+
+
+def test_validate_immich_key_rejects_malformed_identity():
+    """users/me must be a dict with a non-empty string email; anything else is
+    an upstream contract violation, never an empty-but-valid identity."""
+    import httpx
+    from immich_ki.auth import validate_immich_key
+
+    def client_for(body):
+        def handler(request):
+            if isinstance(body, Exception):
+                return httpx.Response(200, text="not json")
+            return httpx.Response(200, json=body)
+
+        return httpx.MockTransport(handler)
+
+    for body in ({}, {"email": ""}, {"email": 123}, {"email": None}, [], "x", 42, None):
+        email, error = validate_immich_key("http://immich:2283", "k", client_for(body))
+        assert error == "key_identity_invalid" and email == ""
+
+    def not_json(request):
+        return httpx.Response(200, text="not json")
+
+    email, error = validate_immich_key("http://immich:2283", "k", httpx.MockTransport(not_json))
+    assert error == "key_identity_invalid" and email == ""
+
+    def ok(request):
+        return httpx.Response(200, json={"email": "  owner@example.com  "})
+
+    email, error = validate_immich_key("http://immich:2283", "k", httpx.MockTransport(ok))
+    assert error == "" and email == "owner@example.com"
+
+
+def test_resolve_owner_from_key_requires_string_email(setup):
+    from immich_ki.owner import resolve_owner_from_key
+
+    settings, fake = setup
+    fake.me = lambda: {"email": ["not", "a", "string"]}
+    # A non-string email must not be persisted, and no owner is bound.
+    assert resolve_owner_from_key(settings, fake, "k", "") == ""
+    fake.me = lambda: {"email": "   "}
+    assert resolve_owner_from_key(settings, fake, "k", "") == ""
+    # A malformed body (list) must not raise.
+    fake.me = lambda: ["unexpected"]
+    assert resolve_owner_from_key(settings, fake, "k", "") == ""
+
+
+def test_renderer_version_includes_implementation_fingerprint(service):
+    from immich_ki.fingerprint import implementation_fingerprint
+
+    fingerprint = implementation_fingerprint()
+    assert len(fingerprint) == 16
+    assert fingerprint == implementation_fingerprint()  # deterministic
+    version = service.renderer_version
+    assert "impl-" + fingerprint in version
+    assert "-logos-" in version
+    assert version.startswith(service.settings.renderer_version + "-impl-")
 
 
 def test_logout_revokes_session(setup):

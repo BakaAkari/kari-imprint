@@ -5,6 +5,7 @@ import type { ImprintConfig } from '../../../web/src/types';
 import type { ExifFieldValues, RuntimeCapabilities } from '../../../web/src/api';
 import { api, type Album, type Asset, type Job, type Saved, type MaintenanceStatus } from './api';
 import { Editor, editableConfig, serializeEditorConfig } from './editor';
+import { selectionElementId, selectionFromElementId, type Selection } from './editor-state';
 import { buildDefaultConfig } from './defaults';
 import '../../../web/src/styles.css';
 import './style.css';
@@ -42,7 +43,8 @@ function App() {
   const [backingUp,setBackingUp]=useState(false);
   const [authMode,setAuthMode]=useState<'loading'|'ready'|'error'>('loading');
   const [initialized,setInitialized]=useState(false);
-  useEffect(()=>{api<{mode:string;initialized:boolean;authenticated:boolean}>('/auth/session').then(s=>{setInitialized(s.initialized);setLogged(s.authenticated);setAuthMode('ready');}).catch(()=>{setAuthMode('error');setMessage('登录服务暂时不可用，请刷新重试。');});},[]);
+  const [identity,setIdentity]=useState('');
+  useEffect(()=>{api<{mode:string;initialized:boolean;authenticated:boolean;identity:string}>('/auth/session').then(s=>{setInitialized(s.initialized);setLogged(s.authenticated);setIdentity(s.identity||'');setAuthMode('ready');}).catch(()=>{setAuthMode('error');setMessage('登录服务暂时不可用，请刷新重试。');});},[]);
   const [logged,setLogged]=useState(false), [key,setKey]=useState(''), [email,setEmail]=useState(''), [password,setPassword]=useState(''), [authBusy,setAuthBusy]=useState(false), [message,setMessage]=useState('');
   const [albums,setAlbums]=useState<Album[]>([]), [albumsAvailable,setAlbumsAvailable]=useState(true), [album,setAlbum]=useState('');
   const gallery=useGallery(logged,album);
@@ -62,7 +64,10 @@ function App() {
   const [undoStack,setUndoStack]=useState<ImprintConfig[]>([]);
   const [redoStack,setRedoStack]=useState<ImprintConfig[]>([]);
   const [leavePrompt,setLeavePrompt]=useState<null|{action:()=>void}>(null);
-  const draftKey = (id: string) => `ki-draft-${id}`;
+  const [selection,setSelection]=useState<Selection|null>(null);
+  // Drafts are isolated per authenticated operator AND per photo, never global
+  // to the device. identity comes from the server session (the panel owner).
+  const draftKey = (id: string) => `ki-draft-${identity || 'anonymous'}-${id}`;
   const readDraft = (id: string): ImprintConfig | null => {
     try { const raw = localStorage.getItem(draftKey(id)); return raw ? JSON.parse(raw) as ImprintConfig : null; }
     catch { return null; }
@@ -111,7 +116,7 @@ function App() {
     ++epoch.current;photoControl.current?.abort();
     setActive(null);setBitmap(null);setPreviewSrc('');setOriginalImageSize(null);
     setFields({});setJob(null);setBusy(false);setMessage('');setConfig(initial);setRevision(0);setDirty(false);
-    setUndoStack([]);setRedoStack([]);configRef.current = initial;
+    setUndoStack([]);setRedoStack([]);configRef.current = initial;setSelection(null);
   }
   function leaveEditor(action:()=>void, discard:boolean){
     if (active) { if (discard) clearDraft(active.id); }
@@ -145,7 +150,7 @@ function App() {
     let objectUrl='';
     const timeout=setTimeout(()=>controller.abort(new Error('读取超时，请重试')),30000);
     setBitmap(null);setPreviewSrc('');setOriginalImageSize(null);setFields({});setJob(null);setRevision(0);setDirty(false);setBusy(true);setMessage('正在读取照片…');
-    setUndoStack([]);setRedoStack([]);
+    setUndoStack([]);setRedoStack([]);setSelection(null);
     Promise.all([
       api<{job:Job|null}>(`/assets/${active.id}/job`,'GET',undefined,controller.signal),
       api<Saved>(`/assets/${active.id}/config`,'GET',undefined,controller.signal),
@@ -165,9 +170,9 @@ function App() {
     return ()=>{clearTimeout(timeout);++epoch.current;controller.abort();image?.close();if(objectUrl)URL.revokeObjectURL(objectUrl);};
   },[active,loadAttempt]);
   useEffect(()=>{
-    if(!job || !['queued','running','publishing','awaiting_import'].includes(job.state))return;
+    if(!job || !['queued','running','publishing','awaiting_import','refresh_pending'].includes(job.state))return;
     const id=epoch.current, control=new AbortController();
-    const timer=setTimeout(()=>api<Job>(`/jobs/${job.id}`,'GET',undefined,control.signal).then(j=>{if(id===epoch.current)setJob(j);}).catch(e=>{if(id===epoch.current){setMessage(String(e));setJob(j=>j?{...j}:j);}}),job.state==='awaiting_import'?5000:1000);
+    const timer=setTimeout(()=>api<Job>(`/jobs/${job.id}`,'GET',undefined,control.signal).then(j=>{if(id===epoch.current)setJob(j);}).catch(e=>{if(id===epoch.current){setMessage(String(e));setJob(j=>j?{...j}:j);}}),['awaiting_import','refresh_pending'].includes(job.state)?5000:1000);
     return ()=>{clearTimeout(timer);control.abort();};
   },[job]);
   async function saveRender(){
@@ -184,7 +189,7 @@ function App() {
   function downloadOutput(){
     if(!active||!job||!['awaiting_import','refresh_pending','done'].includes(job.state))return;
     const link=document.createElement('a');
-    link.href=`/api/assets/${active.id}/output?generation=${job.generation}`;
+    link.href=`/api/assets/${active.id}/output?generation=${job.generation}&variant=full`;
     link.download=`${active.name.replace(/\.[^.]+$/,'')}-imprint.jpg`;
     document.body.appendChild(link);link.click();link.remove();
   }
@@ -196,7 +201,7 @@ function App() {
       const tag=(e.target as HTMLElement|null)?.tagName||'';
       const typing=tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT';
       if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!typing)void saveRef.current();return;}
-      if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){e.preventDefault();if(!typing){if(e.shiftKey)redo();else undo();}return;}
+      if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){if(typing)return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}
       if(e.key==='Escape'&&active){e.preventDefault();closeEditor();return;}
       if(typing||!active||!assets.length)return;
       const step=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;
@@ -220,13 +225,13 @@ function App() {
     </aside>
     <main className="gallery-scroll" ref={galleryNode} hidden={!!active} aria-label="相册照片"><div className="gallery-heading"><h2>{albums.find(a=>a.id===album)?.name||'照片'}</h2><span>仅处理你选择的照片</span></div><Gallery assets={assets} loading={gallery.state==='loading'} error={gallery.error} next={gallery.next} onMore={gallery.load} onSelect={selectAsset} selectedAlbum={!!album}/></main>
       {active&&<main className="photo-editor"><div className="editor-toolbar"><button onClick={closeEditor} aria-label="关闭照片">← 返回相册</button><div className="statusbar" role="status"><span className="status-photo">{active.name}</span><span className="status-sep">·</span><span className="status-state">{status}</span>{job?.state==='done'&&<span className="status-dest">已保存到「{destinationName}」</span>}</div><div className="undo-bar"><button onClick={undo} disabled={!undoStack.length} aria-label="撤销">撤销</button><button onClick={redo} disabled={!redoStack.length} aria-label="重做">重做</button><button onClick={resetToDefault} disabled={!bitmap||busy} aria-label="重置为默认">重置</button></div></div>
-        <div className="canvas-area">{active&&bitmap&&originalImageSize?<KariImprintCanvas originalImageSize={originalImageSize} runtimeCaps={caps} config={config} image={bitmap} fieldValues={fields} scheme="dark"/>:active?<div className="photo-loading"><img src={previewSrc||`/api/assets/${active.id}/thumbnail`} alt={active.name}/><p>{busy?(previewSrc?'预览已就绪，正在补齐配置和照片信息…':'正在读取照片预览…'):'照片尚未加载'}</p>{!busy&&<button onClick={()=>setLoadAttempt(n=>n+1)}>重新读取</button>}</div>:<p className="canvas-empty">从左侧选择一张照片开始</p>}</div>
+        <div className="canvas-area">{active&&bitmap&&originalImageSize?<KariImprintCanvas originalImageSize={originalImageSize} runtimeCaps={caps} config={config} image={bitmap} fieldValues={fields} scheme="dark" onElementClick={id=>setSelection(selectionFromElementId(id, config))} selectedElementId={selectionElementId(selection)}/>:active?<div className="photo-loading"><img src={previewSrc||`/api/assets/${active.id}/thumbnail`} alt={active.name}/><p>{busy?(previewSrc?'预览已就绪，正在补齐配置和照片信息…':'正在读取照片预览…'):'照片尚未加载'}</p>{!busy&&<button onClick={()=>setLoadAttempt(n=>n+1)}>重新读取</button>}</div>:<p className="canvas-empty">从左侧选择一张照片开始</p>}</div>
         {message&&<p role="alert" className="alert-line">{message}</p>}
         <div className="destination-line">输出目的地：<strong>{destinationName}</strong><span className="destination-note">原照片保持不变，已有成品会更新</span></div>
-        {active&&job&&['awaiting_import','refresh_pending','done'].includes(job.state)&&<a className="output-link" href={`/api/assets/${active.id}/output?generation=${job.generation}`} target="_blank" rel="noopener noreferrer">在 Immich 查看</a>}
+        {active&&job&&['awaiting_import','refresh_pending','done'].includes(job.state)&&<a className="output-link" href={`/api/assets/${active.id}/output?generation=${job.generation}&variant=preview`} target="_blank" rel="noopener noreferrer">查看预览</a>}
       </main>}
       {active&&<aside className="controls"><h2 className="rail-title">照片信息框 · {active.name}</h2><div className="save-bar"><button className="save-action" disabled={!bitmap||busy} onClick={saveRender}>保存到 Immich{dirty?' *':''}</button><button className="reset-action" disabled={!bitmap||busy} onClick={resetToDefault}>重置为默认</button><button className="download-action" disabled={!job||!['awaiting_import','refresh_pending','done'].includes(job.state)} onClick={downloadOutput}>下载</button></div>
-        <fieldset disabled={!bitmap||busy} key={active?.id||'empty'}><Editor config={config} onChange={update=>{if(epoch.current!==editorEpoch)return;const next=update(configRef.current);if(next!==configRef.current)commit(next);}}/></fieldset>
+        <fieldset disabled={!bitmap||busy} key={active?.id||'empty'}><Editor config={config} onChange={update=>{if(epoch.current!==editorEpoch)return;const next=update(configRef.current);if(next!==configRef.current)commit(next);}} fields={fields} selection={selection} onSelect={setSelection}/></fieldset>
         {job&&['awaiting_import','refresh_pending'].includes(job.state)&&<button disabled={busy} onClick={()=>{const id=epoch.current;setBusy(true);api<Job>(`/jobs/${job.id}/sync`,'POST').then(value=>{if(id===epoch.current)setJob(value);}).catch(e=>{if(id===epoch.current)setMessage(String(e));}).finally(()=>{if(id===epoch.current)setBusy(false);});}}>重新检查入库</button>}
         <details className="maintenance"><summary>系统 · 维护与备份{maintenance?.issues.length?` [${maintenance.issues.length}]`:''}</summary>
           {maintenance?<><p className="sys-line">FREE {(maintenance.freeBytes/1024**3).toFixed(1)} GB</p>{maintenance.freeBytes<maintenance.minimumFreeBytes&&<p role="alert" className="alert-line">可用空间不足，暂不能生成或上传资源。</p>}{maintenance.issues.length>0&&<p role="alert" className="alert-line">发现源照片、成品或资源异常，已保留文件，请检查后再生成。</p>}{maintenance.issues.map(issue=><p className="sys-line" key={issue.assetId}>{assets.find(a=>a.id===issue.assetId)?.name||issue.assetId.slice(0,8)} — {({source_moved:'源照片路径已变更',source_missing:'源照片已不可用',upstream_unavailable:'暂时无法连接 Immich',output_missing:'成品文件缺失',output_changed:'成品被外部修改',source_or_resource_unavailable:'源照片或资源缺失'} as Record<string,string>)[issue.issue]||'需要检查'}</p>)}</>:<p className="sys-line">正在读取维护状态…</p>}

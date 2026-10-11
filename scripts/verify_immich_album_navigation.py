@@ -196,8 +196,7 @@ def main():
 
         # H ─ dirty guard: continuing editing keeps the photo, saving the draft
         # and leaving switches to the next photo.
-        page.get_by_text("默认文字样式", exact=True).click()
-        page.locator("label").filter(has_text="字号方式").get_by_role("combobox").select_option("ratio")
+        page.get_by_role("button", name="经典信息框", exact=True).click()
         expect(page.locator(".save-action")).to_contain_text("*")
         page.evaluate("document.activeElement && document.activeElement.blur()")
         page.keyboard.press("ArrowRight")

@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import quote
 from uuid import UUID, uuid4
 
 from api.schemas import StrictModel
@@ -24,7 +25,8 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from immich_ki.auth import PUBLIC_AUTH_PATHS, install_auth
 from immich_ki.client import ImmichClient, UpstreamError
-from immich_ki.keyconfig import resolve_panel_config, save_panel_config
+from immich_ki.keyconfig import resolve_panel_config
+from immich_ki.owner import resolve_owner_from_key
 from immich_ki.service import Conflict, Service
 from immich_ki.settings import Settings
 from immich_ki.workspace import StorageUnavailable
@@ -89,34 +91,11 @@ def public_job(job):
     return {key: job[key] for key in ("id", "asset_id", "revision", "generation", "state", "error")}
 
 
-def _resolve_owner_from_key(settings, upstream, key, owner):
-    """Bind the panel owner to the verified owner of the service API key.
-
-    An empty owner must never fall through to a first-login binding.  The owner
-    is derived from ``users/me`` under the service key; when Immich cannot be
-    reached the owner stays empty and login remains fail-closed until it can be
-    resolved on a later startup.
-    """
-    if not key or owner:
-        return owner
-    try:
-        payload = upstream.me()
-        # A malformed or unexpected upstream body must never crash startup or
-        # persist a bogus owner; fail closed and retry on a later startup.
-        email = str(payload.get("email") or "") if isinstance(payload, dict) else ""
-    except (UpstreamError, ValueError, TypeError, AttributeError):
-        return owner
-    if email:
-        save_panel_config(settings.data, key, email)
-        return email
-    return owner
-
-
 def create_app(settings: Settings | None = None, client=None, *, background=True):
     settings = settings or Settings.from_env()
     key, owner, initialized = resolve_panel_config(settings.data, settings.api_key)
     upstream = client or ImmichClient(settings.immich_url, key)
-    owner = _resolve_owner_from_key(settings, upstream, key, owner)
+    owner = resolve_owner_from_key(settings, upstream, key, owner)
 
     def swap_upstream_key(new_key: str) -> None:
         # Test fakes without a real httpx client are left untouched.
@@ -206,6 +185,10 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                 if sessions.get(session, 0) < time.monotonic():
                     sessions.pop(session, None)
                     return JSONResponse({"error": "login_required"}, 401)
+                if not panel.owner:
+                    # Defense-in-depth: a session can only be minted after owner
+                    # resolution, but an unbound owner must never serve assets.
+                    return JSONResponse({"error": "owner_unbound"}, 403)
             # Bound body before FastAPI JSON/multipart parsing (including chunked).
             body = bytearray()
             async for chunk in request.stream():
@@ -395,8 +378,25 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
         return {"job": public_job(job) if job else None}
 
     @app.get("/api/assets/{asset_id}/output")
-    def output(asset_id: UUID, generation: Annotated[int, Field(ge=1, le=2**31 - 1)]):
+    def output(
+        asset_id: UUID,
+        generation: Annotated[int, Field(ge=1, le=2**31 - 1)],
+        variant: Annotated[str, Field(pattern="^(preview|full)$")] = "preview",
+    ):
         service.source(str(asset_id))
+        if variant == "full":
+            # The download variant returns the published file byte for byte, so a
+            # download never silently substitutes the downscaled preview.
+            payload, relative = service.published_output(str(asset_id), generation)
+            name = Path(relative).name
+            safe = "".join(ch if (ch.isascii() and (ch.isalnum() or ch in "._-")) else "_" for ch in name)
+            safe = safe or "imprint.jpg"
+            media = "image/png" if relative.lower().endswith(".png") else "image/jpeg"
+            return Response(
+                payload,
+                media_type=media,
+                headers={"Content-Disposition": f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(name)}"},
+            )
         return Response(service.output_preview(str(asset_id), generation), media_type="image/jpeg")
 
     @app.put("/api/assets/{asset_id}/config")

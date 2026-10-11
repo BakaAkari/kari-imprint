@@ -28,6 +28,7 @@ const errorLabels: Record<string, string> = {
   invalid_origin: '请求来源校验失败',
   immich_unavailable: 'Immich 暂时不可用，请稍后重试',
   invalid_key: 'API Key 无效，请检查后重试',
+  key_identity_invalid: 'API Key 无法解析到有效账户，请检查后重试',
   key_scope_insufficient: '该 key 权限不足，请在 Immich 生成包含用户信息读取权限的 key（默认全权限即可）',
   invalid_credentials: 'Immich 账户或密码错误',
   forbidden_account: '该 Immich 账户不是面板的关联账户',
