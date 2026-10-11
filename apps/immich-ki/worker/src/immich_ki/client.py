@@ -38,7 +38,10 @@ class ImmichClient:
         if path is not None:
             body['originalPath'] = path
         if albums:
-            body['albumIds'] = [str(UUID(album)) for album in albums]
+            # Callers may pass validated UUID instances or raw strings; the wire
+            # form is always the canonical string. UUID(UUID(...)) raises
+            # AttributeError, so normalise through str first.
+            body['albumIds'] = [str(UUID(str(album))) for album in albums]
         return self.request('POST', 'search/metadata', json=body).json()['assets']
 
     def albums(self):

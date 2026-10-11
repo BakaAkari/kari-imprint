@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from immich_ki.client import UpstreamError
 from immich_ki.paths import open_source
+from immich_ki.workspace import workspace
 
 
 def references(config):
@@ -89,6 +90,8 @@ class Maintenance:
     def gc(self, now=None):
         now = time.time() if now is None else now
         s = self.service
+        s.ensure_output()
+        workspace(s.settings.data, 'metadata-tmp', code='workspace_unavailable')
         cutoff = now - 86400
         with s.store.lock:
             # Preserve historical configs too, so backups and old revisions remain usable.
@@ -100,7 +103,7 @@ class Maintenance:
                 if (re.fullmatch(r'[0-9a-f]{32}\.png', file.name) and not file.is_symlink()
                         and file.is_file() and file.name not in used and file.stat().st_mtime < cutoff):
                     file.unlink()
-            for directory in s.tmp.iterdir():
+            for directory in (*s.tmp.iterdir(), *s.metadata_tmp.iterdir()):
                 if (re.fullmatch(r'[0-9a-f]{32}', directory.name) and directory.name not in active
                         and not directory.is_symlink() and directory.is_dir() and directory.stat().st_mtime < cutoff):
                     shutil.rmtree(directory)

@@ -26,7 +26,12 @@ class FakeImmich:
 
     def search(self, library, page=1, path=None, albums=None):
         if albums:
-            self.album_filters.append([str(album) for album in albums])
+            for album in albums:
+                # Mirror the real client's wire contract: album ids must arrive
+                # as strings, never as UUID objects.
+                if not isinstance(album, str):
+                    raise TypeError('album ids must be strings')
+            self.album_filters.append(list(albums))
         if path is None:
             return {'items': [{'id': self.asset_id, 'libraryId': library, 'type': 'IMAGE',
                                'originalPath': '/external/camera-exports/photo.jpg',
@@ -247,6 +252,31 @@ def test_client_uses_actual_v3_preview_contract():
         assert calls[-1].url.params['size'] == 'thumbnail'
         with pytest.raises(ValueError, match='preview_too_large'):
             client.preview(asset_id, maximum=1)
+    finally:
+        client.close()
+
+
+def test_client_search_sends_album_ids_as_strings():
+    """Real callers pass validated UUIDs; the wire body must carry strings."""
+    import json as jsonlib
+    from uuid import UUID
+
+    import httpx
+    from immich_ki.client import ImmichClient
+    bodies = []
+
+    def handle(request):
+        bodies.append(jsonlib.loads(request.content))
+        return httpx.Response(200, json={'assets': {'items': [], 'nextPage': None}})
+
+    client = ImmichClient('http://immich:2283', 'private', transport=httpx.MockTransport(handle))
+    try:
+        album = uuid4()
+        assert client.search(str(uuid4()), 1, albums=[album]) == {'items': [], 'nextPage': None}
+        assert bodies[0]['albumIds'] == [str(album)]
+        client.search(str(uuid4()), 1, albums=[str(album)])
+        assert bodies[1]['albumIds'] == [str(album)]
+        assert UUID(bodies[1]['albumIds'][0]) == album
     finally:
         client.close()
 
@@ -796,3 +826,121 @@ def test_source_and_gallery_exclude_reserved_output_subdir(setup):
     with TestClient(attach_login_transport(create_app(archive_settings, archived, background=False))) as client:
         client.post('/api/auth/immich-login', json=OPERATOR)
         assert client.get('/api/assets').json()['items'] == []
+
+
+def test_metadata_does_not_depend_on_output_and_recreates_scratch(service, monkeypatch):
+    import shutil
+
+    import immich_ki.service as module
+    monkeypatch.setattr(module, 'get_exif', lambda *a, **kw: {})
+    shutil.rmtree(service.tmp)
+    service.settings.output.rmdir()
+    shutil.rmtree(service.metadata_tmp)
+    assert service.metadata(service.client.asset_id)['width'] == 120
+    assert service.metadata_tmp.is_dir()
+    assert not service.settings.output.exists()  # Missing mount is never recreated.
+    assert list(service.metadata_tmp.iterdir()) == []
+
+
+def test_output_workspace_recreated_and_symlink_rejected(service, tmp_path):
+    service.tmp.rmdir()
+    service.maintenance.gc()
+    assert service.tmp.is_dir()
+    service.tmp.rmdir()
+    target = tmp_path / 'outside'
+    target.mkdir()
+    service.tmp.symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValueError, match='unsafe_workspace'):
+        service.enqueue(service.client.asset_id, 1)
+    assert list(target.iterdir()) == []
+
+
+def test_output_unavailable_is_safe_and_recovers(setup, monkeypatch):
+    import shutil
+
+    import immich_ki.service as module
+    monkeypatch.setattr(module, 'get_exif', lambda *a, **kw: {})
+    settings, fake = setup
+    settings.output.rmdir()
+    app = attach_login_transport(create_app(settings, fake, background=False))
+    with TestClient(app) as client:
+        assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 200
+        assert client.get('/api/health').json()['error'] == 'output_unavailable'
+        assert client.get(f'/api/assets/{fake.asset_id}/metadata').status_code == 200
+        assert client.put(f'/api/assets/{fake.asset_id}/config', json={'expectedRevision': 0, 'config': CONFIG}).status_code == 200
+        response = client.post(f'/api/assets/{fake.asset_id}/render', json={'revision': 1})
+        assert response.status_code == 503
+        assert response.json() == {'error': 'output_unavailable'}
+        assert not settings.output.exists()
+        settings.output.mkdir()
+        assert client.get('/api/health').json()['ok'] is True
+        assert client.post(f'/api/assets/{fake.asset_id}/render', json={'revision': 1}).status_code == 202
+        shutil.rmtree(app.state.service.tmp)
+        assert client.get('/api/health').json()['ok'] is True
+
+
+def test_workspace_permission_failure_is_not_raw_os_error(service, monkeypatch):
+    import errno
+
+    import immich_ki.workspace as module
+    real_open = module.os.open
+    def deny(path, *args, **kwargs):
+        if str(path).startswith('.probe-'):
+            raise PermissionError(errno.EACCES, 'sensitive mount path')
+        return real_open(path, *args, **kwargs)
+    monkeypatch.setattr(module.os, 'open', deny)
+    with pytest.raises(module.StorageUnavailable, match=r'^output_unavailable$'):
+        service.ensure_output()
+
+
+def test_background_recovers_output_after_runtime_disappearance(setup):
+    import shutil
+    import time
+    settings, fake = setup
+    app = create_app(settings, fake)
+    with TestClient(app) as client:
+        shutil.rmtree(settings.output)
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if client.get('/api/health').json()['error'] == 'output_unavailable':
+                break
+            time.sleep(0.05)
+        # Give the worker a tick to observe the missing mount, not just health.
+        time.sleep(0.7)
+        settings.output.mkdir()
+        deadline = time.monotonic() + 7
+        while time.monotonic() < deadline:
+            if client.get('/api/health').json()['ok']:
+                break
+            time.sleep(0.05)
+        assert client.get('/api/health').json()['ok'] is True
+        assert app.state.service.tmp.is_dir()
+
+
+def test_output_root_write_check_even_when_scratch_writable(service, monkeypatch):
+    import errno
+
+    import immich_ki.workspace as module
+    real_open = module.os.open
+    def deny_root_probe(path, *args, **kwargs):
+        if str(path).startswith('.ki-probe-'):
+            raise PermissionError(errno.EACCES, 'secret-output-root')
+        return real_open(path, *args, **kwargs)
+    monkeypatch.setattr(module.os, 'open', deny_root_probe)
+    with pytest.raises(module.StorageUnavailable, match=r'^output_unavailable$'):
+        service.ensure_output()
+
+
+def test_missing_publication_snapshot_does_not_block_queue(service):
+    import shutil
+    job = save_job(service)
+    with service.store.transaction() as db:
+        db.execute("UPDATE jobs SET state='publishing',output_hash='expected',previous_hash=NULL WHERE id=?", (job['id'],))
+    shutil.rmtree(service.tmp / job['id'])
+    service.recover()
+    failed = service.store.job(job['id'])
+    assert failed['state'] == 'failed'
+    assert failed['error'] == 'publication_source_missing'
+    next_job = save_job(service)
+    service.render_next()
+    assert service.store.job(next_job['id'])['state'] == 'awaiting_import'

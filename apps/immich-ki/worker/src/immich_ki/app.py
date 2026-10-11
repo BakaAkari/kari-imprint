@@ -1,6 +1,8 @@
 """Companion preview same-origin API. The panel's sole credential is one Immich API key."""
 from __future__ import annotations
 
+import errno
+import logging
 import os
 import threading
 import time
@@ -24,6 +26,7 @@ from immich_ki.client import ImmichClient, UpstreamError
 from immich_ki.keyconfig import resolve_panel_config
 from immich_ki.service import Conflict, Service
 from immich_ki.settings import Settings
+from immich_ki.workspace import StorageUnavailable
 
 PUBLIC_VALUE_ERRORS = {
     'not_source_asset', 'file_too_large', 'invalid_image', 'source_changed',
@@ -74,8 +77,11 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     service = Service(settings, upstream)
     sessions = {}
     stopped = threading.Event()
+    worker_error = None
+    log = logging.getLogger(__name__)
 
     def run():
+        nonlocal worker_error
         next_maintenance = 0.0
         while not stopped.wait(0.5):
             try:
@@ -87,8 +93,26 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                 if time.monotonic() >= next_maintenance:
                     service.maintenance.tick()
                     next_maintenance = time.monotonic() + 5
+                worker_error = None
+            except (StorageUnavailable, UpstreamError) as exc:
+                service.recovery_needed = True
+                worker_error = exc.code if isinstance(exc, StorageUnavailable) else 'immich_unavailable'
+                log.warning('Worker retry scheduled: %s', worker_error)
+                stopped.wait(5)
+            except OSError as exc:
+                if exc.errno not in {errno.ENOENT, errno.EACCES, errno.EPERM, errno.EROFS, errno.ENOSPC, errno.EIO, errno.ESTALE}:
+                    worker_error = 'worker_failed'
+                    stopped.set()
+                else:
+                    service.recovery_needed = True
+                    worker_error = 'storage_unavailable'
+                    log.warning('Worker retry scheduled: storage_unavailable')
+                    stopped.wait(5)
             except Exception:
-                # No raw core/upstream paths, keys or EXIF in logs/responses.
+                # Structural bugs are fatal, not an unbounded retry loop. No raw
+                # paths, keys or EXIF may be included in the diagnostic.
+                worker_error = 'worker_failed'
+                log.error('Worker stopped: worker_failed')
                 stopped.set()
 
     @asynccontextmanager
@@ -132,7 +156,13 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
             request._body = bytes(body)
         try:
             response = await call_next(request)
-        except Exception:
+        except Exception as exc:
+            # A silent 500 made the album-filter type error undiagnosable from
+            # the outside. Log method, route template and exception class only:
+            # never raw paths, keys, EXIF or exception text.
+            route = request.scope.get('route')
+            log.error('Unhandled request failure: %s %s (%s)', request.method,
+                      getattr(route, 'path', request.url.path), type(exc).__name__)
             return JSONResponse({'error': 'operation_failed'}, 500)
         # Only public build assets may be cached. Photos and authenticated API
         # responses must never become persistent browser/proxy cache entries.
@@ -163,13 +193,27 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     async def conflict(_request, exc):
         return JSONResponse({'error': str(exc)}, 409)
 
+    @app.exception_handler(StorageUnavailable)
+    async def storage_error(_request, exc):
+        return JSONResponse({'error': exc.code}, 503)
+
     @app.exception_handler(UpstreamError)
     async def upstream_error(_request, _exc):
         return JSONResponse({'error': 'immich_unavailable'}, 502)
 
     @app.get('/api/health')
     def health():
-        return {'ok': not stopped.is_set(), 'phase': 'M1-preview', 'initialized': panel.initialized}
+        error = worker_error
+        try:
+            service.ensure_output()
+            from immich_ki.workspace import workspace
+            workspace(settings.data, 'metadata-tmp', code='workspace_unavailable')
+        except StorageUnavailable as exc:
+            error = exc.code
+        except ValueError:
+            error = 'unsafe_workspace'
+        return {'ok': not stopped.is_set() and error is None, 'phase': 'M1-preview',
+                'initialized': panel.initialized, 'error': error}
 
     @app.get('/api/maintenance')
     def maintenance_status():
@@ -198,7 +242,9 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     @app.get('/api/assets')
     def assets(page: Annotated[int, Field(ge=1, le=10000)] = 1,
                album: UUID | None = None):
-        result = upstream.search(settings.source_library, page, albums=[album] if album else None)
+        # The upstream wire contract takes album ids as strings; pass the
+        # validated UUID in its canonical string form.
+        result = upstream.search(settings.source_library, page, albums=[str(album)] if album else None)
         items = []
         reserved = settings.reserved_output
         for asset in result['items']:
@@ -207,7 +253,8 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                 path = relative_path(asset['originalPath'], settings.source_prefix)
                 if reserved and (path == reserved or path.startswith(reserved + '/')):
                     continue
-                if asset.get('libraryId') != settings.source_library or asset.get('type') != 'IMAGE':
+                if (asset.get('libraryId') != settings.source_library or asset.get('type') != 'IMAGE'
+                        or asset.get('isOffline') or asset.get('isTrashed')):
                     continue
                 items.append({'id': asset['id'], 'name': asset['originalFileName']})
             except (KeyError, ValueError):

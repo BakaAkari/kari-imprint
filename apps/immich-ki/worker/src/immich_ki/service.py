@@ -25,6 +25,7 @@ from immich_ki.logos import bundle_hash
 from immich_ki.logos import resolve as resolve_logo
 from immich_ki.paths import digest_file, open_source, output_relative, parent_fd, relative_path, snapshot
 from immich_ki.store import Store, canonical
+from immich_ki.workspace import StorageUnavailable, workspace
 
 # Existing core diagnostics include EXIF dictionaries and source paths.
 logger.disable('kari_core')
@@ -46,18 +47,29 @@ class Service:
         self.decode_lock = threading.Lock()
         self.metadata_lock = threading.Lock()
         self.metadata_cache = {}
-        if not settings.imports.is_dir() or not settings.output.is_dir():
+        self.recovery_needed = True
+        if not settings.imports.is_dir():
             raise ValueError('missing_mount')
         self.store = Store(settings.data)
         self.tmp = settings.output / '.ki-tmp'
-        self.tmp.mkdir(exist_ok=True, mode=0o700)
-        if self.tmp.is_symlink():
-            raise ValueError('unsafe_temp_root')
+        self.metadata_tmp = workspace(settings.data, 'metadata-tmp', code='workspace_unavailable')
         self.resources = settings.data / 'resources'
         self.resources.mkdir(exist_ok=True, mode=0o700)
-        self.recover()
+        try:
+            self.ensure_output()
+            self.recover()
+        except StorageUnavailable:
+            # Read-only editing remains available while the output mount recovers.
+            pass
         from immich_ki.maintenance import Maintenance
         self.maintenance = Maintenance(self)
+
+    def ensure_output(self):
+        try:
+            workspace(self.settings.output, '.ki-tmp', code='output_unavailable', check_parent=True)
+        except StorageUnavailable:
+            self.recovery_needed = True
+            raise
 
     @property
     def renderer_version(self):
@@ -111,6 +123,7 @@ class Service:
         return {'revision': revision, 'config': json.loads(encoded)}
 
     def enqueue(self, asset_id, revision):
+        self.ensure_output()
         self.maintenance.require_space(3 * self.settings.max_bytes)
         _, path = self.source(asset_id)
         job_id = uuid4().hex
@@ -133,7 +146,7 @@ class Service:
                 key = sha(canonical([config['hash'], source_hash, resources, self.renderer_version]))
                 active = db.execute("SELECT id FROM jobs WHERE asset_id=? AND generation=? AND revision=? AND render_key=? AND state IN ('queued','running')", (asset_id, asset['generation'], revision, key)).fetchone()
                 if active:
-                    shutil.rmtree(directory)
+                    shutil.rmtree(directory, ignore_errors=True)
                     return self.store.job(active['id'])
                 if db.execute("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running')").fetchone()[0] >= self.settings.max_queue:
                     raise Conflict('queue_full')
@@ -150,7 +163,10 @@ class Service:
         return asset, asset['revision'] == job['revision'] and asset['generation'] == job['generation']
 
     def render_next(self):
+        self.ensure_output()
         with self.decode_lock:
+            if self.recovery_needed:
+                self.recover()
             return self._render_next()
 
     def _render_next(self):
@@ -209,7 +225,9 @@ class Service:
         except Exception as exc:
             with self.store.transaction() as db:
                 state = db.execute('SELECT state FROM jobs WHERE id=?', (job['id'],)).fetchone()[0]
-                if state != 'publishing':
+                if state == 'publishing':
+                    self.recovery_needed = True
+                else:
                     code = str(exc) if isinstance(exc, (Conflict, ValueError)) and str(exc) in {'source_changed','output_conflict','output_too_large','renderer_changed'} else 'render_failed'
                     db.execute("UPDATE jobs SET state='failed',error=? WHERE id=?", (code, job['id']))
         finally:
@@ -259,7 +277,16 @@ class Service:
             publishing = [r[0] for r in db.execute("SELECT id FROM jobs WHERE state='publishing'")]
             db.execute("UPDATE jobs SET state='queued' WHERE state='running'")
         for job_id in publishing:
-            self.publish(job_id)
+            try:
+                self.publish(job_id)
+            except FileNotFoundError:
+                # A missing mount is retryable. Lost staged bytes on an available
+                # mount are not: do not let one unrecoverable publication starve
+                # every later job forever. Never touch the existing output.
+                self.ensure_output()
+                with self.store.transaction() as db:
+                    db.execute("UPDATE jobs SET state='failed',error='publication_source_missing' WHERE id=? AND state='publishing'", (job_id,))
+        self.recovery_needed = False
 
     def reconcile_next(self, now=None):
         """Persist retry deadlines before network IO; resume after restart."""
@@ -387,7 +414,7 @@ class Service:
                 size = header.size
                 if header.getexif().get(274, 1) in {5, 6, 7, 8}:
                     size = (size[1], size[0])
-        directory = self.tmp / uuid4().hex
+        directory = workspace(self.settings.data, 'metadata-tmp', code='workspace_unavailable') / uuid4().hex
         directory.mkdir(mode=0o700)
         try:
             target = directory / ('source' + Path(path).suffix)
@@ -403,4 +430,4 @@ class Service:
             self.metadata_cache[key] = (time.monotonic() + 300, result)
             return deepcopy(result)
         finally:
-            shutil.rmtree(directory)
+            shutil.rmtree(directory, ignore_errors=True)

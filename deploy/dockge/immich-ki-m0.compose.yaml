@@ -3,9 +3,12 @@
 # 相册由 NAS user script immich-album-sync 每 30 分钟幂等补齐（含 "Imprint" 相册）。
 services:
   immich-ki-m0:
-    image: kari-imprint/immich-ki:m2-archive
+    image: ${KI_IMAGE:-kari-imprint/immich-ki:m2-album-filter-20261011}
     platform: linux/amd64
     user: "${KI_UID:-10001}:${KI_GID:-10001}"
+    # Unraid shared output directories use nobody:users (99:100), mode 775.
+    # Keep the private appdata UID while granting only the mounted output group access.
+    group_add: ["${KI_OUTPUT_GID:-100}"]
     ports: ["127.0.0.1:2285:2285"]
     environment:
       KI_PUBLIC_ORIGIN: ${KI_PUBLIC_ORIGIN:-}
@@ -24,7 +27,7 @@ services:
     cpus: 2
     pids_limit: 64
     init: true
-    restart: "no"
+    restart: unless-stopped
     networks: [media-edit]
 networks:
   media-edit:
