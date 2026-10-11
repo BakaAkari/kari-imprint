@@ -81,7 +81,7 @@ function App() {
   useEffect(()=>{
     if(!logged)return;
     const control=new AbortController();
-    api<{albums:Album[];available:boolean}>('/albums','GET',undefined,control.signal).then(data=>{setAlbums(data.albums);setAlbumsAvailable(data.available);}).catch(e=>{if(!control.signal.aborted)setAlbumsAvailable(false);});
+    api<{albums:Album[];available:boolean}>('/albums','GET',undefined,control.signal).then(data=>{setAlbums(data.albums.filter(item=>!item.isResult&&!item.name.trimEnd().toLowerCase().endsWith('imprint')));setAlbumsAvailable(data.available);}).catch(e=>{if(!control.signal.aborted)setAlbumsAvailable(false);});
     return ()=>control.abort();
   },[logged]);
   function commit(next: ImprintConfig) {

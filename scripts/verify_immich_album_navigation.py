@@ -1,6 +1,6 @@
 """Mocked browser acceptance for the immich-ki album browsing flow.
 
-Covers: read-only result albums, infinite-scroll paging with dedup, the
+Covers: hidden result albums, infinite-scroll paging with dedup, the
 photo editor (open/save/dirty guard/back navigation with scroll restore),
 stale request isolation across album switches, and error states.
 
@@ -157,10 +157,9 @@ def main():
         page.route("**/*", handle)
         page.goto("http://immich-navigation.test")
 
-        # A ─ album list: result album is read-only, normal album is selectable.
+        # A ─ album list: result album is hidden, normal album is selectable.
         result_card = page.get_by_role("button", name="Trip 2024 Imprint", exact=True)
-        expect(result_card).to_be_disabled()
-        expect(result_card).to_contain_text("成品 · 只读")
+        expect(result_card).to_have_count(0)
         trip_card = page.get_by_role("button", name="Trip 2024", exact=True)
         expect(trip_card).to_be_enabled()
         expect(trip_card).to_contain_text("10 张")
@@ -286,7 +285,7 @@ def main():
         assert not errors, errors
         browser.close()
     print(
-        "PASS: read-only result album, infinite scroll (auto page 2, no pager, dedup), editor open + render payload, dirty guard, scroll restore, stale album response dropped, empty + permission errors, no page errors"
+        "PASS: hidden result album, infinite scroll (auto page 2, no pager, dedup), editor open + render payload, dirty guard, scroll restore, stale album response dropped, empty + permission errors, no page errors"
     )
 
 

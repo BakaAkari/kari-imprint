@@ -2,112 +2,102 @@
 
 状态：已实施并本地验证，未部署。2026-10-12。
 
-本报告对应 `docs/design/2026-10-11-imprint-experience.md` 与
-`docs/audits/2026-10-11-adversarial-review.md` 中列出的修复项。范围是本 worktree
-（`feat/imprint-experience`），未提交、未推送、未部署，未读取或打印任何密钥。
+本报告对应 `docs/design/2026-10-11-imprint-experience.md`、
+`docs/audits/2026-10-11-adversarial-review.md` 以及 `docs/design/review-blockers.md`
+（含 fff2717 后补审）列出的全部修复项。范围是本 worktree（`feat/imprint-experience`），
+未读取或打印任何密钥，未部署、未访问生产环境。
 
-## 一、已改动文件
+## 一、信息架构重构（前端编辑器）
 
-### 后端（可靠性 P0/P1）
-- `apps/immich-ki/worker/src/immich_ki/client.py`
-  - 新增 `ImmichClient.me()`（`users/me`，服务 API key 身份）。
-  - 新增 `ImmichClient.album_membership(asset_id)`：用真实 `GET /albums?assetId=` 契约
-    取代不存在的 `album().assets` 数组。
-  - `add_to_album` 的写后读回改为真实成员查询。
-- `apps/immich-ki/worker/src/immich_ki/albums.py`
-  - `source()` 的相册成员校验改用 `album_membership`，不再伪造 `album.assets`。
-- `apps/immich-ki/worker/src/immich_ki/auth.py`
-  - `immich_login` 身份约束改为 fail-closed：owner 为空时一律拒绝（`owner_unbound`），
-    不再把“第一个成功登录者”当作 owner。
-  - 新增 `POST /api/auth/logout`：删除服务端 session 并清除 cookie。
-- `apps/immich-ki/worker/src/immich_ki/app.py`
-  - `_resolve_owner_from_key`：启动时用服务 key 的 `users/me` 解析并持久化 owner；
-    Immich 不可达时保持 owner 空并 fail-closed。
-  - `PUBLIC_VALUE_ERRORS` 增加 `too_many_frames`。
-- `apps/immich-ki/worker/src/immich_ki/service.py`
-  - `validate()` 在面板边界强制单信息条（`too_many_frames`），不破坏共享 schema 客户端。
-  - `_sync()` 增加 `refresh_pending → done` 完成闭环：完成要求输出资产可发现
-    （`assets/:id`）且存在于配对结果相册（`albums?assetId=`）；`done` 状态重复 sync 幂等。
-  - `reconcile_next()` 现在同时处理 `awaiting_import` 与 `refresh_pending`。
-  - 引入 `UUID` 导入。
+原 `editor.tsx` 是逐项控件长表单，已整体替换为「样式 → 常用 → 精细」三层结构：
 
-### 布局引擎（TS + Python 双实现）
-- `packages/kari-core/src/kari_core/shared/layout/layout_engine.py`
-- `apps/web/src/layout/layoutEngine.ts`
-  - 修复 logo 预留空间 parity：边沿 logo 的 reserve 统一为
-    `logoDim + dividerW + 2*itemGap`（之前 Python 覆盖成 1 个 itemGap）。
-  - 竖向（左/右侧栏）分隔线加入 logo gap，横向/竖向统一“分隔线到图形 == 图形到外侧内容边界”
-    的对称安全区。
-  - 竖向 logo 边界同样按 itemGap 内缩，与横向一致。
-  - 侧栏 `track_order` 变为可操作：`photo-outward` = 主轨在外侧，`outward-photo` = 主轨贴照片。
+- **样式**：三张可视预设卡片（`StyleCard`）——经典信息框（双轨 + 机身镜头/参数 + 自动 Logo）、
+  极简署名（单轨单行机身，无 Logo）、纯留白（无信息条，仅四边留白）。切换整份替换预设，可撤销；
+  当前样式由配置结构推导（`detectStylePreset`），不向后端 schema 引入未支持字段。
+- **常用**：信息条位置（底/左/右，按 `marginsForFrame` 同步三边 60px 留白）、留白大小、
+  照片信息字段开关、品牌（自动/手动/关闭）、署名（开关 + 上传）。
+- **精细**：仅显示当前选中对象实际支持的选项——选中文字显示其字号/字重/颜色/信息顺序，
+  选中品牌显示 Logo 大小，选中署名显示署名大小，未选中显示全局默认；另有间距与背景色。
+- **预览点选**：`KariImprintCanvas` 新增 `onElementClick`/`selectedElementId` 两个可选 prop，
+  把布局元素 `id` 反查为选中对象（`selectionFromElementId`），点击文字/Logo 高亮对应控件；
+  编辑态绘制虚线选中轮廓（不进入成品）。键盘用户通过「选择对象」具名按钮选中同一对象。
+- **移动端**：右栏在窄屏退化为可滚动设置栏，`<600px` 单列不嵌套双滚动，保存栏始终可达；
+  浏览器断言无横向溢出。
 
-### 前端编辑器
-- `apps/immich-ki/web/src/defaults.ts`：默认三边 60px 留白（`marginsForFrame`），
-  信息条所在侧为 0（由条自身厚度管理）。
-- `apps/immich-ki/web/src/main.tsx`：预览为主；去掉 REV/GEN 术语；撤销/重做/重置；
-  明确输出目的地与状态；本机按照片隔离草稿；输入框聚焦时方向键不切图；
-  “保存草稿并离开 / 放弃修改 / 继续编辑”三态离开弹窗；主按钮“保存到 Immich”，本地下载为次操作。
-- `apps/immich-ki/web/src/editor.tsx`：移除无效的 `main_alignment`/`cross_alignment` 滑块并说明；
-  信息条缺失时提供“添加信息条”恢复入口；切换信息条位置时按 `marginsForFrame` 自适应三边留白。
-- `apps/immich-ki/web/src/gallery.tsx`：照片卡片标注改为 未制作/有成品/有草稿/处理失败，不含 REV/GEN/job ID。
-- `apps/immich-ki/web/src/api.ts`：新增 `owner_unbound`、`too_many_frames` 文案。
-- `apps/immich-ki/web/src/style.css`：新增状态栏/撤销条/目的地/离开弹窗/下载按钮样式，移动端无横向溢出。
+## 二、品牌自动/手动 UI
 
-### 测试与验证脚本
-- `apps/immich-ki/worker/tests/test_worker.py`：`FakeImmich` 改为真实契约
-  （`album` 无 `assets`，新增 `me()`/`album_membership()`，成员用集合建模）；
-  更新 env-key 迁移、sync 完成、reconcile 完成、相册成员、单框、logout、owner fail-closed、
-  真实成员契约等用例。
-- `packages/kari-core/tests/test_layout/test_layout_engine.py`：新增对称安全区几何断言、
-  侧栏 track_order 翻转断言。
-- `scripts/verify_immich_editor_state.cjs`：修正过时的“footer-new”断言为单框规则。
-- `scripts/verify_immich_album_navigation.py`：适配新 UI（“保存到 Immich”、“正在生成”、
-  三态离开弹窗、草稿恢复路径）。
-- `scripts/verify_immich_editor_browser.py`：适配“独立设置”与“添加信息条”。
+`BrandSection` 提供 自动 / 手动 / 关闭 三段切换：自动按 EXIF `make` 经
+`resolveAutoLogoWithScheme` 识别并显示「已识别：xxx」；识别不明显示「无法识别，请手动选择」，
+不猜品牌；手动列出 `/api/logos` 内置品牌；关闭则不预留 Logo 空间。手动选择只影响当前照片草稿。
 
-## 二、已执行的检查
+## 三、草稿按用户隔离
+
+`/api/auth/session` 现在返回 `identity`（面板 owner）。前端草稿 key 由
+`ki-draft-<assetId>` 改为 `ki-draft-<identity>-<assetId>`，按认证用户 + 照片双重隔离，
+不再是与设备绑定、跨账号可见的 asset-only 存储。仍不声称「已自动保存」。
+
+## 四、后端可靠性（含 fff2717 后补审）
+
+- `auth.py::validate_immich_key`：`users/me` 必须返回含非空字符串 `email` 的 dict，
+  否则返回 `key_identity_invalid`（`{}`、数字 email、`[]`/`null`/非 JSON 一律拒绝），
+  init 不再在空 owner 下发放 session。
+- `owner.py::resolve_owner_from_key`（app 启动与登录路径共用）：email 必须为非空字符串才持久化；
+  登录时若 owner 未解析，用服务 key 重新解析，Immich 恢复后无需重启即可登录（fail-closed 保持）。
+- 守卫中间件新增 owner 检查：`panel.initialized` 但 `not panel.owner` 时返回 `owner_unbound`。
+- `service.py::save`：相同配置的重复保存是 no-op，不递增 revision（否则会绕过按
+  revision 去重的 enqueue 逻辑，等待态重复保存会重复出图）。
+- `service.py::_refresh_complete`：确认完成不仅要求 `assets/:id` 可达，还校验返回资产的
+  `libraryId` 与 `originalPath` 匹配预期输出；`refresh_pending → done` 在写入前事务内重查
+  revision/generation，过期任务改为 superseded 而非误报 done。
+- `fingerprint.py`：`renderer_version` 现在含渲染管线源码指纹（`-impl-<sha16>-logos-<hash>`），
+  布局/压缩实现变更会改变 renderer 标识，跨部署恢复的 `renderer_changed` 检测不再有盲区。
+- `app.py::/api/assets/{id}/output` 增加 `variant=full` 分支，按字节返回成品文件
+  （`Content-Disposition: attachment`）；`variant=preview` 仍为有界预览。下载不再误导性地
+  给出降采样图。
+
+## 五、前端行为收口
+
+- `main.tsx` 轮询状态加入 `refresh_pending`，`等待确认` 会自行收敛到「已保存」。
+- 下载按钮改用 `variant=full`。
+- Ctrl+Z 在输入框内不再 `preventDefault`，保留原生撤销；Ctrl+S 仅非输入态触发保存。
+- 照片卡片标注保持 未制作/有成品/有草稿/处理失败，不含 REV/GEN/job ID。
+
+## 六、已执行的检查
 
 | 检查 | 结果 |
 | --- | --- |
 | `ruff check .` | 通过 |
-| `pytest packages/kari-core/tests apps/api/tests apps/immich-ki/worker/tests` | 551 passed, 7 skipped |
+| `pytest packages/kari-core/tests apps/api/tests apps/immich-ki/worker/tests` | 559 passed, 7 skipped |
 | `scripts/verify_flow_layout_parity.py` | 通过（8 fixtures） |
-| `apps/web` `tsc -b` | 通过 |
-| `apps/web` `VITE_API_BASE=/tools/kari-imprint npm run build` | 通过 |
-| `apps/immich-ki/web` `npm run build`（含 tsc） | 通过 |
+| `apps/immich-ki/web` `tsc --noEmit` + `vite build` | 通过 |
+| `apps/web` `tsc -b` + `VITE_API_BASE=/tools/kari-imprint npm run build` | 通过 |
 | `node scripts/verify_immich_editor_state.cjs` | 通过 |
 | `scripts/verify_immich_editor_browser.py`（Playwright + 截图） | 通过 |
 | `scripts/verify_immich_album_navigation.py`（Playwright） | 通过 |
 | `git diff --check` | 通过 |
 
-浏览器截图产物：`artifacts/immich-editor/desktop.png`、`mobile.png`、
-`save-payloads.json`（由编辑器浏览器脚本生成）。
+浏览器截图产物：`artifacts/immich-editor/desktop.png`、`mobile.png`、`save-payloads.json`。
 
-## 三、关键行为验证
+## 七、关键行为验证（新增用例）
 
-- 真实相册成员契约：`test_client_membership_uses_albums_by_asset_query` 验证
-  `GET /albums?assetId=` 与 `add_to_album` 写后读回；不再伪造 `album.assets`。
-- 归属身份来自服务 key：`test_env_key_migrates_into_config_file` 验证 env key 迁移时
-  owner 绑定到 `users/me`；`test_login_fails_closed_when_owner_unresolved` 验证 owner
-  未解析时拒绝登录。
-- 幂等与完成闭环：`test_sync_reaches_done_only_after_ingestion_and_membership`、
-  `test_sync_done_requires_result_album_membership`、`test_reconcile_retries_survive_restart_and_refresh_once`
-  验证 `awaiting_import → refresh_pending → done` 不重复出图、不重复请求刷新。
-- Logo 对称安全区：`TestLogoSymmetricSafeArea` 对下/左/右三方向做几何断言（非肉眼）。
-- 单信息条：`test_render_rejects_second_frame_region` 验证不静默破坏旧配置。
+- `test_validate_immich_key_rejects_malformed_identity`：`{}`/`[]`/数字/空串 email 一律
+  `key_identity_invalid`。
+- `test_resolve_owner_from_key_requires_string_email`：非字符串 email 不持久化、不绑定 owner。
+- `test_owner_recovers_at_runtime_without_restart`：启动时 owner 解析失败，Immich 恢复后下次登录
+  即恢复，无需重启。
+- `test_repeated_identical_save_and_render_deduplicates`：相同配置重复保存不递增 revision、
+  不新增 generation，端到端幂等。
+- `test_sync_requires_output_asset_identity_match`：输出资产解析到错误 library/path 时不判完成。
+- `test_sync_done_reechecks_currency_after_confirmation`：确认网络返回后若已有新 revision 落库，
+  任务 superseded 而非 done。
+- `test_renderer_version_includes_implementation_fingerprint`：renderer 标识含源码指纹。
 
-## 四、剩余风险 / 未完成项
+## 八、剩余风险 / 未完成项
 
-1. **编辑器信息架构为局部落地**：已实现预览为主、撤销/重做/重置、草稿隔离、目的地与状态、
-   去除 REV/GEN、移动端、去掉无效对齐控件；但“样式/常用/精细”三层预设卡片、点击预览文字定位
-   高亮、品牌自动识别 UI 尚未实现，仍是逐项控件布局。
-2. **`main_alignment`/`cross_alignment` 已从 UI 移除**（引擎固定为两端对齐/居中），
-   schema 字段保留以兼容旧配置；若未来需要，需在双端引擎真正实现后才可重新暴露。
-3. **`renderer_version` 仍固定**（`m0-photo-srgb-v1`，仅追加 logo hash），布局/压缩实现
-   变更不会改变 renderer_version，跨部署恢复的 `renderer_changed` 检测仍有盲区（审计 P1 未收口）。
-4. **`refresh_pending → done` 完成信号**为“输出资产可发现 + 在结果相册中”，是对“收录完成”的
-   可靠近似，但不等价于 Immich 元数据/缩略图刷新完成；未引入 exifInfo 存在性作为额外判据。
-5. **草稿持久化为本机 localStorage**，按 asset 隔离（面板单操作者，用户维度隐含）；未声称“已自动保存”，
-   无跨设备同步。
-6. 浏览器脚本依赖已构建的 `apps/immich-ki/web/dist`；未在真实 NAS/Immich 上跑端到端
-   （真实 API 只读契约、真实生成、回滚路径）——留待部署阶段验证。
+1. 真实 Immich/NAS 端到端（真实 API 只读契约、真实生成、回滚路径）仍未在真实环境验证，留待
+   部署阶段；浏览器脚本仍依赖已构建的 `apps/immich-ki/web/dist` 与 mock。
+2. `refresh_pending → done` 的完成信号是「输出资产可发现 + 身份匹配 + 在结果相册中」，
+   是对「收录完成」的可靠近似，不等价于 Immich 元数据/缩略图刷新完成。
+3. 品牌自动识别基于内置品牌注册表 token 匹配；未知品牌会提示手动选择，不做猜测兜底。
+4. 草稿持久化仍为本机 localStorage（按用户 + 照片隔离），无跨设备同步；不声称自动保存。
+5. 首期未加入「全局默认样式编辑器」，避免「改本图还是改全部」歧义。

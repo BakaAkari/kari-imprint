@@ -421,6 +421,45 @@ def test_client_search_sends_album_ids_as_strings():
         client.close()
 
 
+def test_sync_requires_output_asset_identity_match(service):
+    """A discoverable output that resolves to a different library/path is never 'saved'."""
+    job = _save_job_with_album(service)
+    service.render_next()
+    service.client.imported = True
+    assert service.sync(job["id"])["state"] == "refresh_pending"
+    original_asset = service.client.asset
+
+    def wrong_asset(asset_id):
+        result = original_asset(asset_id)
+        if str(asset_id) == service.client.output_id:
+            result = {**result, "libraryId": str(uuid4()), "originalPath": "/external/other.jpg"}
+        return result
+
+    service.client.asset = wrong_asset
+    assert service.sync(job["id"])["state"] == "refresh_pending"
+    service.client.asset = original_asset
+    assert service.sync(job["id"])["state"] == "done"
+
+
+def test_sync_done_reechecks_currency_after_confirmation(service):
+    """A save landing during the completion check supersedes the job, never 'done'."""
+    job = _save_job_with_album(service)
+    service.render_next()
+    service.client.imported = True
+    assert service.sync(job["id"])["state"] == "refresh_pending"
+    original = service._refresh_complete
+
+    def racing_complete(job_id, output_id):
+        # A concurrent save commits while the network confirmation is in flight.
+        changed = deepcopy(CONFIG)
+        changed["canvas"]["margins"]["bottom"] = 50
+        service.save(service.client.asset_id, changed, 1)
+        return original(job_id, output_id)
+
+    service._refresh_complete = racing_complete
+    assert service.sync(job["id"])["state"] == "superseded"
+
+
 def test_reconcile_retries_survive_restart_and_refresh_once(setup):
     from immich_ki.client import UpstreamError
 
@@ -544,9 +583,10 @@ def test_editor_upload_and_latest_job_contract(setup):
         published = (settings.output / settings.imprint_dir / "photo.jpg").read_bytes()
         assert full.content == published
         assert full.headers["content-type"] in {"image/jpeg", "image/png"}
-        assert client.get(
-            endpoint + "/output", params={"generation": job["generation"], "variant": "tile"}
-        ).status_code == 422
+        assert (
+            client.get(endpoint + "/output", params={"generation": job["generation"], "variant": "tile"}).status_code
+            == 422
+        )
 
 
 def test_public_static_cache_and_compression_keep_api_private(setup, tmp_path, monkeypatch):
