@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from PIL import Image
 
 from kari_core.processor import renderer
@@ -30,6 +31,19 @@ from kari_core.shared.layout.layout_engine import (
 
 class TestHelpers:
     """单元测试：独立辅助函数。"""
+
+    def test_missing_requested_font_preserves_cjk_and_size(self):
+        font = renderer._load_font("missing-watermark-font.otf", 96)
+        assert font.size == 96
+        assert font.getbbox("水印")[2] > 100
+
+    def test_unreadable_fonts_fail_instead_of_publishing_tiny_text(self, monkeypatch):
+        def unreadable(*args, **kwargs):
+            raise OSError("cannot open resource")
+
+        monkeypatch.setattr(renderer.ImageFont, "truetype", unreadable)
+        with pytest.raises(OSError, match="watermark_font_unavailable"):
+            renderer._load_font("NotoSansCJKsc-Bold.otf", 96)
 
     def test_parse_color_hex6(self):
         assert _parse_color("#FF5733") == (255, 87, 51, 255)

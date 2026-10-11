@@ -20,8 +20,9 @@ RUN sed 's|https://files.pythonhosted.org/packages/|https://mirrors.tuna.tsinghu
 COPY apps/immich-ki/web/dist /app/web
 RUN mkdir -p /app/assets/logos /app/packages/kari-core/config/templates
 ENV KARI_IMPRINT_ASSETS_DIR=/app/assets KARI_IMPRINT_ROOT=/app KI_WEB_ROOT=/app/web
-RUN chmod -R a+rX /app/assets/logos
+RUN chmod -R a+rX /app/assets/fonts /app/assets/logos
 USER 10001:10001
+RUN python -c "from PIL import ImageFont; from kari_core.core.config_loader import FONTS_DIR; [ImageFont.truetype(str(FONTS_DIR / name), 48) for name in ('NotoSansCJKsc-Bold.otf', 'NotoSansCJKsc-Regular.otf')]"
 EXPOSE 2285
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:2285/api/health'))['ok']"
 CMD ["immich-ki", "--host", "0.0.0.0"]

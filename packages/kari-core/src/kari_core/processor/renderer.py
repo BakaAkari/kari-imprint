@@ -127,7 +127,7 @@ def _build_text(
 
 
 def _load_font(font_path: str, size: int) -> ImageFont.FreeTypeFont:
-    """加载指定字体；失败时回退到系统默认字体。"""
+    """加载指定字体；仅回退到支持中文且保持字号的内置字体。"""
     path = Path(font_path)
     if not path.is_absolute():
         path = FONTS_DIR / font_path
@@ -136,16 +136,16 @@ def _load_font(font_path: str, size: int) -> ImageFont.FreeTypeFont:
         return ImageFont.truetype(str(path), size)
     except OSError:
         for fallback in (
+            FONTS_DIR / "NotoSansCJKsc-Regular.otf",
             FONTS_DIR / "AlibabaPuHuiTi-2-45-Light.otf",
-            "arial.ttf",
-            "Arial.ttf",
-            "DejaVuSans.ttf",
         ):
             try:
                 return ImageFont.truetype(str(fallback), size)
             except OSError:
                 continue
-        return ImageFont.load_default()
+        # A tiny Latin-only default can make a successful export appear blank.
+        # Fail the render instead of publishing a silently degraded watermark.
+        raise OSError("watermark_font_unavailable") from None
 
 
 # ── Anchor → PIL paste 左上角坐标 ─────────────────────────────────────
