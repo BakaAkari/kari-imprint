@@ -16,6 +16,10 @@ export function updateSlot(config: ImprintConfig, regionId: string, slotId: stri
         }) };
 }
 export function addRegion(config: ImprintConfig, signature = false): ImprintConfig {
+    // The product model has one shared frame only.  Signatures remain
+    // independent free-position decorations, but a second frame would make
+    // the visual hierarchy ambiguous and is not supported by the editor.
+    if (!signature && config.regions.some(region => region.type !== 'free')) return config;
     let id = signature ? 'signature' : 'footer';
     while (config.regions.some(region => region.id === id))
         id += '-new';

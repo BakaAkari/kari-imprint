@@ -86,7 +86,7 @@ export function Editor({ config, onChange }: {
     <details className="editor-section"><summary>默认文字样式</summary><p className="editor-note">应用于未设置独立样式的文字。</p><TextStyle style={config.defaults ?? defaultStyle} onChange={defaults => onChange(current => ({ ...current, defaults }))}/></details>
     {config.regions.length === 0 && <p className="editor-note">尚未添加边框。添加后可选择照片信息或自定义文字。</p>}
     {config.regions.map(region => <RegionPanel key={region.id} region={region} config={config} onChange={onChange}/>)}
-    <div className="editor-add"><button type="button" disabled={config.regions.length >= 10} onClick={() => onChange(current => addRegion(current))}>添加边框</button><button type="button" disabled={config.regions.length >= 10} onClick={() => onChange(current => addRegion(current, true))}>添加签名</button></div>
+    <div className="editor-add"><button type="button" disabled={config.regions.length >= 10} onClick={() => onChange(current => addRegion(current, true))}>添加签名</button></div>
     <details className="editor-section"><summary>画布与共享文字</summary><div className="editor-fields">
       {(['top', 'right', 'bottom', 'left'] as const).map((edge, i) => <label key={edge}>{['上', '右', '下', '左'][i]}边距<input type="number" min={0} max={600} value={config.canvas.margins[edge]} onChange={e => { if (e.target.validity.valid && e.target.value)
         onChange(current => ({ ...current, canvas: { ...current.canvas, margins: { ...current.canvas.margins, [edge]: Number(e.target.value) } } })); }}/></label>)}
