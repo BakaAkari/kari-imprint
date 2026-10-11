@@ -568,16 +568,16 @@ def _compute_flow_region(
             if flow == "vertical"
             else asset.content.placement
         )
+        divider_w = max(1, round(short_edge * 0.001))
         if physical_placement == "end":
-            logo_end_reserve = logo_dim + item_gap
+            logo_end_reserve = logo_dim + divider_w + item_gap * 2
         elif physical_placement == "start":
-            logo_start_reserve = logo_dim + item_gap
+            logo_start_reserve = logo_dim + divider_w + item_gap * 2
         else:
             logo_center_reserve = logo_dim + item_gap * 2
         # Divider: thin subtle line between logo and text when logo is on edge
         if physical_placement in ("start", "end"):
             has_divider = True
-            divider_w = max(1, round(short_edge * 0.001))
             if physical_placement == "start":
                 logo_start_reserve = logo_dim + divider_w + item_gap
             else:
@@ -647,14 +647,14 @@ def _compute_flow_region(
         empty = TextContent(chips=[], separator="")
         if flow == "horizontal":
             if physical_placement == "start":
-                div_x = inner.x + logo_dim
+                div_x = inner.x + item_gap + logo_dim + item_gap
                 elements.append(ComputedElement(
                     id=f"{region.id}-divider", type="divider",
                     rect=Rect(div_x, inner.y, divider_w, inner.h),
                     anchor="middle-center", content=empty, style=defaults,
                 ))
             else:
-                div_x = inner.x + inner.w - logo_dim - divider_w
+                div_x = inner.x + inner.w - item_gap - logo_dim - item_gap - divider_w
                 elements.append(ComputedElement(
                     id=f"{region.id}-divider", type="divider",
                     rect=Rect(div_x, inner.y, divider_w, inner.h),
@@ -688,7 +688,17 @@ def _compute_flow_region(
             if flow == "horizontal"
             else ("top-center" if physical_placement == "start" else "bottom-center" if physical_placement == "end" else "middle-center")
         )
-        pos = _apply_anchor(inner, anchor)
+        if flow == "horizontal":
+            asset_bounds = (
+                Rect(inner.x + item_gap, inner.y, max(1, inner.w - item_gap), inner.h)
+                if physical_placement == "start"
+                else Rect(inner.x, inner.y, max(1, inner.w - item_gap), inner.h)
+                if physical_placement == "end"
+                else inner
+            )
+        else:
+            asset_bounds = inner
+        pos = _apply_anchor(asset_bounds, anchor)
         content = replace(
             asset.content,
             orientation=_resolve_asset_orientation(region, asset.content.orientation),

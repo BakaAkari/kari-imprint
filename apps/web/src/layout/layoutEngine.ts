@@ -440,23 +440,26 @@ function computeFlowRegion(
     const physicalPlacement = flow === 'vertical'
       ? sidePlacement(region, asset.content.placement)
       : asset.content.placement;
+    const dividerW = Math.max(1, Math.round(shortEdge * 0.001));
     if (physicalPlacement === 'end') {
-      logoEndReserve = logoDim + itemGap;
+      // Keep a real gap on both sides of an edge logo: the old reserve put
+      // the divider directly against the logo while leaving only the outer
+      // padding visible.
+      logoEndReserve = logoDim + dividerW + itemGap * 2;
     } else if (physicalPlacement === 'start') {
-      logoStartReserve = logoDim + itemGap;
+      logoStartReserve = logoDim + dividerW + itemGap * 2;
     } else {
       logoCenterReserve = logoDim + itemGap * 2;
     }
     // Divider: thin subtle line between logo and text when logo is on edge
     if (physicalPlacement === 'start' || physicalPlacement === 'end') {
       hasDivider = true;
-      const dividerW = Math.max(1, Math.round(shortEdge * 0.001));
       if (physicalPlacement === 'start') {
         dividerStartReserve = dividerW + itemGap;
-        logoStartReserve = logoDim + dividerStartReserve;
+        logoStartReserve = logoDim + dividerW + itemGap * 2;
       } else {
         dividerEndReserve = dividerW + itemGap;
-        logoEndReserve = logoDim + dividerEndReserve;
+        logoEndReserve = logoDim + dividerW + itemGap * 2;
       }
     }
   }
@@ -507,11 +510,11 @@ function computeFlowRegion(
     const emptyContent: Content = { chips: [], separator: '' };
     if (flow === 'horizontal') {
       if (physicalPlacement === 'start') {
-        const divX = inner.x + logoDim;
+        const divX = inner.x + itemGap + logoDim + itemGap;
         elements.push({ id: `${region.id}-divider`, type: 'divider',
           rect: rect(divX, inner.y, dividerW, inner.h), anchor: 'middle-center', content: emptyContent, style: defaults });
       } else {
-        const divX = inner.x + inner.w - logoDim - dividerW;
+        const divX = inner.x + inner.w - itemGap - logoDim - itemGap - dividerW;
         elements.push({ id: `${region.id}-divider`, type: 'divider',
           rect: rect(divX, inner.y, dividerW, inner.h), anchor: 'middle-center', content: emptyContent, style: defaults });
       }
@@ -536,7 +539,14 @@ function computeFlowRegion(
     const anchor = flow === 'horizontal'
       ? (asset.content.placement === 'start' ? 'middle-left' : asset.content.placement === 'end' ? 'middle-right' : 'middle-center')
       : (physicalPlacement === 'start' ? 'top-center' : physicalPlacement === 'end' ? 'bottom-center' : 'middle-center');
-    const pos = applyAnchor(inner, anchor);
+    const assetBounds = flow === 'horizontal'
+      ? physicalPlacement === 'start'
+        ? rect(inner.x + itemGap, inner.y, Math.max(1, inner.w - itemGap), inner.h)
+        : physicalPlacement === 'end'
+          ? rect(inner.x, inner.y, Math.max(1, inner.w - itemGap), inner.h)
+          : inner
+      : inner;
+    const pos = applyAnchor(assetBounds, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
     const assetW = flow === 'horizontal'
       ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
