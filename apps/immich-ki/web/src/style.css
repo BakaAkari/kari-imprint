@@ -129,6 +129,26 @@ small{color:var(--dim);line-height:1.7}
 
 button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,details>summary:focus-visible{outline:2px solid var(--text);outline-offset:1px}
 
+/* editor status, undo/redo, destination and leave dialog */
+.statusbar{display:flex;gap:8px;align-items:baseline}
+.status-photo{color:var(--text)}
+.status-state{color:var(--accent)}
+.status-dest{color:var(--text-dim)}
+.status-sep{color:var(--faint)}
+.undo-bar{display:flex;gap:0;flex-shrink:0}
+.undo-bar button{border:0;border-left:1px solid var(--line);font:10px var(--mono);letter-spacing:.08em;padding:9px 12px}
+.undo-bar button:disabled{opacity:.3}
+.destination-line{font:11px var(--mono);color:var(--dim);margin:0 20px;letter-spacing:.04em}
+.destination-line strong{color:var(--text)}
+.destination-note{color:var(--faint);margin-left:10px}
+.save-bar .download-action{border:0;border-left:1px solid var(--line-strong);background:transparent;color:var(--dim);font:10px var(--mono);padding:0 10px;white-space:nowrap}
+.save-bar .download-action:hover:not(:disabled){color:var(--text);background:var(--line)}
+.leave-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50}
+.leave-card{background:var(--bg-elevated);border:1px solid var(--line-strong);max-width:420px;padding:24px;margin:16px}
+.leave-card h3{margin:0 0 8px;font-size:15px}
+.leave-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.leave-actions .save-action{background:var(--text);color:var(--bg);border:1px solid var(--text)}
+
 @media(max-width:1100px){.immich-app>.workspace{grid-template-columns:190px minmax(260px,1fr) 320px}.immich-app aside{padding:14px 10px}}
 @media(max-width:850px){
   .immich-app{height:auto;overflow:visible}

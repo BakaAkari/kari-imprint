@@ -31,6 +31,8 @@ assert.deepEqual(side.slots,value.regions[0].slots);
 assert.equal(side.height,undefined);
 assert.equal(state.slotLabel(side,'primary-start'),'主轨 · 起点');
 assert.equal(state.moveRegion(side,'footer').width,undefined);
-assert.equal(state.addRegion(value).regions.at(-1).id,'footer-new');
+// Single-frame rule: a config that already has a frame keeps exactly one frame.
+assert.equal(state.addRegion(value).regions.filter(r=>r.type!=='free').length,1);
+assert.equal(state.addRegion(value).regions.length,2);
 assert.equal(state.addRegion({...value,regions:[]}).regions.length,1);
 console.log('PASS: exact roundtrip, disabled populated signature, empty styled slot, duplicate/order/local chips, legacy text, null inheritance, missing slot, side switch, no-flow addition');

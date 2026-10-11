@@ -13,5 +13,15 @@ export function useGallery(logged:boolean,album:string){
 export function Gallery({assets,loading,error,next,onMore,onSelect,selectedAlbum}:{assets:Asset[];loading:boolean;error:string;next:string|null;onMore:()=>void;onSelect:(a:Asset)=>void;selectedAlbum:boolean}){
  const sentinel=useRef<HTMLDivElement>(null);
  useEffect(()=>{const element=sentinel.current;if(!element||loading||error||!next)return;const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))onMore();},{root:element.closest('.gallery-scroll'),rootMargin:'500px'});observer.observe(element);return()=>observer.disconnect();},[loading,error,next,onMore,assets.length]);
- return <><div className="photo-masonry">{assets.map(a=><button key={a.id} className="photo-tile" aria-label={a.name} onClick={()=>onSelect(a)}><img src={`/api/assets/${a.id}/thumbnail`} alt="" loading="lazy" decoding="async" style={a.width&&a.height?{aspectRatio:`${a.width}/${a.height}`}:undefined}/><span className="photo-caption">{a.name}</span>{a.status?.job&&<span className="asset-badge">{['queued','running','publishing'].includes(a.status.job)?'处理中':a.status.job==='failed'?'生成失败':a.status.published?'已出图':'已保存'}</span>}</button>)}</div><div ref={sentinel} className="gallery-sentinel" role="status">{!selectedAlbum?'从左侧选择相册':loading?'正在加载照片…':!assets.length&&!error?'此相册在当前源库中没有可用照片':!next&&!error?'已显示全部可用照片':''}{error&&<><p role="alert">{error}</p><button onClick={onMore}>重新加载</button></>}</div></>;
+  const badge = (a:Asset) => {
+    if (!a.status) return null;
+    const {configured, job, published} = a.status;
+    const label = published ? '有成品'
+      : (job && ['queued','running','publishing','awaiting_import','refresh_pending'].includes(job)) ? '处理中'
+      : job === 'failed' ? '处理失败'
+      : configured ? '有草稿' : '未制作';
+    const tone = published ? 'done' : job === 'failed' ? 'bad' : (job && ['queued','running','publishing'].includes(job)) ? 'busy' : 'saved';
+    return <span className={`asset-badge ${tone}`}>{label}</span>;
+  };
+  return <><div className="photo-masonry">{assets.map(a=><button key={a.id} className="photo-tile" aria-label={a.name} onClick={()=>onSelect(a)}><img src={`/api/assets/${a.id}/thumbnail`} alt="" loading="lazy" decoding="async" style={a.width&&a.height?{aspectRatio:`${a.width}/${a.height}`}:undefined}/><span className="photo-caption">{a.name}</span>{badge(a)}</button>)}</div><div ref={sentinel} className="gallery-sentinel" role="status">{!selectedAlbum?'从左侧选择相册':loading?'正在加载照片…':!assets.length&&!error?'此相册在当前源库中没有可用照片':!next&&!error?'已显示全部可用照片':''}{error&&<><p role="alert">{error}</p><button onClick={onMore}>重新加载</button></>}</div></>;
 }

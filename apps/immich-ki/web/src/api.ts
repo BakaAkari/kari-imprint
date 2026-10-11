@@ -31,6 +31,8 @@ const errorLabels: Record<string, string> = {
   key_scope_insufficient: '该 key 权限不足，请在 Immich 生成包含用户信息读取权限的 key（默认全权限即可）',
   invalid_credentials: 'Immich 账户或密码错误',
   forbidden_account: '该 Immich 账户不是面板的关联账户',
+  owner_unbound: '面板尚未绑定归属账户，请重新初始化面板',
+  too_many_frames: '每张照片只支持一个信息条',
   login_rate_limited: '尝试次数过多，请 5 分钟后再试',
   invalid_request: '请求不合法',
   init_required: '面板尚未关联 Immich，请先输入 API Key 完成初始化',

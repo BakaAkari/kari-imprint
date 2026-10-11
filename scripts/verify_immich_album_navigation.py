@@ -194,28 +194,38 @@ def main():
         page.wait_for_function("document.querySelector('canvas')?.width > 300")
         expect(page.locator(".save-action")).to_be_enabled()
 
-        # H ─ dirty guard: dismissing keeps the photo, accepting switches.
+        # H ─ dirty guard: continuing editing keeps the photo, saving the draft
+        # and leaving switches to the next photo.
         page.get_by_text("默认文字样式", exact=True).click()
         page.locator("label").filter(has_text="字号方式").get_by_role("combobox").select_option("ratio")
         expect(page.locator(".save-action")).to_contain_text("*")
         page.evaluate("document.activeElement && document.activeElement.blur()")
-        page.once("dialog", lambda dialog: dialog.dismiss())
         page.keyboard.press("ArrowRight")
+        expect(page.locator(".leave-modal")).to_be_visible()
+        page.get_by_role("button", name="继续编辑", exact=True).click()
         expect(page.locator(".statusbar")).to_contain_text("P2.jpg")
-        page.once("dialog", lambda dialog: dialog.accept())
         page.keyboard.press("ArrowRight")
+        expect(page.locator(".leave-modal")).to_be_visible()
+        page.get_by_role("button", name="保存草稿并离开", exact=True).click()
         expect(page.locator(".statusbar")).to_contain_text("P3.jpg")
         page.wait_for_function("document.querySelector('canvas')?.width > 300")
         expect(page.locator(".save-action")).to_be_enabled()
-        expect(page.locator(".save-action")).to_have_text("保存并生成")
+        expect(page.locator(".save-action")).to_have_text("保存到 Immich")
 
         # F ─ saving posts the render job with the current source album id.
         page.locator(".save-action").click()
-        expect(page.locator(".statusbar")).to_contain_text("GEN")
+        expect(page.locator(".statusbar")).to_contain_text("正在生成")
         assert render_payloads == [{"revision": 2, "sourceAlbumId": "trip"}], render_payloads
 
+        def close_photo():
+            page.get_by_role("button", name="关闭照片").click()
+            modal = page.locator(".leave-modal")
+            if modal.count():
+                # A per-photo draft may have been persisted; leave and keep it.
+                page.get_by_role("button", name="保存草稿并离开", exact=True).click()
+
         # G ─ closing the photo restores the album view and its scroll offset.
-        page.get_by_role("button", name="关闭照片").click()
+        close_photo()
         expect(page.locator(".photo-editor")).to_have_count(0)
         expect(page.locator(".controls")).to_have_count(0)
         expect(page.locator(".photo-masonry")).to_be_visible()
@@ -235,15 +245,18 @@ def main():
         assert captured > 100, f"gallery was not scrolled before opening a photo: {captured}"
         # Dispatch the click through the DOM: Playwright's own click auto-scrolls
         # the tile into view, which would change the offset under test.
-        clicked = page.evaluate("""(name) => {
+        clicked = page.evaluate(
+            """(name) => {
             for (const tile of document.querySelectorAll('.photo-tile')) {
                 if (tile.getAttribute('aria-label') === name) { tile.click(); return true; }
             }
             return false;
-        }""", visible_tile)
+        }""",
+            visible_tile,
+        )
         assert clicked, f"photo tile {visible_tile} vanished before the click"
         expect(page.locator(".photo-editor")).to_be_visible()
-        page.get_by_role("button", name="关闭照片").click()
+        close_photo()
         expect(page.locator(".photo-editor")).to_have_count(0)
         expect(page.locator(".controls")).to_have_count(0)
         restored = page.evaluate("document.querySelector('.gallery-scroll').scrollTop")

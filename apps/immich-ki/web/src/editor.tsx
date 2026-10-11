@@ -1,6 +1,7 @@
 import { ContentEditor } from '../../../web/src/components/InspectorPanel';
 import { defaultStyle, defaultFlowLayout, normalizeStylePatch, type ImprintConfig, type RegionConfig, type StyleConfig } from '../../../web/src/types';
 import { addRegion, emptySlot, moveRegion, slotLabel, updateSlot } from './editor-state';
+import { marginsForFrame } from './defaults';
 export { editableConfig, serializeEditorConfig } from './editor-state';
 type Update = (update: (value: ImprintConfig) => ImprintConfig) => void;
 function TextStyle({ style, onChange }: {
@@ -38,14 +39,13 @@ function RegionPanel({ region, config, onChange }: {
     {!region.enabled && <p className="editor-note">此区域已停用，内容保留。</p>}
     <details className="editor-layout"><summary>位置与布局</summary><div className="editor-fields">
       {!free ? <>
-        <label>边框位置<select value={region.type === 'footer-bar' ? 'footer' : region.edge ?? 'right'} onChange={e => onChange(current => ({ ...current, regions: current.regions.map(r => r.id === region.id ? moveRegion(r, e.target.value) : r) }))}><option value="footer">底栏</option><option value="left">左侧栏</option><option value="right">右侧栏</option></select></label>
+        <label>边框位置<select value={region.type === 'footer-bar' ? 'footer' : region.edge ?? 'right'} onChange={e => onChange(current => ({ ...current, canvas: { ...current.canvas, margins: marginsForFrame(e.target.value as 'footer' | 'left' | 'right') }, regions: current.regions.map(r => r.id === region.id ? moveRegion(r, e.target.value) : r) }))}><option value="footer">底栏</option><option value="left">左侧栏</option><option value="right">右侧栏</option></select></label>
         <label>排版轨道<select value={layout.mode} onChange={e => patch({ layout: { ...layout, mode: e.target.value as typeof layout.mode } })}><option value="single-track">单轨</option><option value="dual-track">双轨</option></select></label>
         {region.type === 'footer-bar' ? <label>底栏高度<input type="number" min={0} max={1} step="any" value={region.height ?? 0.15} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ height: Number(e.target.value) }); }}/></label> : <label>侧栏宽度<input type="number" min={0} max={region.width?.mode === 'pixel' ? 600 : 1} step="any" value={region.width?.value ?? 0.12} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ width: { mode: region.width?.mode ?? 'short_edge_ratio', value: Number(e.target.value) } }); }}/></label>}
         {region.type === 'side-bar' && <label>侧栏宽度单位<select value={region.width?.mode ?? 'short_edge_ratio'} onChange={e => patch({ width: { mode: e.target.value as 'pixel' | 'short_edge_ratio', value: e.target.value === 'pixel' ? 80 : 0.12 } })}><option value="short_edge_ratio">照片短边比例</option><option value="pixel">像素</option></select></label>}
-        <label>内容对齐<select value={layout.main_alignment} onChange={e => patch({ layout: { ...layout, main_alignment: e.target.value as typeof layout.main_alignment } })}>{['start', 'center', 'end', 'space-between'].map((v, i) => <option key={v} value={v}>{['起点', '居中', '终点', '两端对齐'][i]}</option>)}</select></label>
-        <label>轨道内对齐<select value={layout.cross_alignment} onChange={e => patch({ layout: { ...layout, cross_alignment: e.target.value as typeof layout.cross_alignment } })}>{['start', 'center', 'end'].map((v, i) => <option key={v} value={v}>{['起点', '居中', '终点'][i]}</option>)}</select></label>
+        <p className="editor-note">信息条内文字固定两端对齐、内容居中，对齐参数已移除。</p>
         {(['track_gap', 'item_gap'] as const).map((key, i) => <label key={key}>{i ? '内容间距' : '轨道间距'}<select aria-label={i ? '内容间距单位' : '轨道间距单位'} value={layout[key].mode} onChange={e => patch({ layout: { ...layout, [key]: { mode: e.target.value, value: e.target.value === 'pixel' ? 8 : 0.012 } } })}><option value="short_edge_ratio">照片短边比例</option><option value="pixel">像素</option></select><input aria-label={i ? '内容间距数值' : '轨道间距数值'} type="number" min={0} max={layout[key].mode === 'pixel' ? 600 : 1} step="any" value={layout[key].value} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ layout: { ...layout, [key]: { ...layout[key], value: Number(e.target.value) } } }); }}/></label>)}
         <label>主轨占比<input type="number" min={0.01} max={0.99} step="any" value={layout.track_ratios[0]} onChange={e => { if (e.target.validity.valid && e.target.value)
@@ -84,7 +84,7 @@ export function Editor({ config, onChange }: {
 }) {
     return <div className="watermark-editor">
     <details className="editor-section"><summary>默认文字样式</summary><p className="editor-note">应用于未设置独立样式的文字。</p><TextStyle style={config.defaults ?? defaultStyle} onChange={defaults => onChange(current => ({ ...current, defaults }))}/></details>
-    {config.regions.length === 0 && <p className="editor-note">尚未添加边框。添加后可选择照片信息或自定义文字。</p>}
+    {!config.regions.some(region => region.type !== 'free') && <div className="editor-add"><button type="button" onClick={() => onChange(current => addRegion(current))}>添加信息条</button><p className="editor-note">当前没有信息条；添加后可选择照片信息或自定义文字。</p></div>}
     {config.regions.map(region => <RegionPanel key={region.id} region={region} config={config} onChange={onChange}/>)}
     <div className="editor-add"><button type="button" disabled={config.regions.length >= 10} onClick={() => onChange(current => addRegion(current, true))}>添加签名</button></div>
     <details className="editor-section"><summary>画布与共享文字</summary><div className="editor-fields">

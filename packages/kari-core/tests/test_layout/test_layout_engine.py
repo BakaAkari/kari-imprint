@@ -1,6 +1,5 @@
 """Layout Engine 单元测试。"""
 
-
 from kari_core.shared.layout.layout_engine import (
     CanvasConfig,
     FieldChip,
@@ -39,7 +38,7 @@ class TestCanvasSize:
         )
         result = compute_layout(config, 1000, 800)
         assert result.canvas.w == 1000 + 40 + 20  # 1060
-        assert result.canvas.h == 800 + 10 + 30   # 840
+        assert result.canvas.h == 800 + 10 + 30  # 840
         assert result.image_rect == Rect(x=40, y=10, w=1000, h=800)
 
 
@@ -66,7 +65,8 @@ class TestFontSize:
                     )
                 ],
             ),
-            1920, 1080,
+            1920,
+            1080,
         )
         el = result.elements[0]
         assert el.style.font_size == 48
@@ -92,7 +92,8 @@ class TestFontSize:
                     )
                 ],
             ),
-            1920, 1080,
+            1920,
+            1080,
         )
         el = result.elements[0]
         # 短边 = 1080, ratio = 0.05 → 54px
@@ -119,8 +120,8 @@ class TestFontSize:
             ],
         )
 
-        r1 = compute_layout(config, 1920, 1080)   # 16:9
-        r2 = compute_layout(config, 1080, 1920)   # 9:16
+        r1 = compute_layout(config, 1920, 1080)  # 16:9
+        r2 = compute_layout(config, 1080, 1920)  # 9:16
 
         assert r1.elements[0].style.font_size == r2.elements[0].style.font_size == 54
 
@@ -147,7 +148,8 @@ class TestFontSize:
                     )
                 ],
             ),
-            1920, 1080,
+            1920,
+            1080,
         )
         el = result.elements[0]
         # v2: full footer region height = 120px (bottom margin), ratio = 0.5 → 60px
@@ -174,13 +176,15 @@ class TestFooterBarLayout:
         }
         result = compute_layout(
             ImprintConfig(
-                regions=[RegionConfig(
-                    id="footer",
-                    type="footer-bar",
-                    enabled=True,
-                    height=0.09,
-                    slots=slots,
-                )],
+                regions=[
+                    RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        slots=slots,
+                    )
+                ],
             ),
             1000,
             600,
@@ -200,17 +204,19 @@ class TestFooterBarLayout:
     def test_single_row_is_vertically_centered_left_and_right(self):
         result = compute_layout(
             ImprintConfig(
-                regions=[RegionConfig(
-                    id="footer",
-                    type="footer-bar",
-                    enabled=True,
-                    height=0.09,
-                    layout=FlowLayoutConfig(mode="single-track"),
-                    slots={
-                        "primary-start": self._text_slot(),
-                        "primary-end": self._text_slot(),
-                    },
-                )],
+                regions=[
+                    RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        layout=FlowLayoutConfig(mode="single-track"),
+                        slots={
+                            "primary-start": self._text_slot(),
+                            "primary-end": self._text_slot(),
+                        },
+                    )
+                ],
             ),
             1000,
             600,
@@ -228,19 +234,21 @@ class TestFooterBarLayout:
     def test_right_logo_only_reserves_right_side(self):
         result = compute_layout(
             ImprintConfig(
-                regions=[RegionConfig(
-                    id="footer",
-                    type="footer-bar",
-                    enabled=True,
-                    height=0.09,
-                    slots={
-                        "primary-start": self._text_slot(),
-                        "asset": SlotConfig(
-                            enabled=True,
-                            content=LogoContent(path="logo.png"),
-                        ),
-                    },
-                )],
+                regions=[
+                    RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        slots={
+                            "primary-start": self._text_slot(),
+                            "asset": SlotConfig(
+                                enabled=True,
+                                content=LogoContent(path="logo.png"),
+                            ),
+                        },
+                    )
+                ],
             ),
             1000,
             600,
@@ -257,19 +265,21 @@ class TestFooterBarLayout:
         def _run(aspect: float | None) -> Rect:
             layout = compute_layout(
                 ImprintConfig(
-                    regions=[RegionConfig(
-                        id="footer",
-                        type="footer-bar",
-                        enabled=True,
-                        height=0.09,
-                        slots={
-                            "primary-start": self._text_slot(),
-                            "asset": SlotConfig(
-                                enabled=True,
-                                content=LogoContent(path="logo.png", placement="end"),
-                            ),
-                        },
-                    )],
+                    regions=[
+                        RegionConfig(
+                            id="footer",
+                            type="footer-bar",
+                            enabled=True,
+                            height=0.09,
+                            slots={
+                                "primary-start": self._text_slot(),
+                                "asset": SlotConfig(
+                                    enabled=True,
+                                    content=LogoContent(path="logo.png", placement="end"),
+                                ),
+                            },
+                        )
+                    ],
                 ),
                 1000,
                 600,
@@ -292,21 +302,24 @@ class TestFooterBarLayout:
         def _run(aspect: float | None) -> Rect:
             layout = compute_layout(
                 ImprintConfig(
-                    regions=[RegionConfig(
-                        id="footer",
-                        type="footer-bar",
-                        enabled=True,
-                        height=0.09,
-                        slots={
-                            "primary-start": self._text_slot(),
-                            "asset": SlotConfig(
-                                enabled=True,
-                                content=LogoContent(path="logo.png", placement="start"),
-                            ),
-                        },
-                    )],
+                    regions=[
+                        RegionConfig(
+                            id="footer",
+                            type="footer-bar",
+                            enabled=True,
+                            height=0.09,
+                            slots={
+                                "primary-start": self._text_slot(),
+                                "asset": SlotConfig(
+                                    enabled=True,
+                                    content=LogoContent(path="logo.png", placement="start"),
+                                ),
+                            },
+                        )
+                    ],
                 ),
-                1000, 600,
+                1000,
+                600,
                 aspect,
             )
             return {el.id: el for el in layout.elements}["footer-asset"].rect
@@ -318,20 +331,24 @@ class TestFooterBarLayout:
         def _run(aspect: float | None) -> Rect:
             layout = compute_layout(
                 ImprintConfig(
-                    regions=[RegionConfig(
-                        id="footer",
-                        type="footer-bar",
-                        enabled=True,
-                        height=0.09,
-                        slots={
-                            "asset": SlotConfig(
-                                enabled=True,
-                                content=LogoContent(path="logo.png", placement="end"),
-                            ),
-                        },
-                    )],
+                    regions=[
+                        RegionConfig(
+                            id="footer",
+                            type="footer-bar",
+                            enabled=True,
+                            height=0.09,
+                            slots={
+                                "asset": SlotConfig(
+                                    enabled=True,
+                                    content=LogoContent(path="logo.png", placement="end"),
+                                ),
+                            },
+                        )
+                    ],
                 ),
-                1000, 600, aspect,
+                1000,
+                600,
+                aspect,
             )
             return {el.id: el for el in layout.elements}["footer-asset"].rect
 
@@ -351,20 +368,22 @@ class TestFooterBarLayout:
         def _run(aspect: float | None) -> Rect:
             layout = compute_layout(
                 ImprintConfig(
-                    regions=[RegionConfig(
-                        id="side",
-                        type="side-bar",
-                        enabled=True,
-                        edge="right",
-                        width={"mode": "pixel", "value": 140},
-                        slots={
-                            "primary-start": self._text_slot(),
-                            "asset": SlotConfig(
-                                enabled=True,
-                                content=LogoContent(path="logo.png", placement="end"),
-                            ),
-                        },
-                    )],
+                    regions=[
+                        RegionConfig(
+                            id="side",
+                            type="side-bar",
+                            enabled=True,
+                            edge="right",
+                            width={"mode": "pixel", "value": 140},
+                            slots={
+                                "primary-start": self._text_slot(),
+                                "asset": SlotConfig(
+                                    enabled=True,
+                                    content=LogoContent(path="logo.png", placement="end"),
+                                ),
+                            },
+                        )
+                    ],
                 ),
                 800,
                 600,
@@ -387,19 +406,21 @@ class TestFooterBarLayout:
         """layout engine 本身不区分自动/手动 path；预留由上层解析后决定。"""
         result = compute_layout(
             ImprintConfig(
-                regions=[RegionConfig(
-                    id="footer",
-                    type="footer-bar",
-                    enabled=True,
-                    height=0.09,
-                    slots={
-                        "primary-end": self._text_slot(),
-                        "asset": SlotConfig(
-                            enabled=True,
-                            content=LogoContent(path="", placement="end"),
-                        ),
-                    },
-                )],
+                regions=[
+                    RegionConfig(
+                        id="footer",
+                        type="footer-bar",
+                        enabled=True,
+                        height=0.09,
+                        slots={
+                            "primary-end": self._text_slot(),
+                            "asset": SlotConfig(
+                                enabled=True,
+                                content=LogoContent(path="", placement="end"),
+                            ),
+                        },
+                    )
+                ],
             ),
             1000,
             600,
@@ -411,3 +432,117 @@ class TestFooterBarLayout:
         assert logo.anchor == "middle-right"
         # layout engine 层面不区分 path 是否有值；上层会先解析 auto-logo 再传进来
         assert logo.rect.w > 0
+
+
+class TestSideBarTrackOrder:
+    def test_track_order_flips_primary_column(self):
+        def _run(track_order):
+            return compute_layout(
+                ImprintConfig(
+                    regions=[
+                        RegionConfig(
+                            id="side",
+                            type="side-bar",
+                            enabled=True,
+                            edge="right",
+                            width={"mode": "pixel", "value": 140},
+                            layout=FlowLayoutConfig(track_order=track_order),
+                            slots={
+                                "primary-start": SlotConfig(
+                                    enabled=True,
+                                    content=TextContent(chips=[_make_chip()]),
+                                    style=StyleConfig(font_size=12),
+                                ),
+                                "secondary-start": SlotConfig(
+                                    enabled=True,
+                                    content=TextContent(chips=[_make_chip()]),
+                                    style=StyleConfig(font_size=12),
+                                ),
+                            },
+                        )
+                    ]
+                ),
+                800,
+                600,
+            )
+
+        outward = {el.id: el for el in _run("photo-outward").elements}
+        inward = {el.id: el for el in _run("outward-photo").elements}
+        # photo-outward: primary column is the outer (far right) one.
+        assert outward["side-primary-start"].rect.x > outward["side-secondary-start"].rect.x
+        # outward-photo: primary column is adjacent to the photo (inner/left).
+        assert inward["side-primary-start"].rect.x < inward["side-secondary-start"].rect.x
+
+
+class TestLogoSymmetricSafeArea:
+    """分隔线到图形、图形到外侧内容边界的空白必须相等（几何断言）。"""
+
+    @staticmethod
+    def _footer(placement, item_gap):
+        return ImprintConfig(
+            canvas=CanvasConfig(margins=MarginsConfig()),
+            regions=[
+                RegionConfig(
+                    id="footer",
+                    type="footer-bar",
+                    enabled=True,
+                    height=0.1,
+                    padding={"top": 0, "right": 0, "bottom": 0, "left": 0},
+                    layout=FlowLayoutConfig(item_gap={"mode": "pixel", "value": item_gap}),
+                    slots={
+                        "primary-start": SlotConfig(
+                            enabled=True, content=TextContent(chips=[_make_chip()]), style=StyleConfig(font_size=12)
+                        ),
+                        "asset": SlotConfig(enabled=True, content=LogoContent(path="logo.png", placement=placement)),
+                    },
+                )
+            ],
+        )
+
+    @staticmethod
+    def _side(edge, placement, item_gap):
+        return ImprintConfig(
+            canvas=CanvasConfig(margins=MarginsConfig()),
+            regions=[
+                RegionConfig(
+                    id="side",
+                    type="side-bar",
+                    enabled=True,
+                    edge=edge,
+                    width={"mode": "pixel", "value": 140},
+                    padding={"top": 0, "right": 0, "bottom": 0, "left": 0},
+                    layout=FlowLayoutConfig(item_gap={"mode": "pixel", "value": item_gap}),
+                    slots={
+                        "primary-start": SlotConfig(
+                            enabled=True, content=TextContent(chips=[_make_chip()]), style=StyleConfig(font_size=12)
+                        ),
+                        "asset": SlotConfig(enabled=True, content=LogoContent(path="logo.png", placement=placement)),
+                    },
+                )
+            ],
+        )
+
+    def test_horizontal_end_logo_gap_is_symmetric(self):
+        result = compute_layout(self._footer("end", 10), 1000, 600)
+        elements = {el.id: el for el in result.elements}
+        logo, divider = elements["footer-asset"], elements["footer-divider"]
+        # anchor 'middle-right' → rect.x is the logo's right edge; padding 0 and
+        # no canvas margins → inner right edge == canvas width.
+        assert logo.rect.x == result.canvas.w - 10
+        assert (logo.rect.x - logo.rect.w) - (divider.rect.x + divider.rect.w) == 10
+
+    def test_vertical_end_logo_gap_is_symmetric(self):
+        result = compute_layout(self._side("right", "end", 10), 800, 600)
+        elements = {el.id: el for el in result.elements}
+        logo, divider = elements["side-asset"], elements["side-divider"]
+        # anchor 'bottom-center' → rect.y is the logo's bottom edge.
+        assert logo.rect.y == result.canvas.h - 10
+        assert (logo.rect.y - logo.rect.h) - (divider.rect.y + divider.rect.h) == 10
+
+    def test_vertical_start_logo_gap_is_symmetric(self):
+        result = compute_layout(self._side("left", "start", 10), 800, 600)
+        elements = {el.id: el for el in result.elements}
+        logo, divider = elements["side-asset"], elements["side-divider"]
+        # anchor 'top-center' → rect.y is the logo's top edge.
+        assert logo.rect.y == 10
+        assert divider.rect.y - (logo.rect.y + logo.rect.h) == 10

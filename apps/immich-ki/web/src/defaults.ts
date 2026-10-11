@@ -13,11 +13,23 @@ export const QUICK_FIELD_OPTIONS: FieldId[] = [
 
 const chips = (fields: FieldId[]): FieldChip[] => fields.map(field_id => ({ field_id }));
 
+/** Default 60px white space on the three sides the information frame does not occupy. */
+export const DEFAULT_FRAME_MARGIN = 60;
+
+/** Margins for a given frame position: 60px on the three non-frame sides. */
+export function marginsForFrame(position: 'footer' | 'left' | 'right'): ImprintConfig['canvas']['margins'] {
+  return position === 'footer'
+    ? { top: DEFAULT_FRAME_MARGIN, right: DEFAULT_FRAME_MARGIN, bottom: 0, left: DEFAULT_FRAME_MARGIN }
+    : position === 'left'
+      ? { top: DEFAULT_FRAME_MARGIN, right: DEFAULT_FRAME_MARGIN, bottom: DEFAULT_FRAME_MARGIN, left: 0 }
+      : { top: DEFAULT_FRAME_MARGIN, right: 0, bottom: DEFAULT_FRAME_MARGIN, left: DEFAULT_FRAME_MARGIN };
+}
+
 /** System default watermark layout: dual-track footer, auto-matched device logo on the right. */
 export function buildDefaultConfig(): ImprintConfig {
   return {
     schema_version: 3,
-    canvas: { margins: { top: 0, right: 0, bottom: 0, left: 0 }, background: '#FFFFFF', border_radius: 0, border: { enabled: false, width_level: 'medium', color: '#FFFFFF' } },
+    canvas: { margins: marginsForFrame('footer'), background: '#FFFFFF', border_radius: 0, border: { enabled: false, width_level: 'medium', color: '#FFFFFF' } },
     regions: [{
       id: 'footer', type: 'footer-bar', enabled: true, height: 0.15, layout: defaultFlowLayout(),
       slots: {

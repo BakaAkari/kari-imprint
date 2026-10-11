@@ -14,6 +14,7 @@ from typing import Literal
 
 # ── 基础几何 ─────────────────────────────────
 
+
 @dataclass(frozen=True, slots=True)
 class Rect:
     x: int = 0
@@ -52,6 +53,7 @@ class Size:
 
 # ── 配置类型 ─────────────────────────────────
 
+
 @dataclass(slots=True)
 class MarginsConfig:
     top: int = 0
@@ -89,9 +91,9 @@ class TextContent:
 
 @dataclass(slots=True)
 class LogoContent:
-    path: str = ""           # 空表示 auto
+    path: str = ""  # 空表示 auto
     size_ratio: float | None = None  # 精确比例；为空时由 size_level 决定
-    size_level: str | None = "medium"   # 'small' | 'medium' | 'large'
+    size_level: str | None = "medium"  # 'small' | 'medium' | 'large'
     orientation: str = "upright"
     placement: str = "center"
     track: str = "span"
@@ -134,7 +136,9 @@ class FlowLayoutConfig:
     main_alignment: Literal["start", "center", "end", "space-between"] = "space-between"
     cross_alignment: Literal["start", "center", "end"] = "center"
     track_order: Literal["photo-outward", "outward-photo"] = "photo-outward"
-    track_gap: dict[str, float | int | str] = field(default_factory=lambda: {"mode": "short_edge_ratio", "value": 0.012})
+    track_gap: dict[str, float | int | str] = field(
+        default_factory=lambda: {"mode": "short_edge_ratio", "value": 0.012}
+    )
     item_gap: dict[str, float | int | str] = field(default_factory=lambda: {"mode": "short_edge_ratio", "value": 0.012})
     track_ratios: tuple[float, float] = (0.6, 0.4)
 
@@ -172,6 +176,7 @@ class ImprintConfig:
 
 # ── 布局结果 ─────────────────────────────────
 
+
 @dataclass(slots=True)
 class ComputedElement:
     id: str
@@ -190,6 +195,7 @@ class LayoutResult:
 
 
 # ── Layout Diagnostics ─────────────────────────────────
+
 
 @dataclass(slots=True)
 class DiagnosticItem:
@@ -285,19 +291,29 @@ def compute_layout(
             continue
 
         if region.type == "footer-bar":
-            elements.extend(_compute_footer_bar(
-                region,
-                image_rect,
-                canvas,
-                config.defaults,
-                short_edge,
-                long_edge,
-                aspect,
-            ))
+            elements.extend(
+                _compute_footer_bar(
+                    region,
+                    image_rect,
+                    canvas,
+                    config.defaults,
+                    short_edge,
+                    long_edge,
+                    aspect,
+                )
+            )
         elif region.type == "side-bar":
-            elements.extend(_compute_side_bar(
-                region, image_rect, canvas, config.defaults, short_edge, long_edge, aspect,
-            ))
+            elements.extend(
+                _compute_side_bar(
+                    region,
+                    image_rect,
+                    canvas,
+                    config.defaults,
+                    short_edge,
+                    long_edge,
+                    aspect,
+                )
+            )
         elif region.type == "free":
             elements.extend(_compute_free(region, image_rect, config.defaults, short_edge, long_edge))
 
@@ -328,29 +344,28 @@ def diagnose_layout(layout: LayoutResult, _config: ImprintConfig) -> list[Diagno
             a = elements[i]
             b = elements[j]
             if _rects_overlap(a.rect, b.rect):
-                diagnostics.append(DiagnosticItem(
-                    id=f"overlap-{a.id}-{b.id}",
-                    type="overlap",
-                    severity="error",
-                    message=f"{a.id} 与 {b.id} 重叠",
-                    element_ids=[a.id, b.id],
-                ))
+                diagnostics.append(
+                    DiagnosticItem(
+                        id=f"overlap-{a.id}-{b.id}",
+                        type="overlap",
+                        severity="error",
+                        message=f"{a.id} 与 {b.id} 重叠",
+                        element_ids=[a.id, b.id],
+                    )
+                )
 
     # 2. 越界
     for el in elements:
-        if (
-            el.rect.x < 0
-            or el.rect.y < 0
-            or el.rect.right > canvas.w
-            or el.rect.bottom > canvas.h
-        ):
-            diagnostics.append(DiagnosticItem(
-                id=f"oob-{el.id}",
-                type="out-of-bounds",
-                severity="error",
-                message=f"{el.id} 越出画布",
-                element_ids=[el.id],
-            ))
+        if el.rect.x < 0 or el.rect.y < 0 or el.rect.right > canvas.w or el.rect.bottom > canvas.h:
+            diagnostics.append(
+                DiagnosticItem(
+                    id=f"oob-{el.id}",
+                    type="out-of-bounds",
+                    severity="error",
+                    message=f"{el.id} 越出画布",
+                    element_ids=[el.id],
+                )
+            )
 
     # 3. 空内容 / 缺资源
     for el in elements:
@@ -358,54 +373,57 @@ def diagnose_layout(layout: LayoutResult, _config: ImprintConfig) -> list[Diagno
             if isinstance(el.content, TextContent):
                 non_empty = any(c.field_id != "empty" for c in el.content.chips)
                 if not non_empty:
-                    diagnostics.append(DiagnosticItem(
-                        id=f"empty-{el.id}",
-                        type="empty-enabled-slot",
-                        severity="warning",
-                        message=f"{el.id} 已启用但没有字段",
-                        element_ids=[el.id],
-                    ))
+                    diagnostics.append(
+                        DiagnosticItem(
+                            id=f"empty-{el.id}",
+                            type="empty-enabled-slot",
+                            severity="warning",
+                            message=f"{el.id} 已启用但没有字段",
+                            element_ids=[el.id],
+                        )
+                    )
         elif el.type == "signature" and isinstance(el.content, SignatureContent) and el.content.path == "":
-            diagnostics.append(DiagnosticItem(
-                id=f"missing-sig-{el.id}",
-                type="missing-resource",
-                severity="warning",
-                message=f"{el.id} 未上传签名",
-                element_ids=[el.id],
-            ))
+            diagnostics.append(
+                DiagnosticItem(
+                    id=f"missing-sig-{el.id}",
+                    type="missing-resource",
+                    severity="warning",
+                    message=f"{el.id} 未上传签名",
+                    element_ids=[el.id],
+                )
+            )
 
     present_region_ids = {el.id.split("-", 1)[0] for el in elements}
     for region in _config.regions:
         if region.enabled and region.id not in present_region_ids:
-            diagnostics.append(DiagnosticItem(
-                id=f"empty-region-{region.id}",
-                type="empty-region",
-                severity="warning",
-                message=f"{region.id} 区域未生成任何元素",
-                element_ids=[],
-            ))
+            diagnostics.append(
+                DiagnosticItem(
+                    id=f"empty-region-{region.id}",
+                    type="empty-region",
+                    severity="warning",
+                    message=f"{region.id} 区域未生成任何元素",
+                    element_ids=[],
+                )
+            )
 
     # 4. 字号过大
     for el in elements:
         if el.type == "text" and el.style.font_size is not None and el.style.font_size > el.rect.h:
-            diagnostics.append(DiagnosticItem(
-                id=f"font-large-{el.id}",
-                type="font-too-large",
-                severity="warning",
-                message=f"{el.id} 字号超过 slot 高度",
-                element_ids=[el.id],
-            ))
+            diagnostics.append(
+                DiagnosticItem(
+                    id=f"font-large-{el.id}",
+                    type="font-too-large",
+                    severity="warning",
+                    message=f"{el.id} 字号超过 slot 高度",
+                    element_ids=[el.id],
+                )
+            )
 
     return diagnostics
 
 
 def _rects_overlap(a: Rect, b: Rect) -> bool:
-    return not (
-        a.right <= b.x
-        or a.x >= b.right
-        or a.bottom <= b.y
-        or a.y >= b.bottom
-    )
+    return not (a.right <= b.x or a.x >= b.right or a.bottom <= b.y or a.y >= b.bottom)
 
 
 # ── 各区域类型计算 ─────────────────────────────────
@@ -520,7 +538,8 @@ def _compute_flow_region(
     pad_bottom = int(padding.get("bottom", max(6, round(base * 0.14))))
     pad_left = int(padding.get("left", max(8, round(base * 0.14))))
     inner = Rect(
-        x=bounds.x + pad_left, y=bounds.y + pad_top,
+        x=bounds.x + pad_left,
+        y=bounds.y + pad_top,
         w=max(1, bounds.w - pad_left - pad_right),
         h=max(1, bounds.h - pad_top - pad_bottom),
     )
@@ -537,9 +556,12 @@ def _compute_flow_region(
         primary = Rect(inner.x, first_y if primary_first else second_y, inner.w, primary_size)
         secondary = Rect(inner.x, second_y if primary_first else first_y, inner.w, secondary_size)
     else:
-        # Rotated-footer semantics: primary (the former upper track) is outer;
-        # secondary remains adjacent to the photo on either edge.
-        primary_on_left = region.edge == "left"
+        # Rotated-footer semantics: 'photo-outward' puts the primary (former
+        # upper) track on the outer edge away from the photo; 'outward-photo'
+        # flips it so the primary track sits adjacent to the photo.
+        primary_on_outer = layout.track_order == "photo-outward"
+        outer_is_left = region.edge == "left"
+        primary_on_left = outer_is_left if primary_on_outer else not outer_is_left
         first_x = inner.x
         second_x = inner.x + (primary_size if primary_on_left else secondary_size) + track_gap
         primary = Rect(first_x if primary_on_left else second_x, inner.y, primary_size, inner.h)
@@ -564,12 +586,12 @@ def _compute_flow_region(
             else min(inner.h, round(logo_size / asset_aspect_ratio))
         )
         physical_placement = (
-            _side_placement(region, asset.content.placement)
-            if flow == "vertical"
-            else asset.content.placement
+            _side_placement(region, asset.content.placement) if flow == "vertical" else asset.content.placement
         )
         divider_w = max(1, round(short_edge * 0.001))
         if physical_placement == "end":
+            # Symmetric safe area: the gap between the divider and the logo
+            # equals the gap between the logo and the outer content boundary.
             logo_end_reserve = logo_dim + divider_w + item_gap * 2
         elif physical_placement == "start":
             logo_start_reserve = logo_dim + divider_w + item_gap * 2
@@ -578,10 +600,6 @@ def _compute_flow_region(
         # Divider: thin subtle line between logo and text when logo is on edge
         if physical_placement in ("start", "end"):
             has_divider = True
-            if physical_placement == "start":
-                logo_start_reserve = logo_dim + divider_w + item_gap
-            else:
-                logo_end_reserve = logo_dim + divider_w + item_gap
 
     for track_name in ("primary", "secondary"):
         if track_name == "secondary" and layout.mode == "single-track":
@@ -600,36 +618,47 @@ def _compute_flow_region(
                 anchor = "middle-left" if endpoint == "start" else "middle-right"
                 if endpoint == "start":
                     slot_bounds = Rect(
-                        x=track.x + logo_start_reserve, y=track.y,
-                        w=max(1, (track.w - logo_center_reserve) // 2 - item_gap - logo_start_reserve), h=track.h,
+                        x=track.x + logo_start_reserve,
+                        y=track.y,
+                        w=max(1, (track.w - logo_center_reserve) // 2 - item_gap - logo_start_reserve),
+                        h=track.h,
                     )
                 else:
                     slot_bounds = Rect(
-                        x=track.x + (track.w + logo_center_reserve) // 2 + item_gap, y=track.y,
-                        w=max(1, (track.w - logo_center_reserve) // 2 - item_gap - logo_end_reserve), h=track.h,
+                        x=track.x + (track.w + logo_center_reserve) // 2 + item_gap,
+                        y=track.y,
+                        w=max(1, (track.w - logo_center_reserve) // 2 - item_gap - logo_end_reserve),
+                        h=track.h,
                     )
             else:
                 physical_endpoint = _side_endpoint(region, endpoint)
                 anchor = "top-center" if physical_endpoint == "start" else "bottom-center"
                 if physical_endpoint == "start":
                     slot_bounds = Rect(
-                        x=track.x, y=track.y + logo_start_reserve,
+                        x=track.x,
+                        y=track.y + logo_start_reserve,
                         w=track.w,
                         h=max(1, (track.h - logo_center_reserve) // 2 - item_gap - logo_start_reserve),
                     )
                 else:
                     slot_bounds = Rect(
-                        x=track.x, y=track.y + (track.h + logo_center_reserve) // 2 + item_gap,
+                        x=track.x,
+                        y=track.y + (track.h + logo_center_reserve) // 2 + item_gap,
                         w=track.w,
                         h=max(1, (track.h - logo_center_reserve) // 2 - item_gap - logo_end_reserve),
                     )
             pos = _apply_anchor(slot_bounds, anchor)
             if isinstance(slot.content, TextContent) and slot.content.chips:
-                elements.append(ComputedElement(
-                    id=f"{region.id}-{slot_id}", type="text",
-                    rect=Rect(pos.x, pos.y, slot_bounds.w, slot_bounds.h),
-                    anchor=anchor, content=slot.content, style=_with_font_size(style, font_size),
-                ))
+                elements.append(
+                    ComputedElement(
+                        id=f"{region.id}-{slot_id}",
+                        type="text",
+                        rect=Rect(pos.x, pos.y, slot_bounds.w, slot_bounds.h),
+                        anchor=anchor,
+                        content=slot.content,
+                        style=_with_font_size(style, font_size),
+                    )
+                )
     if has_divider and asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)
@@ -639,54 +668,84 @@ def _compute_flow_region(
             else min(inner.h, round(logo_h / asset_aspect_ratio))
         )
         physical_placement = (
-            _side_placement(region, asset.content.placement)
-            if flow == "vertical"
-            else asset.content.placement
+            _side_placement(region, asset.content.placement) if flow == "vertical" else asset.content.placement
         )
         divider_w = max(1, round(short_edge * 0.001))
         empty = TextContent(chips=[], separator="")
         if flow == "horizontal":
             if physical_placement == "start":
                 div_x = inner.x + item_gap + logo_dim + item_gap
-                elements.append(ComputedElement(
-                    id=f"{region.id}-divider", type="divider",
-                    rect=Rect(div_x, inner.y, divider_w, inner.h),
-                    anchor="middle-center", content=empty, style=defaults,
-                ))
+                elements.append(
+                    ComputedElement(
+                        id=f"{region.id}-divider",
+                        type="divider",
+                        rect=Rect(div_x, inner.y, divider_w, inner.h),
+                        anchor="middle-center",
+                        content=empty,
+                        style=defaults,
+                    )
+                )
             else:
                 div_x = inner.x + inner.w - item_gap - logo_dim - item_gap - divider_w
-                elements.append(ComputedElement(
-                    id=f"{region.id}-divider", type="divider",
-                    rect=Rect(div_x, inner.y, divider_w, inner.h),
-                    anchor="middle-center", content=empty, style=defaults,
-                ))
+                elements.append(
+                    ComputedElement(
+                        id=f"{region.id}-divider",
+                        type="divider",
+                        rect=Rect(div_x, inner.y, divider_w, inner.h),
+                        anchor="middle-center",
+                        content=empty,
+                        style=defaults,
+                    )
+                )
         else:
             if physical_placement == "start":
-                div_y = inner.y + logo_dim
-                elements.append(ComputedElement(
-                    id=f"{region.id}-divider", type="divider",
-                    rect=Rect(inner.x, div_y, inner.w, divider_w),
-                    anchor="middle-center", content=empty, style=defaults,
-                ))
+                # Symmetric: item_gap above the logo and item_gap below it
+                # (between logo and divider), mirroring the horizontal layout.
+                div_y = inner.y + item_gap + logo_dim + item_gap
+                elements.append(
+                    ComputedElement(
+                        id=f"{region.id}-divider",
+                        type="divider",
+                        rect=Rect(inner.x, div_y, inner.w, divider_w),
+                        anchor="middle-center",
+                        content=empty,
+                        style=defaults,
+                    )
+                )
             else:
-                div_y = inner.y + inner.h - logo_dim - divider_w
-                elements.append(ComputedElement(
-                    id=f"{region.id}-divider", type="divider",
-                    rect=Rect(inner.x, div_y, inner.w, divider_w),
-                    anchor="middle-center", content=empty, style=defaults,
-                ))
+                div_y = inner.y + inner.h - item_gap - logo_dim - item_gap - divider_w
+                elements.append(
+                    ComputedElement(
+                        id=f"{region.id}-divider",
+                        type="divider",
+                        rect=Rect(inner.x, div_y, inner.w, divider_w),
+                        anchor="middle-center",
+                        content=empty,
+                        style=defaults,
+                    )
+                )
     if asset is not None and asset.enabled and isinstance(asset.content, LogoContent):
         size_ref = bounds.h if flow == "horizontal" else bounds.w
         logo_h = _resolve_logo_size(asset.content, size_ref)
         physical_placement = (
-            _side_placement(region, asset.content.placement)
-            if flow == "vertical"
-            else asset.content.placement
+            _side_placement(region, asset.content.placement) if flow == "vertical" else asset.content.placement
         )
         anchor = (
-            ("middle-left" if asset.content.placement == "start" else "middle-right" if asset.content.placement == "end" else "middle-center")
+            (
+                "middle-left"
+                if asset.content.placement == "start"
+                else "middle-right"
+                if asset.content.placement == "end"
+                else "middle-center"
+            )
             if flow == "horizontal"
-            else ("top-center" if physical_placement == "start" else "bottom-center" if physical_placement == "end" else "middle-center")
+            else (
+                "top-center"
+                if physical_placement == "start"
+                else "bottom-center"
+                if physical_placement == "end"
+                else "middle-center"
+            )
         )
         if flow == "horizontal":
             asset_bounds = (
@@ -697,7 +756,13 @@ def _compute_flow_region(
                 else inner
             )
         else:
-            asset_bounds = inner
+            asset_bounds = (
+                Rect(inner.x, inner.y + item_gap, inner.w, max(1, inner.h - item_gap))
+                if physical_placement == "start"
+                else Rect(inner.x, inner.y, inner.w, max(1, inner.h - item_gap))
+                if physical_placement == "end"
+                else inner
+            )
         pos = _apply_anchor(asset_bounds, anchor)
         content = replace(
             asset.content,
@@ -709,11 +774,16 @@ def _compute_flow_region(
         else:
             asset_w = min(inner.w, logo_h)
             asset_h = min(inner.h, round(logo_h / asset_aspect_ratio))
-        elements.append(ComputedElement(
-            id=f"{region.id}-asset", type="logo",
-            rect=Rect(pos.x, pos.y, asset_w, asset_h),
-            anchor=anchor, content=content, style=defaults,
-        ))
+        elements.append(
+            ComputedElement(
+                id=f"{region.id}-asset",
+                type="logo",
+                rect=Rect(pos.x, pos.y, asset_w, asset_h),
+                anchor=anchor,
+                content=content,
+                style=defaults,
+            )
+        )
     return elements
 
 
@@ -750,14 +820,16 @@ def _compute_free(
             else:
                 sig_ratio = 0.20
             sig_h = round(short_edge * sig_ratio)
-            elements.append(ComputedElement(
-                id=f"{region.id}-{slot_id}",
-                type="signature",
-                rect=Rect(x=final_x, y=final_y, w=sig_h, h=sig_h),
-                anchor=anchor,
-                content=slot.content,
-                style=style,
-            ))
+            elements.append(
+                ComputedElement(
+                    id=f"{region.id}-{slot_id}",
+                    type="signature",
+                    rect=Rect(x=final_x, y=final_y, w=sig_h, h=sig_h),
+                    anchor=anchor,
+                    content=slot.content,
+                    style=style,
+                )
+            )
 
     return elements
 

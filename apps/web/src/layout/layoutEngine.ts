@@ -410,9 +410,12 @@ function computeFlowRegion(
     primary = rect(inner.x, primaryFirst ? firstY : secondY, inner.w, primarySize);
     secondary = rect(inner.x, primaryFirst ? secondY : firstY, inner.w, secondarySize);
   } else {
-    // Rotated-footer semantics: the primary (former upper) track is the outer
-    // side column, while secondary stays adjacent to the photo.
-    const primaryOnLeft = region.edge === 'left';
+    // Rotated-footer semantics: 'photo-outward' puts the primary (former upper)
+    // track on the outer edge away from the photo; 'outward-photo' flips it so
+    // the primary track sits adjacent to the photo.
+    const primaryOnOuter = layout.track_order === 'photo-outward';
+    const outerIsLeft = region.edge === 'left';
+    const primaryOnLeft = primaryOnOuter ? outerIsLeft : !outerIsLeft;
     const firstX = inner.x;
     const secondX = inner.x + (primaryOnLeft ? primarySize : secondarySize) + trackGap;
     primary = rect(primaryOnLeft ? firstX : secondX, inner.y, primarySize, inner.h);
@@ -520,11 +523,13 @@ function computeFlowRegion(
       }
     } else {
       if (physicalPlacement === 'start') {
-        const divY = inner.y + logoDim;
+        // Symmetric: itemGap above the logo and itemGap below it (between logo
+        // and divider), mirroring the horizontal layout.
+        const divY = inner.y + itemGap + logoDim + itemGap;
         elements.push({ id: `${region.id}-divider`, type: 'divider',
           rect: rect(inner.x, divY, inner.w, dividerW), anchor: 'middle-center', content: emptyContent, style: defaults });
       } else {
-        const divY = inner.y + inner.h - logoDim - dividerW;
+        const divY = inner.y + inner.h - itemGap - logoDim - itemGap - dividerW;
         elements.push({ id: `${region.id}-divider`, type: 'divider',
           rect: rect(inner.x, divY, inner.w, dividerW), anchor: 'middle-center', content: emptyContent, style: defaults });
       }
@@ -545,7 +550,11 @@ function computeFlowRegion(
         : physicalPlacement === 'end'
           ? rect(inner.x, inner.y, Math.max(1, inner.w - itemGap), inner.h)
           : inner
-      : inner;
+      : physicalPlacement === 'start'
+        ? rect(inner.x, inner.y + itemGap, inner.w, Math.max(1, inner.h - itemGap))
+        : physicalPlacement === 'end'
+          ? rect(inner.x, inner.y, inner.w, Math.max(1, inner.h - itemGap))
+          : inner;
     const pos = applyAnchor(assetBounds, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
     const assetW = flow === 'horizontal'
