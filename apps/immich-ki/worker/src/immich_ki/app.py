@@ -34,7 +34,7 @@ PUBLIC_VALUE_ERRORS = {
     'invalid_resource', 'output_too_large', 'renderer_changed', 'queue_full',
     'job_not_found', 'insufficient_disk_space', 'must_not_exist', 'checksum_mismatch',
     'image_too_large', 'unsupported_image', 'result_album_read_only', 'asset_not_in_album',
-    'album_pair_changed', 'ambiguous_album_pair',
+    'album_pair_changed', 'ambiguous_album_pair', 'single_frame_only',
 }
 
 

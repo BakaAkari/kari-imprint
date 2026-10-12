@@ -44,15 +44,18 @@ function RegionPanel({ region, config, onChange }: {
             patch({ height: Number(e.target.value) }); }}/></label> : <label>侧栏宽度<input type="number" min={0} max={region.width?.mode === 'pixel' ? 600 : 1} step="any" value={region.width?.value ?? 0.12} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ width: { mode: region.width?.mode ?? 'short_edge_ratio', value: Number(e.target.value) } }); }}/></label>}
         {region.type === 'side-bar' && <label>侧栏宽度单位<select value={region.width?.mode ?? 'short_edge_ratio'} onChange={e => patch({ width: { mode: e.target.value as 'pixel' | 'short_edge_ratio', value: e.target.value === 'pixel' ? 80 : 0.12 } })}><option value="short_edge_ratio">照片短边比例</option><option value="pixel">像素</option></select></label>}
-        <label>内容对齐<select value={layout.main_alignment} onChange={e => patch({ layout: { ...layout, main_alignment: e.target.value as typeof layout.main_alignment } })}>{['start', 'center', 'end', 'space-between'].map((v, i) => <option key={v} value={v}>{['起点', '居中', '终点', '两端对齐'][i]}</option>)}</select></label>
-        <label>轨道内对齐<select value={layout.cross_alignment} onChange={e => patch({ layout: { ...layout, cross_alignment: e.target.value as typeof layout.cross_alignment } })}>{['start', 'center', 'end'].map((v, i) => <option key={v} value={v}>{['起点', '居中', '终点'][i]}</option>)}</select></label>
+        {/* main_alignment/cross_alignment are schema fields but the flow engine
+            does not read them; per the design contract dead controls are
+            removed instead of left misleading. */}
         {(['track_gap', 'item_gap'] as const).map((key, i) => <label key={key}>{i ? '内容间距' : '轨道间距'}<select aria-label={i ? '内容间距单位' : '轨道间距单位'} value={layout[key].mode} onChange={e => patch({ layout: { ...layout, [key]: { mode: e.target.value, value: e.target.value === 'pixel' ? 8 : 0.012 } } })}><option value="short_edge_ratio">照片短边比例</option><option value="pixel">像素</option></select><input aria-label={i ? '内容间距数值' : '轨道间距数值'} type="number" min={0} max={layout[key].mode === 'pixel' ? 600 : 1} step="any" value={layout[key].value} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ layout: { ...layout, [key]: { ...layout[key], value: Number(e.target.value) } } }); }}/></label>)}
         <label>主轨占比<input type="number" min={0.01} max={0.99} step="any" value={layout.track_ratios[0]} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ layout: { ...layout, track_ratios: [Number(e.target.value), 1 - Number(e.target.value)] } }); }}/></label>
         {(['top', 'right', 'bottom', 'left'] as const).map((key, i) => <label key={key}>{['上', '右', '下', '左'][i]}内边距<input type="number" min={0} max={600} value={region.padding?.[key] ?? 8} onChange={e => { if (e.target.validity.valid && e.target.value)
             patch({ padding: { ...region.padding, [key]: Number(e.target.value) } }); }}/></label>)}
-        <label>轨道顺序<select value={layout.track_order} onChange={e => patch({ layout: { ...layout, track_order: e.target.value as typeof layout.track_order } })}><option value="photo-outward">从照片向外</option><option value="outward-photo">从外向照片</option></select></label>
+        {/* track_order only affects the footer; side-bar column order is
+            derived from the edge, so the control is hidden there. */}
+        {region.type === 'footer-bar' && <label>轨道顺序<select value={layout.track_order} onChange={e => patch({ layout: { ...layout, track_order: e.target.value as typeof layout.track_order } })}><option value="photo-outward">从照片向外</option><option value="outward-photo">从外向照片</option></select></label>}
         {region.type === 'side-bar' && <label>侧栏文字方向<select value={region.text_orientation ?? 'auto'} onChange={e => patch({ text_orientation: e.target.value as RegionConfig['text_orientation'] })}><option value="auto">跟随侧边</option><option value="horizontal">横向</option><option value="rotate-cw">顺时针旋转</option><option value="rotate-ccw">逆时针旋转</option><option value="vertical-glyphs">逐字纵排</option></select></label>}
       </> : <>
         <label>签名位置<select value={region.anchor ?? 'bottom-right'} onChange={e => patch({ anchor: e.target.value as RegionConfig['anchor'] })}>{['top-left', 'top-center', 'top-right', 'middle-left', 'middle-center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right'].map((v, i) => <option key={v} value={v}>{['左上', '上方居中', '右上', '左侧居中', '中心', '右侧居中', '左下', '下方居中', '右下'][i]}</option>)}</select></label>
@@ -84,7 +87,7 @@ export function Editor({ config, onChange }: {
 }) {
     return <div className="watermark-editor">
     <details className="editor-section"><summary>默认文字样式</summary><p className="editor-note">应用于未设置独立样式的文字。</p><TextStyle style={config.defaults ?? defaultStyle} onChange={defaults => onChange(current => ({ ...current, defaults }))}/></details>
-    {config.regions.length === 0 && <p className="editor-note">尚未添加边框。添加后可选择照片信息或自定义文字。</p>}
+    {!config.regions.some(region => region.type !== 'free') && <p className="editor-note">当前没有信息边框。<button type="button" className="linklike" onClick={() => onChange(current => addRegion(current, false))}>恢复默认信息边框</button></p>}
     {config.regions.map(region => <RegionPanel key={region.id} region={region} config={config} onChange={onChange}/>)}
     <div className="editor-add"><button type="button" disabled={config.regions.length >= 10} onClick={() => onChange(current => addRegion(current, true))}>添加签名</button></div>
     <details className="editor-section"><summary>画布与共享文字</summary><div className="editor-fields">

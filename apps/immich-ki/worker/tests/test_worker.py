@@ -158,6 +158,15 @@ def test_a_b_a_source_and_renderer_changes(service):
     assert service.store.job(new['id'])['state'] == 'awaiting_import'
 
 
+def test_renderer_version_tracks_implementation(service, monkeypatch):
+    """P1: renderer_version must move when layout/render code changes, so the
+    renderer_changed guard can detect cross-deploy implementation drift."""
+    base = service.renderer_version
+    assert '-impl-' in base and base.endswith('-logos-' + service.logo_version)
+    monkeypatch.setattr('immich_ki.service._code_fingerprint', lambda: 'f' * 16)
+    assert service.renderer_version != base
+
+
 def test_conflict_and_superseded(service):
     job = save_job(service)
     with pytest.raises(Conflict):
@@ -374,9 +383,27 @@ def test_reconcile_retries_survive_restart_and_refresh_once(setup):
         service.reconcile_next(now=115)
         assert service.store.job(job['id'])['state'] == 'refresh_pending'
         assert fake.refreshed == [fake.output_id]
-        assert service.reconcile_next(now=10000) is None
+        # A later reconcile pass verifies the pairing and closes the loop as
+        # done; the refresh is not requested a second time.
+        assert service.reconcile_next(now=10000) == job['id']
+        assert service.store.job(job['id'])['state'] == 'done'
+        assert fake.refreshed == [fake.output_id]
+        assert service.reconcile_next(now=20000) is None
     finally:
         service.store.close()
+
+
+def test_sync_closes_loop_to_done_on_second_pass(service):
+    job = save_job(service)
+    service.render_next()
+    service.client.imported = True
+    assert service.sync(job['id'])['state'] == 'refresh_pending'
+    assert service.client.refreshed == [service.client.output_id]
+    assert service.sync(job['id'])['state'] == 'done'
+    # The verification pass must not spam the upstream refresh endpoint again.
+    assert service.client.refreshed == [service.client.output_id]
+    with pytest.raises(Conflict, match='not_published'):
+        service.sync(job['id'])
 
 
 def test_reconcile_does_not_refresh_stale_revision(service):

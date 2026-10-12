@@ -35,6 +35,19 @@ def sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def _code_fingerprint() -> str:
+    """Hash the render-critical kari_core modules so renderer_version moves
+    whenever layout or rendering code changes, not only when logos change."""
+    from kari_core.processor import kari_imprint, renderer
+    from kari_core.shared.layout import layout_engine
+    digest = hashlib.sha256()
+    for module in (layout_engine, renderer, kari_imprint):
+        path = Path(module.__file__)
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:16]
+
+
 class Conflict(Exception):
     pass
 
@@ -75,7 +88,8 @@ class Service:
 
     @property
     def renderer_version(self):
-        return self.settings.renderer_version + '-logos-' + self.logo_version
+        return (self.settings.renderer_version + '-impl-' + _code_fingerprint()
+                + '-logos-' + self.logo_version)
 
     def source(self, asset_id):
         asset = self.client.asset(asset_id)
@@ -98,6 +112,13 @@ class Service:
         if type(config.get('schema_version')) is not int or config['schema_version'] != 3:
             raise ValueError('canonical_v3_required')
         config = ImprintPayload.model_validate(deepcopy(config)).model_dump()
+        # Single-frame contract: the UI forbids adding a second frame region;
+        # the backend enforces the same rule on save so legacy multi-layer
+        # payloads cannot be re-published through the API.
+        frames = [r for r in config['regions']
+                  if r.get('enabled') and r.get('type') in {'footer-bar', 'side-bar'}]
+        if len(frames) > 1:
+            raise ValueError('single_frame_only')
         for region in config['regions']:
             for slot in region['slots'].values():
                 content = slot.get('content') or {}
@@ -300,7 +321,7 @@ class Service:
         with self.store.transaction() as db:
             row = db.execute("""SELECT j.id, COALESCE(s.attempts, 0) AS attempts
               FROM jobs j LEFT JOIN sync_schedule s ON s.job_id=j.id
-              WHERE j.state='awaiting_import' AND COALESCE(s.next_at, 0)<=?
+              WHERE j.state IN ('awaiting_import','refresh_pending') AND COALESCE(s.next_at, 0)<=?
               ORDER BY COALESCE(s.next_at, 0), j.rowid LIMIT 1""", (now,)).fetchone()
             if row is None:
                 return None
@@ -388,15 +409,21 @@ class Service:
                 raise Conflict('superseded')
             if asset['output_id'] and asset['output_id'] != output_id:
                 raise Conflict('output_identity_changed')
-        self.albums.attach(job_id, output_id)
-        self.client.refresh(output_id)
+        # First pass (awaiting_import): the output is in the library, so pair
+        # the album and ask Immich to regenerate metadata/thumbnails.
+        # Second pass (refresh_pending): the refresh had a backoff window to
+        # finish; verify the pairing still holds and close the loop as done.
+        if job['state'] == 'awaiting_import':
+            self.albums.attach(job_id, output_id)
+            self.client.refresh(output_id)
         with self.store.transaction() as db:
             asset, current = self._current(db, job)
             if not current:
                 db.execute("UPDATE jobs SET state='superseded' WHERE id=?", (job_id,))
                 return self.store.job(job_id)
             db.execute('UPDATE assets SET output_id=? WHERE id=?', (output_id, asset['id']))
-            db.execute("UPDATE jobs SET state='refresh_pending' WHERE id=?", (job_id,))
+            next_state = 'done' if job['state'] == 'refresh_pending' else 'refresh_pending'
+            db.execute("UPDATE jobs SET state=? WHERE id=?", (next_state, job_id))
         return self.store.job(job_id)
 
     def metadata(self, asset_id):

@@ -2,7 +2,7 @@ import type { ImprintConfig } from '../../../web/src/types';
 export type JobState = 'queued'|'running'|'publishing'|'awaiting_import'|'refresh_pending'|'done'|'failed'|'superseded';
 export type AssetStatus = {configured: boolean; job: JobState | null; published: boolean};
 export type Asset = {id: string; name: string; width?:number|null; height?:number|null; status?: AssetStatus};
-export type Album = {id: string; name: string; assetCount: number; isResult?:boolean; thumbnailAssetId?:string|null};
+export type Album = {id: string; name: string; assetCount: number; isResult?:boolean; thumbnailAssetId?:string|null; createdAt?:string|null};
 export type Saved = {revision: number; config: ImprintConfig | null};
 export type Job = {id: string; asset_id: string; revision: number; generation: number; state: JobState; error: string|null};
 const errorLabels: Record<string, string> = {
