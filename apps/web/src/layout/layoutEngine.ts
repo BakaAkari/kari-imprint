@@ -519,12 +519,14 @@ function computeFlowRegion(
           rect: rect(divX, inner.y, dividerW, inner.h), anchor: 'middle-center', content: emptyContent, style: defaults });
       }
     } else {
+      // Same gap rule as the horizontal footer: one item gap between the
+      // region edge and the logo, another between logo and divider.
       if (physicalPlacement === 'start') {
-        const divY = inner.y + logoDim;
+        const divY = inner.y + itemGap + logoDim + itemGap;
         elements.push({ id: `${region.id}-divider`, type: 'divider',
           rect: rect(inner.x, divY, inner.w, dividerW), anchor: 'middle-center', content: emptyContent, style: defaults });
       } else {
-        const divY = inner.y + inner.h - logoDim - dividerW;
+        const divY = inner.y + inner.h - itemGap - logoDim - itemGap - dividerW;
         elements.push({ id: `${region.id}-divider`, type: 'divider',
           rect: rect(inner.x, divY, inner.w, dividerW), anchor: 'middle-center', content: emptyContent, style: defaults });
       }
@@ -545,7 +547,11 @@ function computeFlowRegion(
         : physicalPlacement === 'end'
           ? rect(inner.x, inner.y, Math.max(1, inner.w - itemGap), inner.h)
           : inner
-      : inner;
+      : physicalPlacement === 'start'
+        ? rect(inner.x, inner.y + itemGap, inner.w, Math.max(1, inner.h - itemGap))
+        : physicalPlacement === 'end'
+          ? rect(inner.x, inner.y, inner.w, Math.max(1, inner.h - itemGap))
+          : inner;
     const pos = applyAnchor(assetBounds, anchor);
     const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
     const assetW = flow === 'horizontal'

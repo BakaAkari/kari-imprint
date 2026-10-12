@@ -569,6 +569,8 @@ def _compute_flow_region(
             else asset.content.placement
         )
         divider_w = max(1, round(short_edge * 0.001))
+        # Keep a real gap on both sides of an edge logo: the reserve must
+        # equal the TS layout engine exactly (logo + divider + 2×item gap).
         if physical_placement == "end":
             logo_end_reserve = logo_dim + divider_w + item_gap * 2
         elif physical_placement == "start":
@@ -578,10 +580,6 @@ def _compute_flow_region(
         # Divider: thin subtle line between logo and text when logo is on edge
         if physical_placement in ("start", "end"):
             has_divider = True
-            if physical_placement == "start":
-                logo_start_reserve = logo_dim + divider_w + item_gap
-            else:
-                logo_end_reserve = logo_dim + divider_w + item_gap
 
     for track_name in ("primary", "secondary"):
         if track_name == "secondary" and layout.mode == "single-track":
@@ -661,15 +659,17 @@ def _compute_flow_region(
                     anchor="middle-center", content=empty, style=defaults,
                 ))
         else:
+            # Same gap rule as the horizontal footer: one item gap between
+            # the region edge and the logo, another between logo and divider.
             if physical_placement == "start":
-                div_y = inner.y + logo_dim
+                div_y = inner.y + item_gap + logo_dim + item_gap
                 elements.append(ComputedElement(
                     id=f"{region.id}-divider", type="divider",
                     rect=Rect(inner.x, div_y, inner.w, divider_w),
                     anchor="middle-center", content=empty, style=defaults,
                 ))
             else:
-                div_y = inner.y + inner.h - logo_dim - divider_w
+                div_y = inner.y + inner.h - item_gap - logo_dim - item_gap - divider_w
                 elements.append(ComputedElement(
                     id=f"{region.id}-divider", type="divider",
                     rect=Rect(inner.x, div_y, inner.w, divider_w),
@@ -697,7 +697,15 @@ def _compute_flow_region(
                 else inner
             )
         else:
-            asset_bounds = inner
+            # Mirror the horizontal rule: an edge logo keeps one item gap
+            # between the region edge and the visible graphic.
+            asset_bounds = (
+                Rect(inner.x, inner.y + item_gap, inner.w, max(1, inner.h - item_gap))
+                if physical_placement == "start"
+                else Rect(inner.x, inner.y, inner.w, max(1, inner.h - item_gap))
+                if physical_placement == "end"
+                else inner
+            )
         pos = _apply_anchor(asset_bounds, anchor)
         content = replace(
             asset.content,

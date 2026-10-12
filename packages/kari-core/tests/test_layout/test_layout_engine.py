@@ -411,3 +411,72 @@ class TestFooterBarLayout:
         assert logo.anchor == "middle-right"
         # layout engine 层面不区分 path 是否有值；上层会先解析 auto-logo 再传进来
         assert logo.rect.w > 0
+
+    def test_edge_logo_spacing_is_symmetric_horizontal(self):
+        """Logo 可见边界两侧留白相等：区域内容边界→logo == logo→分隔线。
+
+        几何断言（不靠截图肉眼）：footer 1000×600，region 高 0.09 → bounds.h=54，
+        默认 padding 14% → inner.x=8；item_gap=round(600×0.012)=7。
+        """
+        result = compute_layout(
+            ImprintConfig(
+                regions=[RegionConfig(
+                    id="footer",
+                    type="footer-bar",
+                    enabled=True,
+                    height=0.09,
+                    slots={
+                        "primary-start": self._text_slot(),
+                        "asset": SlotConfig(
+                            enabled=True,
+                            content=LogoContent(path="logo.png", placement="start"),
+                        ),
+                    },
+                )],
+            ),
+            1000,
+            600,
+            2.0,
+        )
+        elements = {el.id: el for el in result.elements}
+        logo = elements["footer-asset"]
+        divider = elements["footer-divider"]
+        assert logo.anchor == "middle-left"
+        inner_x = 8  # bounds.x=0 + pad_left(8)
+        outer_gap = logo.rect.x - inner_x
+        inner_gap = divider.rect.x - (logo.rect.x + logo.rect.w)
+        assert outer_gap == inner_gap == 7
+
+    def test_edge_logo_spacing_is_symmetric_vertical(self):
+        """侧栏（vertical flow）使用与底栏相同的留白规则：上下各一个 item gap。"""
+        result = compute_layout(
+            ImprintConfig(
+                regions=[RegionConfig(
+                    id="side",
+                    type="side-bar",
+                    enabled=True,
+                    edge="right",
+                    width={"mode": "pixel", "value": 140},
+                    slots={
+                        "primary-end": self._text_slot(),
+                        "asset": SlotConfig(
+                            enabled=True,
+                            content=LogoContent(path="logo.png", placement="end"),
+                        ),
+                    },
+                )],
+            ),
+            800,
+            600,
+            2.0,
+        )
+        elements = {el.id: el for el in result.elements}
+        logo = elements["side-asset"]
+        divider = elements["side-divider"]
+        assert logo.anchor == "bottom-center"
+        inner_bottom = 580  # region 0..600，默认 padding 上/下各 20
+        logo_bottom = logo.rect.y  # bottom-center 锚点：y 即可见图形下边缘
+        logo_top = logo_bottom - logo.rect.h
+        outer_gap = inner_bottom - logo_bottom
+        inner_gap = logo_top - (divider.rect.y + divider.rect.h)
+        assert outer_gap == inner_gap == 7
