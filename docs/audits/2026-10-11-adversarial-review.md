@@ -65,7 +65,9 @@ editor.tsx padding 未设置显示8，实际引擎按条带厚度14%等动态计
 
 ## 修复记录（2026-10-12）
 
-以下修复在本工作区完成，尚未提交、未部署；线上行为以部署记录为准。
+已提交并部署。提交：`4993ac8`（相册契约）、`b7283bc`（owner 认领 + logout）、`da0b823`（双端几何）、`84eb2ef`（done 闭环 + renderer_version + 单边框）、`9c2cd84`（文档），推送至 `feat/logo-real-aspect-ratio`。
+
+部署（2026-10-12 13:26 NAS）：镜像 `kari-imprint/immich-ki:release-audit-20261012-132346`（sha256:238156e6f6140…，基于 release-sort-20261012-114822 增量补丁：5 个 worker 文件 + layout_engine.py + web dist，逐文件 SHA-256 与仓库核对一致）。升级前容器停后备份：`/mnt/user/appdata/app-immich-ki-m0/backup-audit-20261012-132346`（DB + resources + compose 快照）。部署后验证：容器 healthy、`/api/health` ok、`/api/auth/session` 返回 `owner_bound: true`（线上 config.json 已于 2026-10-12 01:40 绑定 ownerEmail，认领代码作为后续空 owner 配置的防线生效）、容器内 `albums_for_asset` 存在。待用户实测：登录、保存→生成→入库→done 闭环、相册配对、Logo 间距观感。线上 18 条 refresh_pending 历史任务将由新的验证轮逐步核销为 done。
 
 ### 已修复
 
