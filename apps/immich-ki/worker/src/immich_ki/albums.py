@@ -11,10 +11,11 @@ class AlbumCoordinator:
         self.store, self.client = store, client
 
     def source(self, album_id, asset_id=None):
-        album = self.client.album(str(UUID(str(album_id))))
+        album_id = str(UUID(str(album_id)))
+        album = self.client.album(album_id)
         if is_result(album['albumName']):
             raise ValueError('result_album_read_only')
-        if asset_id is not None and not any(a['id'] == asset_id for a in album.get('assets', [])):
+        if asset_id is not None and album_id not in self.client.albums_for_asset(asset_id):
             raise ValueError('asset_not_in_album')
         return album
 

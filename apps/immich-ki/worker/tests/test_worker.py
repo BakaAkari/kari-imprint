@@ -25,6 +25,9 @@ class FakeImmich:
         self.created = []
         self.attached = []
         self.thumbnail_asset_id = None
+        # Album membership lives behind the albums-for-asset endpoint, like the
+        # real API; album detail no longer carries an asset list.
+        self.album_members = {self.source_album_id: {self.asset_id}, self.result_album_id: set()}
 
     def asset(self, asset_id):
         return {'id': asset_id, 'libraryId': self.settings.source_library, 'type': 'IMAGE', 'originalPath': '/external/camera-exports/photo.jpg'}
@@ -50,23 +53,33 @@ class FakeImmich:
 
     def album(self, album_id):
         # Mirror the real client contract: /api/albums/:id returns albumName and
-        # the current membership, which both ownership checks depend on.
+        # counts, but no asset membership; ownership checks use albums_for_asset.
         if str(album_id) == self.source_album_id:
             return {'id': self.source_album_id, 'albumName': '旅行',
-                    'assets': [{'id': self.asset_id}], 'albumThumbnailAssetId': self.thumbnail_asset_id}
+                    'assetCount': 3, 'albumThumbnailAssetId': self.thumbnail_asset_id}
         if str(album_id) == self.result_album_id:
             return {'id': self.result_album_id, 'albumName': '旅行 Imprint',
-                    'assets': [{'id': self.output_id}] if self.imported else [],
-                    'albumThumbnailAssetId': self.thumbnail_asset_id}
+                    'assetCount': 1, 'albumThumbnailAssetId': self.thumbnail_asset_id}
         raise ValueError('album_not_found')
+
+    def albums_for_asset(self, asset_id):
+        asset_id = str(asset_id)
+        return [album_id for album_id, members in self.album_members.items()
+                if asset_id in members]
 
     def create_album(self, name):
         self.created.append(name)
         self.result_album_id = str(uuid4())
+        self.album_members[self.result_album_id] = set()
         return self.result_album_id
 
     def add_to_album(self, album_id, asset_id):
-        self.attached.append((str(album_id), str(asset_id)))
+        album_id, asset_id = str(album_id), str(asset_id)
+        self.album_members.setdefault(album_id, set()).add(asset_id)
+        # Mirror the real client: PUT is accepted only after a membership read-back.
+        if album_id not in self.albums_for_asset(asset_id):
+            raise ValueError('membership_readback_failed')
+        self.attached.append((album_id, asset_id))
 
     def refresh(self, asset_id):
         self.refreshed.append(asset_id)
@@ -303,6 +316,35 @@ def test_client_search_sends_album_ids_as_strings():
         client.search(str(uuid4()), 1, albums=[str(album)])
         assert bodies[1]['albumIds'] == [str(album)]
         assert UUID(bodies[1]['albumIds'][0]) == album
+    finally:
+        client.close()
+
+
+def test_client_album_membership_uses_albums_by_asset_contract():
+    """Album detail no longer lists assets; membership is read back via
+    GET /albums?assetId= and a PUT must be verified against that endpoint."""
+    import httpx
+    from immich_ki.client import ImmichClient, UpstreamError
+    calls = []
+    album_id, asset_id = str(uuid4()), str(uuid4())
+    membership = []
+
+    def handle(request):
+        calls.append(request)
+        if request.url.path == '/api/albums' and request.url.params.get('assetId'):
+            return httpx.Response(200, json=[{'id': member} for member in membership])
+        if request.url.path == f'/api/albums/{album_id}/assets':
+            return httpx.Response(200, json=[{'assetId': asset_id, 'success': True}])
+        return httpx.Response(404)
+
+    client = ImmichClient('http://immich:2283', 'private', transport=httpx.MockTransport(handle))
+    try:
+        assert client.albums_for_asset(asset_id) == []
+        assert calls[0].url.params['assetId'] == asset_id
+        with pytest.raises(UpstreamError):
+            client.add_to_album(album_id, asset_id)  # PUT ok, membership read-back empty.
+        membership.append(album_id)
+        client.add_to_album(album_id, asset_id)  # Read-back now sees the membership.
     finally:
         client.close()
 
@@ -599,12 +641,32 @@ def test_render_rejects_album_that_does_not_contain_the_asset(setup):
     settings, fake = setup
     with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         client.post('/api/auth/immich-login', json=OPERATOR)
-        fake.album = lambda album_id: {'id': album_id, 'albumName': '旅行', 'assets': []}
+        # The album exists, but the photo is not a member of it.
+        fake.album = lambda album_id: {'id': str(album_id), 'albumName': '旅行', 'assetCount': 3}
+        fake.albums_for_asset = lambda asset_id: []
         client.put(f'/api/assets/{fake.asset_id}/config', json={'expectedRevision': 0, 'config': CONFIG})
         response = client.post(f'/api/assets/{fake.asset_id}/render',
                                json={'revision': 1, 'sourceAlbumId': str(uuid4())})
         assert response.status_code == 422 and response.json()['error'] == 'asset_not_in_album'
         assert fake.attached == []
+
+
+def test_save_rejects_second_frame_region(setup):
+    """P2: the single-frame rule is a backend invariant, not just a UI limit."""
+    settings, fake = setup
+    frame = {'id': 'footer', 'type': 'footer-bar', 'enabled': True, 'height': 0.09, 'slots': {}}
+    side = {'id': 'side', 'type': 'side-bar', 'enabled': True, 'edge': 'right',
+            'width': {'mode': 'short_edge_ratio', 'value': 0.12}, 'slots': {}}
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post('/api/auth/immich-login', json=OPERATOR)
+        endpoint = f"/api/assets/{fake.asset_id}/config"
+        double = {'schema_version': 3, 'canvas': {'margins': {'bottom': 20}}, 'regions': [frame, side]}
+        response = client.put(endpoint, json={'expectedRevision': 0, 'config': double})
+        assert response.status_code == 422 and response.json()['error'] == 'single_frame_only'
+        # A disabled second frame does not count: one visible frame is allowed.
+        ok = {'schema_version': 3, 'canvas': {'margins': {'bottom': 20}},
+              'regions': [frame, {**side, 'enabled': False}]}
+        assert client.put(endpoint, json={'expectedRevision': 0, 'config': ok}).status_code == 200
 
 
 def test_ambiguous_album_pair_is_refused(setup):

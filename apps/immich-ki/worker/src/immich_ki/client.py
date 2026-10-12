@@ -49,10 +49,20 @@ class ImmichClient:
         result = self.request('GET', 'albums').json()
         return [{'id': str(UUID(album['id'])), 'name': str(album.get('albumName') or '未命名相册'),
                  'assetCount': int(album.get('assetCount') or 0),
-                 'thumbnailAssetId': album.get('albumThumbnailAssetId')} for album in result]
+                 'thumbnailAssetId': album.get('albumThumbnailAssetId'),
+                 # Immich exposes the album creation timestamp in the list
+                 # response; keep it opaque and let the UI choose the order.
+                 'createdAt': album.get('createdAt')} for album in result]
 
     def album(self, album_id):
+        # The real GET /albums/{id} response carries albumName/assetCount but no
+        # asset membership list; membership is queried per asset instead.
         return self.request('GET', f'albums/{UUID(str(album_id))}').json()
+
+    def albums_for_asset(self, asset_id):
+        """Album ids that currently contain the asset (GET /albums?assetId=)."""
+        result = self.request('GET', 'albums', params={'assetId': str(UUID(str(asset_id)))}).json()
+        return [str(UUID(album['id'])) for album in result]
 
     def create_album(self, name):
         return str(UUID(self.request('POST', 'albums', json={'albumName': name}).json()['id']))
@@ -62,8 +72,9 @@ class ImmichClient:
                                json={'ids': [str(UUID(str(asset_id)))]}).json()
         if not all(r.get('success') or r.get('error') == 'duplicate' for r in results):
             raise UpstreamError()
-        # Read back membership; a successful HTTP response alone is insufficient.
-        if not any(a['id'] == asset_id for a in self.album(album_id).get('assets', [])):
+        # Read back membership via the albums-by-asset endpoint; a successful
+        # PUT alone is insufficient and album detail no longer lists assets.
+        if str(UUID(str(album_id))) not in self.albums_for_asset(asset_id):
             raise UpstreamError()
 
     def preview(self, asset_id: str, maximum: int = 20 * 1024 * 1024, *, thumbnail: bool = False):
