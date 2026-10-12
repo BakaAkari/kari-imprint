@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
 import time
 
 import httpx
@@ -21,7 +22,7 @@ from immich_ki.keyconfig import save_panel_config
 
 logger = logging.getLogger('immich_ki.auth')
 
-PUBLIC_AUTH_PATHS = {'/api/auth/session', '/api/auth/immich-login', '/api/init'}
+PUBLIC_AUTH_PATHS = {'/api/auth/session', '/api/auth/immich-login', '/api/auth/logout', '/api/init'}
 INIT_ONLY_PATHS = {'/api/health', '/api/auth/session', '/api/init'}
 
 _WINDOW_SECONDS = 300
@@ -94,6 +95,7 @@ def _secure_cookie(settings, request: Request) -> bool:
 def install_auth(app, settings, sessions, panel):
     """Register auth endpoints. ``panel`` is the mutable PanelState from app.py."""
     failures: dict[str, list[float]] = {}
+    claim_lock = threading.Lock()  # Serialize first-login ownership claiming.
     app.state.immich_key_transport = None  # Tests inject an httpx transport here.
 
     def _recent_failures(request: Request) -> list[float]:
@@ -147,8 +149,18 @@ def install_auth(app, settings, sessions, panel):
     def session(request: Request):
         return {'mode': 'immich_key' if panel.initialized else 'init',
                 'initialized': panel.initialized,
+                'owner_bound': bool(panel.owner),
                 'authenticated': panel.initialized
                 and sessions.get(request.cookies.get('ki_session', ''), 0) > time.monotonic()}
+
+    @app.post('/api/auth/logout')
+    def logout(request: Request):
+        # Idempotent: revoking an already-expired session still succeeds, so the
+        # UI never traps the operator on a stale cookie.
+        sessions.pop(request.cookies.get('ki_session', ''), None)
+        response = JSONResponse({'ok': True})
+        response.delete_cookie('ki_session')
+        return response
 
     @app.post('/api/auth/immich-login')
     async def immich_login(request: Request):
@@ -169,7 +181,17 @@ def install_auth(app, settings, sessions, panel):
                 _record_failure(request)
             status = {'invalid_credentials': 401, 'login_rate_limited': 429}.get(error, 502)
             return JSONResponse({'error': error}, status)
-        if panel.owner and identity != panel.owner:
+        if not panel.owner:
+            # Configs migrated from the env key carry no owner. The first
+            # successful Immich account login claims ownership; afterwards the
+            # panel is bound to that single account. The lock closes the race
+            # where two validated accounts claim simultaneously.
+            with claim_lock:
+                if not panel.owner:
+                    save_panel_config(settings.data, panel.key, identity)
+                    panel.owner = identity
+                    logger.info('panel ownership claimed by %s', identity)
+        if identity != panel.owner:
             _record_failure(request)
             logger.info('immich account login rejected: %s is not the panel owner', identity)
             return JSONResponse({'error': 'forbidden_account'}, 403)

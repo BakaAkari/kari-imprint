@@ -837,6 +837,54 @@ def test_immich_login_restricted_to_config_owner(setup):
         assert response.status_code == 403 and response.json()['error'] == 'forbidden_account'
 
 
+def test_first_login_claims_ownership_and_later_accounts_rejected(setup):
+    """P0: an env-migrated config has no owner. The first successful Immich
+    account login must claim ownership; every other account is rejected."""
+    import json
+
+    import httpx
+    settings, fake = setup
+    other = {'email': 'other@example.com', 'password': 'other-password'}
+    identity = [OPERATOR['email']]
+
+    def handler(request):
+        if request.url.path == '/api/auth/login':
+            body = json.loads(request.content)
+            for account in (OPERATOR, other):
+                if body.get('email') == account['email'] and body.get('password') == account['password']:
+                    return httpx.Response(200, json={'accessToken': 'op-token'})
+            return httpx.Response(401)
+        if request.url.path == '/api/users/me' and request.headers.get('authorization') == 'Bearer op-token':
+            return httpx.Response(200, json={'email': identity[0]})
+        return httpx.Response(404)
+
+    app = create_app(settings, fake, background=False)
+    app.state.immich_key_transport = httpx.MockTransport(handler)
+    with TestClient(app) as client:
+        assert client.get('/api/auth/session').json()['owner_bound'] is False
+        assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 200
+        assert client.get('/api/auth/session').json()['owner_bound'] is True
+        assert json.loads((settings.data / 'config.json').read_text()) == {
+            'apiKey': 'secret', 'ownerEmail': OPERATOR['email']}
+        # A second valid Immich account is refused once ownership is claimed.
+        identity[0] = other['email']
+        response = client.post('/api/auth/immich-login', json=other)
+        assert response.status_code == 403 and response.json()['error'] == 'forbidden_account'
+        assert json.loads((settings.data / 'config.json').read_text())['ownerEmail'] == OPERATOR['email']
+
+
+def test_logout_revokes_session_and_is_idempotent(setup):
+    settings, fake = setup
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        assert client.post('/api/auth/logout').status_code == 200  # No session yet: still ok.
+        assert client.post('/api/auth/immich-login', json=OPERATOR).status_code == 200
+        assert client.get('/api/assets').status_code == 200
+        assert client.post('/api/auth/logout').status_code == 200
+        assert client.get('/api/assets').status_code == 401
+        assert client.get('/api/auth/session').json()['authenticated'] is False
+        assert client.post('/api/auth/logout').status_code == 200  # Repeated logout stays idempotent.
+
+
 def test_init_mode_gates_api_and_init_success_persists_key(setup):
     import json
     from dataclasses import replace
