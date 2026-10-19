@@ -375,7 +375,7 @@ def test_metadata_returns_normalized_exif_fields_without_raw_paths(tmp_path: Pat
     assert payload["fields"]["focal_length"] == "28mm"
     assert payload["fields"]["aperture"] == "f/1.7"
     assert payload["fields"]["shutter"] == "1/500s"
-    assert payload["fields"]["iso"] == "ISO100"
+    assert payload["fields"]["iso"] == "ISO 100"
     assert payload["fields"]["datetime"] == "2026:07:21 09:08"
     assert "SourceFile" not in payload["fields"]
     assert str(tmp_path) not in response.text

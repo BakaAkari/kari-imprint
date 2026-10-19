@@ -38,11 +38,16 @@ Image Height                    : 1080"""
     assert parsed["ImageHeight"] == "1080"
 
 
-def test_parse_block_strips_non_ascii():
-    block = "Make                            : 索尼Sony"
+def test_parse_block_keeps_unicode_and_strips_control_chars():
+    block = (
+        "Make                            : 索尼Sony\n"
+        "Camera Model Name               : 华为 Mate 60 Pro\n"
+        "Lens Model                      : α7R V\x00\x00   lens\x1b\n"
+    )
     parsed = _parse_exiftool_block(block)
-    # 非 ASCII 字符（"索尼"）应被过滤
-    assert parsed["Make"] == "Sony"
+    assert parsed["Make"] == "索尼Sony"
+    assert parsed["CameraModelName"] == "华为 Mate 60 Pro"
+    assert parsed["LensModel"] == "α7R V lens"
 
 
 def test_parse_block_handles_colon_in_value():
