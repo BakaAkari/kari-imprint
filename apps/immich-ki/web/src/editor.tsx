@@ -120,7 +120,7 @@ function BrandControls({ config, commit, fields }: { config: ImprintConfig; comm
   const logos = useLogos();
   const mode = brandMode(config);
   const make = (fields.make ?? '').trim();
-  const detected = resolveAutoLogoWithScheme(make, logos, isDark(config.canvas.background) ? 'light' : 'dark', '').stem;
+  const detected = resolveAutoLogoWithScheme(make, logos, isDark(config.canvas.background) ? 'light' : 'dark', '', fields.camera_model ?? '').stem;
   const kind = mode === 'off' ? 'off' : mode === 'auto' ? 'auto' : 'manual';
   return <div className="stack">
     <Segmented label="品牌 Logo" value={kind} options={[{ value: 'auto', label: '自动识别' }, { value: 'manual', label: '指定' }, { value: 'off', label: '不显示' }]}

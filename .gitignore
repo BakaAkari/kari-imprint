@@ -78,3 +78,6 @@ logos/logo_psds
 # companion web build artifacts
 apps/immich-wm/web/node_modules/
 apps/immich-ki/web/node_modules/
+
+# Local verification screenshots (scripts/verify_immich_*.py)
+artifacts/

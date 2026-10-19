@@ -1,4 +1,5 @@
 import { defaultFlowLayout, normalizeStylePatch, type FieldId, type FlowLayoutConfig, type ImprintConfig, type RegionConfig, type SizeLevel, type SlotConfig, type StyleConfig } from '../../../web/src/types';
+import { isDarkBackground } from '../../../web/src/colorScheme';
 import { buildStyleConfig, canvasEffect, DEFAULT_FRAME_MARGIN, marginsForFrame, withCanvasEffect, type FrameSide, type StylePresetId } from './defaults';
 
 // The draft is the persisted model. Rendering controls never materialize defaults.
@@ -122,14 +123,8 @@ export function detectStyle(config: ImprintConfig): StylePresetId {
     return isDark(config.canvas.background) ? 'dark' : 'classic';
 }
 
-export function isDark(hex: string): boolean {
-    const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-    if (!match) return false;
-    const n = parseInt(match[1], 16);
-    const channel = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-    const lum = 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
-    return lum < 0.18;
-}
+/** Dark backgrounds take light ink; same threshold as the renderer. */
+export const isDark = isDarkBackground;
 
 /**
  * Switch style while keeping choices that are orthogonal to it: frame

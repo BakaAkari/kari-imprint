@@ -102,8 +102,10 @@ export function buildMinimalConfig(): ImprintConfig {
       id: 'footer', type: 'footer-bar', enabled: true, height: 0.1,
       layout: { ...defaultFlowLayout(), mode: 'single-track' },
       slots: {
-        'primary-start': { enabled: true, style: text({ font_size_level: 'medium', font_family: BOLD, bold: true }), content: { chips: chips(['camera_model']), separator: ' ' } },
-        'primary-end': { enabled: true, style: text({ font_size_level: 'medium', font_family: REGULAR, bold: false, color: '#6E6E6E' }), content: { chips: chips(DEFAULT_TRACK_FIELDS.bottom), separator: ' ' } },
+        // One line in a thin bar: use the large step so it reads at the same
+        // visual size as the classic two-line text.
+        'primary-start': { enabled: true, style: text({ font_size_level: 'large', font_family: BOLD, bold: true }), content: { chips: chips(['camera_model']), separator: ' ' } },
+        'primary-end': { enabled: true, style: text({ font_size_level: 'large', font_family: REGULAR, bold: false, color: '#6E6E6E' }), content: { chips: chips(DEFAULT_TRACK_FIELDS.bottom), separator: ' ' } },
         asset: { enabled: false, style: null, content: null },
       },
     }],
