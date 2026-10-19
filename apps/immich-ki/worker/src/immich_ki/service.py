@@ -26,6 +26,7 @@ from immich_ki.fingerprint import implementation_fingerprint
 from immich_ki.logos import bundle_hash
 from immich_ki.logos import resolve as resolve_logo
 from immich_ki.paths import digest_file, open_source, output_relative, parent_fd, relative_path, snapshot
+from immich_ki.render import parse_error as render_error_code
 from immich_ki.store import Store, canonical
 from immich_ki.workspace import StorageUnavailable, workspace
 
@@ -272,13 +273,17 @@ class Service:
                     }
                 )
             )
-            subprocess.run(
+            child = subprocess.run(
                 [sys.executable, "-m", "immich_ki.render", str(request)],
-                check=True,
+                check=False,
                 timeout=900,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
+            if child.returncode != 0:
+                # Only the machine code on the child's last stderr line is kept;
+                # stack traces and paths are discarded here.
+                raise ValueError(render_error_code(child.stderr[-4096:]))
             with Image.open(target) as image:
                 if image.width * image.height > self.settings.max_output_pixels:
                     raise ValueError("output_too_large")
@@ -313,7 +318,15 @@ class Service:
                     code = (
                         str(exc)
                         if isinstance(exc, (Conflict, ValueError))
-                        and str(exc) in {"source_changed", "output_conflict", "output_too_large", "renderer_changed"}
+                        and str(exc)
+                        in {
+                            "source_changed",
+                            "output_conflict",
+                            "output_too_large",
+                            "image_too_large",
+                            "unsupported_image",
+                            "renderer_changed",
+                        }
                         else "render_failed"
                     )
                     db.execute("UPDATE jobs SET state='failed',error=? WHERE id=?", (code, job["id"]))

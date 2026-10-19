@@ -12,6 +12,13 @@ from kari_core.processor.kari_imprint import _dict_to_imprint_config
 from kari_core.shared.assembler import imprint_config_to_processors
 from kari_core.shared.layout.layout_engine import compute_layout
 from loguru import logger
+from PIL import Image
+
+# The child reports a machine-readable failure code on its last stderr line;
+# the worker maps it to a public job error and never surfaces anything else.
+ERROR_PREFIX = 'KARI_RENDER_ERROR='
+ERROR_EXIT_CODE = 3
+PUBLIC_RENDER_ERRORS = frozenset({'output_too_large', 'image_too_large', 'unsupported_image'})
 
 
 def render(request):
@@ -34,5 +41,41 @@ def render(request):
         pixels.close()
 
 
+def error_code(exc: BaseException) -> str:
+    """Map a render exception onto a stable public code (no messages, no paths)."""
+    if isinstance(exc, Image.DecompressionBombError):
+        return 'image_too_large'
+    if isinstance(exc, Image.UnidentifiedImageError):
+        return 'unsupported_image'
+    if isinstance(exc, ValueError) and str(exc) in PUBLIC_RENDER_ERRORS:
+        return str(exc)
+    if isinstance(exc, MemoryError):
+        return 'image_too_large'
+    return 'render_failed'
+
+
+def main(argv: list[str]) -> int:
+    try:
+        render(json.loads(Path(argv[1]).read_text()))
+    except Exception as exc:
+        sys.stderr.write(f'\n{ERROR_PREFIX}{error_code(exc)}\n')
+        sys.stderr.flush()
+        return ERROR_EXIT_CODE
+    return 0
+
+
+def parse_error(stderr: bytes | str | None) -> str:
+    """Return the public code from the child's stderr; ``render_failed`` otherwise."""
+    if not stderr:
+        return 'render_failed'
+    text = stderr.decode('utf-8', 'replace') if isinstance(stderr, bytes) else stderr
+    for line in reversed(text.strip().splitlines()):
+        line = line.strip()
+        if line.startswith(ERROR_PREFIX):
+            code = line[len(ERROR_PREFIX):]
+            return code if code in PUBLIC_RENDER_ERRORS else 'render_failed'
+    return 'render_failed'
+
+
 if __name__ == '__main__':
-    render(json.loads(Path(sys.argv[1]).read_text()))
+    sys.exit(main(sys.argv))

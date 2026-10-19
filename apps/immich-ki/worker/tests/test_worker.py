@@ -1530,3 +1530,31 @@ def test_missing_publication_snapshot_does_not_block_queue(service):
     next_job = save_job(service)
     service.render_next()
     assert service.store.job(next_job["id"])["state"] == "awaiting_import"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [({"max_output_pixels": 1000}, "output_too_large"), ({"max_pixels": 100}, "image_too_large")],
+)
+def test_render_child_error_codes_survive_the_process_boundary(setup, overrides, expected):
+    from dataclasses import replace
+
+    settings, client = setup
+    value = Service(replace(settings, **overrides), client)
+    try:
+        job = save_job(value)
+        value.render_next()
+        row = value.store.job(job["id"])
+        assert row["state"] == "failed"
+        assert row["error"] == expected
+    finally:
+        value.store.close()
+
+
+def test_render_error_parser_only_accepts_known_codes():
+    from immich_ki.render import ERROR_PREFIX, parse_error
+
+    assert parse_error(f"Traceback ...\n/secret/path.py\n{ERROR_PREFIX}unsupported_image\n".encode()) == "unsupported_image"
+    assert parse_error(f"{ERROR_PREFIX}/etc/passwd".encode()) == "render_failed"
+    assert parse_error(b"Traceback (most recent call last):\n  File '/x.py'") == "render_failed"
+    assert parse_error(None) == "render_failed"
