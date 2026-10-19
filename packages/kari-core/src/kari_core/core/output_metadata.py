@@ -58,16 +58,63 @@ def load_photograph(
             raise ValueError("image_too_large")
         metadata = original.getexif().tobytes()
         profile = original.info.get("icc_profile")
-        oriented = ImageOps.exif_transpose(original)
+        oriented = _to_8bit(ImageOps.exif_transpose(original))
         alpha = oriented.convert("RGBA").getchannel("A") if "A" in oriented.getbands() or "transparency" in oriented.info else None
         target = ImageCms.ImageCmsProfile(BytesIO(SRGB_PROFILE))
         if profile:
-            # Retain native CMYK/LAB samples for profiles describing those modes.
-            colour = oriented if oriented.mode in {"RGB", "CMYK", "LAB", "L"} else oriented.convert("RGB")
-            pixels = ImageCms.profileToProfile(colour, ImageCms.ImageCmsProfile(BytesIO(profile)), target, outputMode="RGB")
+            try:
+                source_profile = ImageCms.ImageCmsProfile(BytesIO(profile))
+                colour = _match_profile_mode(oriented, source_profile)
+                pixels = ImageCms.profileToProfile(colour, source_profile, target, outputMode="RGB")
+            except (OSError, ImageCms.PyCMSError) as exc:
+                # Corrupt or mismatched ICC: refuse rather than guess a profile.
+                raise ValueError("unsupported_image") from exc
         else:
             pixels = oriented.convert("RGB")
         if alpha is not None:
             pixels = Image.composite(pixels, Image.new("RGB", pixels.size, "white"), alpha)
         pixels.load()
         return pixels.copy(), OutputMetadata(metadata, target.tobytes())
+
+
+_SIXTEEN_BIT_MODES = {"I;16", "I;16B", "I;16L", "I;16N", "I"}
+
+
+def _to_8bit(image: Image.Image) -> Image.Image:
+    """Scale 16-bit / 32-bit integer grayscale to 8-bit ``L`` (PIL clips instead of scaling)."""
+    if image.mode not in _SIXTEEN_BIT_MODES:
+        return image
+    wide = image if image.mode == "I" else image.convert("I")
+    low, high = wide.getextrema()
+    # PNG 16-bit samples always span 0..65535; only a genuinely 8-bit-valued
+    # "I" image (max ≤ 255) is passed through without scaling.
+    if image.mode == "I" and high <= 255 and low >= 0:
+        return wide.convert("L")
+    return wide.point(lambda value: value * (1 / 257)).convert("L")
+
+
+def _match_profile_mode(image: Image.Image, profile: ImageCms.ImageCmsProfile) -> Image.Image:
+    """Present pixels in the colour space the embedded ICC profile describes."""
+    space = (profile.profile.xcolor_space or "").strip().upper()
+    if space == "GRAY":
+        if image.mode == "L":
+            return image
+        if image.mode in {"LA", "La"} or (image.mode in {"P", "PA"} and _palette_is_gray(image)):
+            return image.convert("L")
+        raise ValueError("unsupported_image")
+    if space == "CMYK":
+        if image.mode == "CMYK":
+            return image
+        raise ValueError("unsupported_image")
+    if space == "LAB" and image.mode == "LAB":
+        return image
+    if image.mode == "RGB":
+        return image
+    if image.mode in {"L", "LA", "P", "PA", "RGBA", "RGBa", "RGBX"}:
+        return image.convert("RGB")
+    raise ValueError("unsupported_image")
+
+
+def _palette_is_gray(image: Image.Image) -> bool:
+    palette = image.getpalette() or []
+    return all(palette[i] == palette[i + 1] == palette[i + 2] for i in range(0, len(palette) - 2, 3))
