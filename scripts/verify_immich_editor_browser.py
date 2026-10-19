@@ -106,7 +106,7 @@ def main():
         elif path.endswith("/job"):
             payload = {"job": None}
         elif path.endswith("/render"):
-            payload = {"id": "test-job", "state": "done", "generation": 1}
+            payload = {"id": "test-job", "asset_id": "A", "revision": len(saved) + 1, "state": "done", "generation": 1, "error": None}
         elif path == "/api/logos":
             payload = {"ok": True, "logos": [{"stem": "fujifilm", "variants": []}, {"stem": "canon", "variants": []}]}
         elif path == "/api/maintenance":
@@ -137,84 +137,104 @@ def main():
             page.goto("http://immich-editor.test")
             page.evaluate("localStorage.clear()")
             page.get_by_role("button", name="旅行", exact=False).first.click()
-            page.get_by_role("button", name="A.jpg", exact=True).click()
-            expect(page.locator(".save-action")).to_be_enabled()
+            page.get_by_role("button", name="A.jpg", exact=False).click()
+            expect(save_button()).to_be_enabled()
+            page.wait_for_selector(".preview-stage canvas")
+
+        def save_button():
+            return page.locator(".dock-actions .primary")
 
         def save():
             count = len(saved)
-            page.locator(".save-action").click()
-            page.wait_for_function("!document.querySelector('.save-action').disabled")
+            save_button().click()
+            page.wait_for_function("!document.querySelector('.dock-actions .primary').disabled")
             assert len(saved) == count + 1
             return saved[-1]
+
+        def open_section(name):
+            head = page.get_by_role("button", name=name, exact=False).and_(page.locator(".section-head"))
+            if head.get_attribute("aria-expanded") != "true":
+                head.click()
 
         load()
         # Untouched config survives load/save exactly (lossless roundtrip).
         assert save() == normal, "Untouched config must survive load/save exactly"
 
-        # Three visual style cards are present and distinct.
-        for label in ("经典信息框", "极简署名", "纯留白"):
-            expect(page.get_by_role("button", name=label, exact=True)).to_be_visible()
-        # No stale generic-form editor labels survive.
-        expect(page.get_by_text("默认文字样式", exact=True)).to_have_count(0)
-        expect(page.get_by_text("添加信息条", exact=True)).to_have_count(0)
+        # Every style card is present and renders a live thumbnail of the photo.
+        for label in ("经典", "极简单行", "深色", "模糊背景", "纯留白"):
+            expect(page.get_by_role("radio", name=label, exact=True)).to_be_visible()
+        expect(page.locator(".style-thumb canvas")).to_have_count(5)
 
-        # Style preset: minimal is a single-track footer with no logo.
-        page.get_by_role("button", name="极简署名", exact=True).click()
+        # Style: minimal is a single-track footer with no logo; the right line keeps the params.
+        page.get_by_role("radio", name="极简单行", exact=True).click()
         minimal = save()
         assert minimal["regions"][0]["layout"]["mode"] == "single-track"
         assert minimal["regions"][0]["slots"]["asset"]["enabled"] is False
         assert minimal["regions"][0]["slots"]["primary-start"]["content"]["chips"] == [{"field_id": "camera_model"}]
+        # The existing signature survives a style switch.
+        assert any(r["type"] == "free" for r in minimal["regions"])
 
-        # Style preset: classic restores dual-track + auto logo.
-        page.get_by_role("button", name="经典信息框", exact=True).click()
+        # Style: dark keeps the structure but uses a dark canvas.
+        page.get_by_role("radio", name="深色", exact=True).click()
+        dark = save()
+        assert dark["canvas"]["background"] == "#141414"
+        assert dark["regions"][0]["slots"]["asset"]["enabled"] is True
+
+        page.get_by_role("radio", name="经典", exact=True).click()
         classic = save()
         assert classic["regions"][0]["layout"]["mode"] == "dual-track"
-        assert classic["regions"][0]["slots"]["asset"]["enabled"] is True
+        assert classic["canvas"]["background"] == "#FFFFFF"
 
-        # Common: frame position moves the single frame and adjusts three-side margins.
-        page.get_by_role("tab", name="常用", exact=True).click()
+        # Position moves the single frame; the white space value is preserved.
         page.get_by_role("radio", name="左侧", exact=True).click()
         side = save()
         assert side["regions"][0]["type"] == "side-bar" and side["regions"][0]["edge"] == "left"
-        assert side["canvas"]["margins"]["left"] == 0
-        page.get_by_role("radio", name="底部", exact=True).click()
+        assert side["canvas"]["margins"] == {"top": 60, "right": 60, "bottom": 60, "left": 0}
+        page.keyboard.press("b")  # keyboard shortcut back to the footer
+        assert save()["regions"][0]["type"] == "footer-bar"
 
-        # Common: photo-info field toggle removes exactly the chosen chip.
-        page.get_by_role("checkbox", name="镜头型号", exact=True).uncheck()
-        fields_saved = save()
-        chips = fields_saved["regions"][0]["slots"]["primary-start"]["content"]["chips"]
-        assert all(c["field_id"] != "lens_model" for c in chips), chips
+        # Text: field chips toggle exactly the chosen field on that line.
+        open_section("文字")
+        page.get_by_role("group", name="上行 · 左 显示的信息").get_by_role("button", name="镜头型号").click()
+        chips = save()["regions"][0]["slots"]["primary-start"]["content"]["chips"]
+        assert [c["field_id"] for c in chips] == ["camera_model"], chips
+        line = page.locator(".line-card").first
+        line.get_by_role("radio", name="小", exact=True).click()
+        line.get_by_role("radio", name="常规", exact=True).click()
+        styled = save()["regions"][0]["slots"]["primary-start"]["style"]
+        assert styled["font_size_level"] == "small" and styled["bold"] is False
+        assert styled["font_family"] == "NotoSansCJKsc-Regular.otf"
 
-        # Common: brand auto/manual/off drives the logo slot explicitly.
-        page.get_by_role("radio", name="关闭", exact=True).click()
+        # Undo (keyboard) walks back one step at a time, not to the start.
+        page.locator("body").click(position={"x": 5, "y": 5})
+        page.keyboard.press("Meta+z")
+        assert save()["regions"][0]["slots"]["primary-start"]["style"]["bold"] is True
+
+        # Brand: auto / manual / off drive the logo slot explicitly.
+        open_section("品牌 Logo")
+        page.get_by_role("radio", name="不显示", exact=True).click()
         assert save()["regions"][0]["slots"]["asset"]["enabled"] is False
-        page.get_by_role("radio", name="自动", exact=True).click()
+        page.get_by_role("radio", name="自动识别", exact=True).click()
         brand_auto = save()
-        assert brand_auto["regions"][0]["slots"]["asset"]["enabled"] is True
         assert brand_auto["regions"][0]["slots"]["asset"]["content"]["path"] == ""
-        page.get_by_role("radio", name="手动", exact=True).click()
-        page.get_by_role("combobox", name="品牌选择", exact=True).select_option("canon")
-        brand_manual = save()
-        assert brand_manual["regions"][0]["slots"]["asset"]["content"]["path"] == "builtin:canon"
+        page.get_by_role("radio", name="指定", exact=True).click()
+        assert save()["regions"][0]["slots"]["asset"]["content"]["path"] == "builtin:fujifilm", "manual defaults to the detected brand"
+        page.get_by_role("combobox", name="品牌", exact=True).select_option("canon")
+        assert save()["regions"][0]["slots"]["asset"]["content"]["path"] == "builtin:canon"
 
-        # Common: signature toggle adds a disabled-free -> enabled-free region.
-        page.get_by_role("checkbox", name="添加署名", exact=True).check()
+        # Signature: the stored graphic can be switched on.
+        open_section("署名")
+        page.get_by_role("checkbox", name="在照片右下角显示署名").check()
         sig = save()
         assert any(r["type"] == "free" and r["enabled"] for r in sig["regions"])
 
-        # Advanced: selecting a named text object exposes its own size/weight controls.
-        page.get_by_role("tab", name="精细", exact=True).click()
-        page.get_by_role("button", name="主轨 · 左侧", exact=True).click()
-        page.get_by_role("radio", name="小", exact=True).click()
-        advanced = save()
-        assert advanced["regions"][0]["slots"]["primary-start"]["style"]["font_size_level"] == "small"
-        page.get_by_role("checkbox", name="加粗", exact=True).uncheck()
-        unbold = save()
-        assert unbold["regions"][0]["slots"]["primary-start"]["style"]["bold"] is False
+        # Status honesty: after saving, an edit shows the unsaved state.
+        expect(page.locator(".status-pill")).not_to_have_class("dirty")
+        page.keyboard.press("r")
+        expect(page.locator(".status-pill.dirty")).to_be_visible()
 
-        # Preview click selection is wired to the same highlight path: clicking the
-        # canvas must not error, and the named-object selection stays consistent.
-        page.locator(".canvas-area canvas").click(position={"x": 10, "y": 10})
+        # Preview click selects the clicked object without errors.
+        page.locator(".preview-stage canvas").click(position={"x": 10, "y": 10})
 
         page.screenshot(path=str(ARTIFACTS / "desktop.png"), full_page=True)
         page.set_viewport_size({"width": 390, "height": 844})
@@ -224,7 +244,7 @@ def main():
         (ARTIFACTS / "save-payloads.json").write_text(json.dumps(saved, ensure_ascii=False, indent=2))
         browser.close()
     print(
-        "PASS: style cards (classic/minimal/plain), common position/fields/brand/signature, advanced object selection + size/weight, preview click wiring, schema-valid saves, desktop/mobile screenshots, no overflow/errors"
+        "PASS: five live style cards, orthogonal style switch, position keeps margin, line fields/size/weight, keyboard undo, brand auto/manual/off, signature, honest dirty status, schema-valid saves, desktop/mobile screenshots, no overflow/errors"
     )
 
 

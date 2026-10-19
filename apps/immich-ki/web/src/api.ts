@@ -23,7 +23,17 @@ const errorLabels: Record<string, string> = {
   output_unavailable: '成品存储暂不可写，暂时无法生成；仍可浏览和编辑照片。',
   workspace_unavailable: '照片处理工作目录暂不可用，请稍后重试。',
   storage_unavailable: '存储暂不可用，请稍后重试。',
-  output_too_large: '输出超过像素上限',
+  output_too_large: '加边框后的成品超过像素上限，请减小留白或信息条',
+  render_failed: '生成失败，请重试',
+  path_conflict: '成品路径与其他照片冲突，请检查同名文件',
+  output_conflict: '成品文件与已有内容冲突',
+  output_not_current: '成品已有更新版本，请刷新',
+  not_published: '成品尚未写入，请稍后再检查',
+  superseded: '已被更新的保存替代',
+  output_identity_changed: '成品标识已变更，请重新保存',
+  sync_unconfirmed: '已生成，但长时间未能在 Immich 中确认收录，可重新检查或重新保存',
+  publication_source_missing: '发布所需的源文件缺失',
+  revision_conflict: '这张照片的设置已在其他页面修改，请重新打开后再保存',
   login_required: '登录已失效，请重新登录',
   invalid_origin: '请求来源校验失败',
   immich_unavailable: 'Immich 暂时不可用，请稍后重试',
@@ -39,10 +49,23 @@ const errorLabels: Record<string, string> = {
   init_required: '面板尚未关联 Immich，请先输入 API Key 完成初始化',
   already_initialized: '面板已完成初始化',
 };
+/** Human-readable message for any thrown value, without the `Error:` prefix. */
+export function errorText(error: unknown): string {
+  if (error instanceof DOMException && error.name === 'AbortError') return '请求已取消';
+  if (error instanceof Error) return error.message || '请求失败';
+  return String(error);
+}
+
+export const BUSY_STATES: JobState[] = ['queued', 'running', 'publishing', 'awaiting_import', 'refresh_pending'];
+export const isBusy = (state: JobState | null | undefined) => !!state && BUSY_STATES.includes(state);
+export const hasOutput = (state: JobState | null | undefined) => state === 'awaiting_import' || state === 'refresh_pending' || state === 'done';
+
 export async function api<T>(path: string, method='GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api${path}`, {method, signal, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
-  const payload = await response.json();
-  if (!response.ok) throw new Error(errorLabels[payload.error] || payload.error || `请求失败 (${response.status})`);
+  let payload: {error?: string} & Record<string, unknown>;
+  try { payload = await response.json(); }
+  catch { throw new Error(response.ok ? '服务器返回了无法识别的内容' : `请求失败 (${response.status})`); }
+  if (!response.ok) throw new Error(errorLabels[payload.error ?? ''] || payload.error || `请求失败 (${response.status})`);
   return payload as T;
 }
 

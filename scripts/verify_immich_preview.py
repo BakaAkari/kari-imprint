@@ -91,22 +91,28 @@ def main():
             page.goto('http://immich-preview.test')
             page.get_by_label('Immich 邮箱').fill('demo@example.com')
             page.get_by_label('Immich 密码').fill('x' * 12)
-            page.get_by_role('button', name='进入图库').click()
-            page.get_by_role('button', name=name, exact=True).click()
-            page.wait_for_function("document.querySelector('canvas')?.width > 300 && !document.querySelector('.controls button')?.disabled")
-            actual = page.locator('canvas').evaluate('(c) => [c.width, c.height]')
+            page.get_by_role('button', name='登录', exact=True).click()
+            page.locator('.album-item', has_text='旅行').click()
+            tile = page.locator('.photo-tile', has_text=name)
+            # Gallery badge reflects the server job state (awaiting_import is still processing).
+            tile.locator('.asset-badge', has_text='处理中').wait_for()
+            tile.click()
+            page.wait_for_function(
+                "document.querySelector('.preview-stage canvas')?.width > 300"
+                " && !document.querySelector('.dock-actions .primary')?.disabled"
+            )
+            actual = page.locator('.preview-stage canvas').evaluate('(c) => [c.width, c.height]')
             assert actual == expected, (name, actual, expected)
-            page.locator('.asset-badge', has_text='待入库').wait_for()
-            page.get_by_label('相册过滤').select_option('33333333-3333-4333-8333-333333333333')
             # Source image must end before the white footer at its scaled height.
-            pixels = page.locator('canvas').evaluate('''(c) => {
+            pixels = page.locator('.preview-stage canvas').evaluate('''(c) => {
               const ctx = c.getContext('2d');
               return [Array.from(ctx.getImageData(2, 2, 1, 1).data),
                       Array.from(ctx.getImageData(2, c.height - 2, 1, 1).data)];
             }''')
             assert pixels == [[40, 90, 150, 255], [255, 255, 255, 255]], (name, pixels)
-            page.get_by_role('button', name='保存并生成', exact=False).click()
-            page.get_by_role('status').filter(has_text='已请求刷新').wait_for()
+            page.locator('.dock-actions .primary').click()
+            page.locator('.status-pill').filter(has_text='已收录，等待 Immich 刷新').wait_for()
+            assert saved_payloads, name
             assert saved_payloads[-1]['canvas']['margins'] == config['canvas']['margins'], name
             page.screenshot(path=str(Path(tmp) / f'{name}.png'))
             page.unroute('**/*', handle)
