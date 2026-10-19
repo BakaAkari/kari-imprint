@@ -22,9 +22,14 @@ import immich_ki
 _RENDER_PIPELINE_FILES = (
     "shared/layout/layout_engine.py",
     "shared/assembler.py",
+    "shared/layout/text_fit.py",
+    "shared/render_values.py",
     "processor/renderer.py",
+    "processor/effects.py",
     "processor/kari_imprint.py",
     "processor/schemas.py",
+    "core/auto_logo.py",
+    "core/output_metadata.py",
 )
 
 

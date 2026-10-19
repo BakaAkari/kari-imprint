@@ -9,6 +9,7 @@
  */
 
 import { BORDER_WIDTH_RATIOS, FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS } from '../designTokens';
+import { dividerColor, resolveInkScheme, resolveTextColor } from '../colorScheme';
 
 // ── 基础几何 ────────────────────────────────────────────
 
@@ -53,11 +54,20 @@ export interface BorderConfig {
   color: string;
 }
 
+/** Optional canvas effect; missing ≡ { background: 'solid', photo_radius: 0, shadow: false }. */
+export interface CanvasEffect {
+  background: 'solid' | 'blur';
+  /** Rounded photo corners as a ratio of the photo short edge, 0..0.08. */
+  photo_radius: number;
+  shadow: boolean;
+}
+
 export interface CanvasConfig {
   margins: MarginsConfig;
   background: string;
   border_radius: number;
   border: BorderConfig;
+  effect?: CanvasEffect | null;
 }
 
 export interface FieldChip {
@@ -222,7 +232,7 @@ export function computeLayout(
   let hasFooter = false;
   for (const region of config.regions) {
     if (region.enabled && region.type === 'footer-bar' && typeof region.height === 'number') {
-      margins.bottom = Math.max(20, Math.round(shortEdge * region.height));
+      margins.bottom = Math.max(20, pyRound(shortEdge * region.height));
       hasFooter = true;
     }
   }
@@ -237,7 +247,7 @@ export function computeLayout(
 
   // 边框：在空白边设置 margins，底部有 footer-bar 时不额外加底边
   if (config.canvas.border?.enabled) {
-    const bw = Math.max(1, Math.round(shortEdge * BORDER_WIDTH_RATIOS[config.canvas.border.width_level]));
+    const bw = Math.max(1, pyRound(shortEdge * BORDER_WIDTH_RATIOS[config.canvas.border.width_level]));
     if (margins.top === 0) margins.top = bw;
     if (margins.left === 0) margins.left = bw;
     if (margins.right === 0) margins.right = bw;
@@ -250,6 +260,7 @@ export function computeLayout(
   const imageRect = rect(margins.left, margins.top, imageW, imageH);
   const canvas = { w: canvasW, h: canvasH };
 
+  const scheme = resolveInkScheme(config.canvas.background, config.canvas.effect);
   const elements: ComputedElement[] = [];
 
   // Step 2: 遍历区域
@@ -266,10 +277,11 @@ export function computeLayout(
           shortEdge,
           longEdge,
           aspect,
+          scheme,
         ));
         break;
       case 'side-bar':
-        elements.push(...computeSideBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge, aspect));
+        elements.push(...computeSideBar(region, imageRect, canvas, config.defaults, shortEdge, longEdge, aspect, scheme));
         break;
       case 'free':
         elements.push(...computeFree(region, imageRect, config.defaults, shortEdge, longEdge));
@@ -307,7 +319,7 @@ function flowConfig(region: RegionConfig): FlowLayoutConfig {
 }
 
 function resolveWidth(value: { mode: 'pixel' | 'short_edge_ratio'; value: number }, shortEdge: number): number {
-  return value.mode === 'pixel' ? Math.round(value.value) : Math.round(shortEdge * value.value);
+  return value.mode === 'pixel' ? pyRound(value.value) : pyRound(shortEdge * value.value);
 }
 
 function activeFlowSlots(region: RegionConfig): Record<string, SlotConfig> {
@@ -318,27 +330,27 @@ function activeFlowSlots(region: RegionConfig): Record<string, SlotConfig> {
 
 function computeFooterBar(
   region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
-  shortEdge: number, longEdge: number, assetAspectRatio: number,
+  shortEdge: number, longEdge: number, assetAspectRatio: number, scheme: string = 'dark',
 ): ComputedElement[] {
   const bounds = rect(0, rectBottom(imageRect), canvas.w, canvas.h - rectBottom(imageRect));
-  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'horizontal', assetAspectRatio);
+  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'horizontal', assetAspectRatio, scheme);
 }
 
 function resolveSideWidth(region: RegionConfig, shortEdge: number): number {
-  if (!region.width) return Math.max(40, Math.round(shortEdge * 0.12));
+  if (!region.width) return Math.max(40, pyRound(shortEdge * 0.12));
   return region.width.mode === 'pixel'
-    ? Math.max(1, Math.round(region.width.value))
-    : Math.max(40, Math.round(shortEdge * region.width.value));
+    ? Math.max(1, pyRound(region.width.value))
+    : Math.max(40, pyRound(shortEdge * region.width.value));
 }
 
 function computeSideBar(
   region: RegionConfig, imageRect: Rect, canvas: Size, defaults: StyleConfig,
-  shortEdge: number, longEdge: number, assetAspectRatio: number,
+  shortEdge: number, longEdge: number, assetAspectRatio: number, scheme: string = 'dark',
 ): ComputedElement[] {
   const bounds = region.edge === 'left'
     ? rect(0, 0, imageRect.x, canvas.h)
     : rect(rectRight(imageRect), 0, canvas.w - rectRight(imageRect), canvas.h);
-  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical', assetAspectRatio);
+  return computeFlowRegion(region, bounds, defaults, shortEdge, longEdge, 'vertical', assetAspectRatio, scheme);
 }
 
 /**
@@ -379,18 +391,26 @@ function resolveAssetOrientation(region: RegionConfig, orientation: string): str
   return 'upright';
 }
 
+function textSlotActive(slot: SlotConfig | undefined): boolean {
+  if (!slot?.enabled || !slot.content || !isTextContent(slot.content)) return false;
+  return slot.content.chips.some((chip) => chip.field_id !== 'empty');
+}
+
 function computeFlowRegion(
   region: RegionConfig, bounds: Rect, defaults: StyleConfig,
   shortEdge: number, longEdge: number, flow: 'horizontal' | 'vertical',
-  assetAspectRatio: number,
+  assetAspectRatio: number, scheme: string = 'dark',
 ): ComputedElement[] {
+  // e.g. a footer-bar without height and without bottom margin.
+  if (bounds.w <= 0 || bounds.h <= 0) return [];
   const layout = flowConfig(region);
   const slots = activeFlowSlots(region);
+  const base = flow === 'horizontal' ? bounds.h : bounds.w;
   const padding = {
-    top: region.padding?.top ?? Math.max(6, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
-    right: region.padding?.right ?? Math.max(8, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
-    bottom: region.padding?.bottom ?? Math.max(6, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
-    left: region.padding?.left ?? Math.max(8, Math.round((flow === 'horizontal' ? bounds.h : bounds.w) * 0.14)),
+    top: region.padding?.top ?? Math.max(6, pyRound(base * 0.14)),
+    right: region.padding?.right ?? Math.max(8, pyRound(base * 0.14)),
+    bottom: region.padding?.bottom ?? Math.max(6, pyRound(base * 0.14)),
+    left: region.padding?.left ?? Math.max(8, pyRound(base * 0.14)),
   };
   const inner = rect(bounds.x + padding.left, bounds.y + padding.top,
     Math.max(1, bounds.w - padding.left - padding.right),
@@ -399,7 +419,7 @@ function computeFlowRegion(
   const itemGap = Math.max(0, resolveWidth(layout.item_gap, shortEdge));
   const ratios = layout.mode === 'single-track' ? [1, 0] : layout.track_ratios;
   const crossSize = flow === 'horizontal' ? inner.h : inner.w;
-  const primarySize = Math.max(1, Math.round((crossSize - (layout.mode === 'dual-track' ? trackGap : 0)) * ratios[0]));
+  const primarySize = Math.max(1, pyRound((crossSize - (layout.mode === 'dual-track' ? trackGap : 0)) * ratios[0]));
   const secondarySize = Math.max(1, crossSize - primarySize - (layout.mode === 'dual-track' ? trackGap : 0));
   const primaryFirst = layout.track_order === 'photo-outward';
   let primary: Rect;
@@ -423,76 +443,102 @@ function computeFlowRegion(
   }
   const trackRects: Record<'primary' | 'secondary', Rect> = { primary, secondary };
   const elements: ComputedElement[] = [];
+  const hasText = (['primary', 'secondary'] as const).some((track) =>
+    !(track === 'secondary' && layout.mode === 'single-track')
+    && (['start', 'end'] as const).some((endpoint) => textSlotActive(slots[`${track}-${endpoint}`])));
 
   // 为 Logo/asset 预留空间，避免文字与 logo 重叠
   let logoStartReserve = 0;
   let logoCenterReserve = 0;
   let logoEndReserve = 0;
-  let hasDivider = false;
-  let dividerStartReserve = 0;
-  let dividerEndReserve = 0;
   const asset = slots.asset;
-  // Logo 空间预留由上层（Canvas）在 computeLayout 之前解析 auto-logo 后决定：
-  // 匹配到 → path 已填充 → 预留；未匹配 → slot disabled → 不预留。
-  if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
+  // Logo 空间预留由上层（Canvas / API process）在 computeLayout 之前解析
+  // auto-logo 后决定：匹配到 → 预留；未匹配 → slot disabled → 不预留、无分隔线。
+  const logoContent = asset?.enabled && asset.content && isLogoContent(asset.content) ? asset.content : null;
+  let logoH = 0;
+  let logoBoxH = 0;
+  let logoDim = 0;
+  let physicalPlacement: 'start' | 'center' | 'end' = 'center';
+  const dividerW = Math.max(1, pyRound(shortEdge * 0.001));
+  if (logoContent) {
     const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
-    const logoSize = resolveLogoSize(asset.content, sizeRef);
-    const logoDim = flow === 'horizontal'
-      ? Math.min(inner.w, Math.round(logoSize * assetAspectRatio))
-      : Math.min(inner.h, Math.round(logoSize / assetAspectRatio));
-    const physicalPlacement = flow === 'vertical'
-      ? sidePlacement(region, asset.content.placement)
-      : asset.content.placement;
-    const dividerW = Math.max(1, Math.round(shortEdge * 0.001));
+    // The logo never exceeds the padded content box (cross axis).
+    logoBoxH = Math.min(resolveLogoSize(logoContent, sizeRef), crossSize);
+    logoH = flow === 'horizontal' ? opticalLogoHeight(logoBoxH, assetAspectRatio) : logoBoxH;
+    logoDim = flow === 'horizontal'
+      ? Math.min(inner.w, pyRound(logoH * assetAspectRatio))
+      : Math.min(inner.h, pyRound(logoH / assetAspectRatio));
+    physicalPlacement = flow === 'vertical'
+      ? sidePlacement(region, logoContent.placement)
+      : (logoContent.placement as 'start' | 'center' | 'end');
     if (physicalPlacement === 'end') {
-      // Keep a real gap on both sides of an edge logo: the old reserve put
-      // the divider directly against the logo while leaving only the outer
-      // padding visible.
-      logoEndReserve = logoDim + dividerW + itemGap * 2;
+      // outer gap · logo · gap · divider · gap · text — the divider sits
+      // exactly itemGap away from both the logo and the text.
+      logoEndReserve = logoDim + dividerW + itemGap * 3;
     } else if (physicalPlacement === 'start') {
-      logoStartReserve = logoDim + dividerW + itemGap * 2;
+      logoStartReserve = logoDim + dividerW + itemGap * 3;
     } else {
       logoCenterReserve = logoDim + itemGap * 2;
     }
-    // Divider: thin subtle line between logo and text when logo is on edge
-    if (physicalPlacement === 'start' || physicalPlacement === 'end') {
-      hasDivider = true;
-      if (physicalPlacement === 'start') {
-        dividerStartReserve = dividerW + itemGap;
-        logoStartReserve = logoDim + dividerW + itemGap * 2;
-      } else {
-        dividerEndReserve = dividerW + itemGap;
-        logoEndReserve = logoDim + dividerW + itemGap * 2;
-      }
-    }
   }
+  const hasDivider = !!logoContent && hasText && (physicalPlacement === 'start' || physicalPlacement === 'end');
 
   for (const trackName of ['primary', 'secondary'] as const) {
     if (trackName === 'secondary' && layout.mode === 'single-track') continue;
     const track = trackRects[trackName];
+    const mainOrigin = flow === 'horizontal' ? track.x : track.y;
+    const mainSize = flow === 'horizontal' ? track.w : track.h;
+    const otherTrack = trackName === 'primary' ? 'secondary' : 'primary';
+    const otherTrackHasText = layout.mode === 'dual-track'
+      && (['start', 'end'] as const).some((endpoint) => textSlotActive(slots[`${otherTrack}-${endpoint}`]));
+    // Lines may only use their own track when the other track has text;
+    // otherwise the padded content box is the limit.
+    const thickness = otherTrackHasText ? (flow === 'horizontal' ? track.h : track.w) : crossSize;
+    const paired = {
+      start: textSlotActive(slots[`${trackName}-start`]),
+      end: textSlotActive(slots[`${trackName}-end`]),
+    };
     for (const endpoint of ['start', 'end'] as const) {
       const slotId = `${trackName}-${endpoint}` as FlowSlot;
       const slot = slots[slotId];
       if (!slot?.enabled || !slot.content) continue;
       const style = mergeStyle(defaults, slot.style);
       style.text_direction = resolveTextDirection(region, style);
+      style.color = resolveTextColor(style.color, trackName, scheme);
       const ref = flow === 'horizontal' ? bounds.h : bounds.w;
-      const fontSize = resolveFontSize(style, ref, shortEdge, longEdge);
+      // Clamp to the track thickness so dual-track lines never overlap, even
+      // on tiny images where the 8px minimum exceeds the track.
+      const fontSize = Math.min(resolveFontSize(style, ref, shortEdge, longEdge), Math.max(1, thickness));
       const physicalEndpoint = flow === 'vertical' ? sideEndpoint(region, endpoint) : endpoint;
+      const other = endpoint === 'start' ? 'end' : 'start';
+      let segStart: number;
+      let segLen: number;
+      if (logoCenterReserve > 0) {
+        const half = Math.floor((mainSize - logoCenterReserve) / 2) - itemGap;
+        segStart = physicalEndpoint === 'start'
+          ? mainOrigin
+          : mainOrigin + Math.floor((mainSize + logoCenterReserve) / 2) + itemGap;
+        segLen = Math.max(1, half);
+      } else if (paired[other]) {
+        if (physicalEndpoint === 'start') {
+          segStart = mainOrigin + logoStartReserve;
+          segLen = Math.max(1, Math.floor(mainSize / 2) - itemGap - logoStartReserve);
+        } else {
+          segStart = mainOrigin + Math.floor(mainSize / 2) + itemGap;
+          segLen = Math.max(1, Math.floor(mainSize / 2) - itemGap - logoEndReserve);
+        }
+      } else {
+        // The paired endpoint is empty: this slot owns the whole track (minus
+        // logo/divider reserves) instead of half of it.
+        segStart = mainOrigin + logoStartReserve;
+        segLen = Math.max(1, mainSize - logoStartReserve - logoEndReserve);
+      }
       const anchor = flow === 'horizontal'
         ? (endpoint === 'start' ? 'middle-left' : 'middle-right')
         : (physicalEndpoint === 'start' ? 'top-center' : 'bottom-center');
       const slotBounds = flow === 'horizontal'
-        ? (endpoint === 'start'
-          ? rect(track.x + logoStartReserve, track.y,
-              Math.max(1, Math.floor((track.w - logoCenterReserve) / 2) - itemGap - logoStartReserve), track.h)
-          : rect(track.x + Math.floor((track.w + logoCenterReserve) / 2) + itemGap, track.y,
-              Math.max(1, Math.floor((track.w - logoCenterReserve) / 2) - itemGap - logoEndReserve), track.h))
-        : (physicalEndpoint === 'start'
-          ? rect(track.x, track.y + logoStartReserve,
-              track.w, Math.max(1, Math.floor((track.h - logoCenterReserve) / 2) - itemGap - logoStartReserve))
-          : rect(track.x, track.y + Math.floor((track.h + logoCenterReserve) / 2) + itemGap,
-              track.w, Math.max(1, Math.floor((track.h - logoCenterReserve) / 2) - itemGap - logoEndReserve)));
+        ? rect(segStart, track.y, segLen, track.h)
+        : rect(track.x, segStart, track.w, segLen);
       const pos = applyAnchor(slotBounds, anchor);
       if (isTextContent(slot.content) && slot.content.chips.length > 0) {
         elements.push({ id: `${region.id}-${slotId}`, type: 'text', rect: rect(pos.x, pos.y, slotBounds.w, slotBounds.h),
@@ -500,49 +546,30 @@ function computeFlowRegion(
       }
     }
   }
-  if (hasDivider && asset?.enabled && asset.content && isLogoContent(asset.content)) {
-    const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
-    const logoH = resolveLogoSize(asset.content, sizeRef);
-    const logoDim = flow === 'horizontal'
-      ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
-      : Math.min(inner.h, Math.round(logoH / assetAspectRatio));
-    const physicalPlacement = flow === 'vertical'
-      ? sidePlacement(region, asset.content.placement)
-      : asset.content.placement;
-    const dividerW = Math.max(1, Math.round(shortEdge * 0.001));
+  if (hasDivider) {
     const emptyContent: Content = { chips: [], separator: '' };
+    const dividerStyle: StyleConfig = { ...defaults, color: dividerColor(scheme) };
+    const dividerLen = Math.min(crossSize, Math.max(1, pyRound(logoBoxH * 1.1)));
+    let dividerRect: Rect;
     if (flow === 'horizontal') {
-      if (physicalPlacement === 'start') {
-        const divX = inner.x + itemGap + logoDim + itemGap;
-        elements.push({ id: `${region.id}-divider`, type: 'divider',
-          rect: rect(divX, inner.y, dividerW, inner.h), anchor: 'middle-center', content: emptyContent, style: defaults });
-      } else {
-        const divX = inner.x + inner.w - itemGap - logoDim - itemGap - dividerW;
-        elements.push({ id: `${region.id}-divider`, type: 'divider',
-          rect: rect(divX, inner.y, dividerW, inner.h), anchor: 'middle-center', content: emptyContent, style: defaults });
-      }
+      const divY = inner.y + Math.floor((inner.h - dividerLen) / 2);
+      const divX = physicalPlacement === 'start'
+        ? inner.x + itemGap + logoDim + itemGap
+        : inner.x + inner.w - itemGap - logoDim - itemGap - dividerW;
+      dividerRect = rect(divX, divY, dividerW, dividerLen);
     } else {
-      if (physicalPlacement === 'start') {
-        // Symmetric: itemGap above the logo and itemGap below it (between logo
-        // and divider), mirroring the horizontal layout.
-        const divY = inner.y + itemGap + logoDim + itemGap;
-        elements.push({ id: `${region.id}-divider`, type: 'divider',
-          rect: rect(inner.x, divY, inner.w, dividerW), anchor: 'middle-center', content: emptyContent, style: defaults });
-      } else {
-        const divY = inner.y + inner.h - itemGap - logoDim - itemGap - dividerW;
-        elements.push({ id: `${region.id}-divider`, type: 'divider',
-          rect: rect(inner.x, divY, inner.w, dividerW), anchor: 'middle-center', content: emptyContent, style: defaults });
-      }
+      const divX = inner.x + Math.floor((inner.w - dividerLen) / 2);
+      const divY = physicalPlacement === 'start'
+        ? inner.y + itemGap + logoDim + itemGap
+        : inner.y + inner.h - itemGap - logoDim - itemGap - dividerW;
+      dividerRect = rect(divX, divY, dividerLen, dividerW);
     }
+    elements.push({ id: `${region.id}-divider`, type: 'divider', rect: dividerRect,
+      anchor: 'middle-center', content: emptyContent, style: dividerStyle });
   }
-  if (asset?.enabled && asset.content && isLogoContent(asset.content)) {
-    const sizeRef = flow === 'horizontal' ? bounds.h : bounds.w;
-    const logoH = resolveLogoSize(asset.content, sizeRef);
-    const physicalPlacement = flow === 'vertical'
-      ? sidePlacement(region, asset.content.placement)
-      : asset.content.placement;
+  if (logoContent) {
     const anchor = flow === 'horizontal'
-      ? (asset.content.placement === 'start' ? 'middle-left' : asset.content.placement === 'end' ? 'middle-right' : 'middle-center')
+      ? (logoContent.placement === 'start' ? 'middle-left' : logoContent.placement === 'end' ? 'middle-right' : 'middle-center')
       : (physicalPlacement === 'start' ? 'top-center' : physicalPlacement === 'end' ? 'bottom-center' : 'middle-center');
     const assetBounds = flow === 'horizontal'
       ? physicalPlacement === 'start'
@@ -556,17 +583,34 @@ function computeFlowRegion(
           ? rect(inner.x, inner.y, inner.w, Math.max(1, inner.h - itemGap))
           : inner;
     const pos = applyAnchor(assetBounds, anchor);
-    const content = { ...asset.content, orientation: resolveAssetOrientation(region, asset.content.orientation) };
+    const content = { ...logoContent, orientation: resolveAssetOrientation(region, logoContent.orientation) };
     const assetW = flow === 'horizontal'
-      ? Math.min(inner.w, Math.round(logoH * assetAspectRatio))
+      ? Math.min(inner.w, pyRound(logoH * assetAspectRatio))
       : Math.min(inner.w, logoH);
     const assetH = flow === 'horizontal'
       ? logoH
-      : Math.min(inner.h, Math.round(logoH / assetAspectRatio));
+      : Math.min(inner.h, pyRound(logoH / assetAspectRatio));
     elements.push({ id: `${region.id}-asset`, type: 'logo', rect: rect(pos.x, pos.y, assetW, assetH),
       anchor, content, style: defaults });
   }
   return elements;
+}
+
+const WIDE_LOGO_ASPECT = 2.5;
+
+/** Shrink very wide wordmarks so their visual weight matches compact marks. */
+function opticalLogoHeight(boxHeight: number, aspect: number): number {
+  if (aspect <= WIDE_LOGO_ASPECT) return boxHeight;
+  return Math.max(1, pyRound(boxHeight * Math.sqrt(WIDE_LOGO_ASPECT / aspect)));
+}
+
+/** Python's round(): half-to-even, so TS/Python layouts agree on .5 values. */
+export function pyRound(value: number): number {
+  const floor = Math.floor(value);
+  const diff = value - floor;
+  if (diff > 0.5) return floor + 1;
+  if (diff < 0.5) return floor;
+  return floor % 2 === 0 ? floor : floor + 1;
 }
 
 function computeFree(
@@ -583,8 +627,8 @@ function computeFree(
   const anchorY = imageRect.y + imageRect.h * anchorRow(anchor);
 
   const offsetUnit = region.offset_unit === 'short_edge_ratio' ? shortEdge : 1;
-  const finalX = anchorX + Math.round((region.offset_x ?? 0) * offsetUnit);
-  const finalY = anchorY + Math.round((region.offset_y ?? 0) * offsetUnit);
+  const finalX = anchorX + pyRound((region.offset_x ?? 0) * offsetUnit);
+  const finalY = anchorY + pyRound((region.offset_y ?? 0) * offsetUnit);
 
   if (region.slots) {
     for (const [slotId, slot] of Object.entries(region.slots)) {
@@ -594,7 +638,7 @@ function computeFree(
 
       if (isSignatureContent(slot.content)) {
         const sigRatio = slot.content.size_ratio ?? SIGNATURE_SIZE_RATIOS[slot.content.size_level ?? 'medium'];
-        const sigH = Math.round(shortEdge * sigRatio);
+        const sigH = pyRound(shortEdge * sigRatio);
         elements.push({
           id: `${region.id}-${slotId}`,
           type: 'signature',
@@ -734,13 +778,13 @@ function resolveFontSize(
       ref = regionHeight;
   }
 
-  return Math.max(8, Math.round(ref * ratio));
+  return Math.max(8, pyRound(ref * ratio));
 }
 
 function resolveLogoSize(content: LogoContent, regionHeight: number): number {
   // Logo 高度按所在区域高度的 size_ratio 缩放，默认使用中号 token，随底栏/边框条高度变化
   const ratio = content.size_ratio ?? LOGO_SIZE_RATIOS[content.size_level ?? 'medium'];
-  return Math.max(16, Math.round(regionHeight * ratio));
+  return Math.max(16, pyRound(regionHeight * ratio));
 }
 
 function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleConfig {

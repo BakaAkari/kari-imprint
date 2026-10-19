@@ -1,142 +1,713 @@
 [
   {
     "id": "footer-dual",
-    "image": [1000, 600],
+    "image": [
+      1000,
+      600
+    ],
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "footer-bar", "enabled": true, "height": 0.1,
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-start": {"enabled": true, "text": "make"},
-          "primary-end": {"enabled": true, "text": "iso"},
-          "secondary-start": {"enabled": true, "text": "camera_model"},
-          "secondary-end": {"enabled": true, "text": "shutter"},
-          "asset": {"enabled": true, "logo": "brand.png", "placement": "start"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.1,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "make"
+            },
+            "primary-end": {
+              "enabled": true,
+              "text": "iso"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "secondary-end": {
+              "enabled": true,
+              "text": "shutter"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "brand.png",
+              "placement": "start"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "side-right-dual",
-    "image": [800, 600],
+    "image": [
+      800,
+      600
+    ],
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "side-bar", "enabled": true, "edge": "right",
-        "width": {"mode": "pixel", "value": 140},
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-start": {"enabled": true, "text": "make"},
-          "primary-end": {"enabled": true, "text": "iso"},
-          "secondary-start": {"enabled": true, "text": "camera_model"},
-          "secondary-end": {"enabled": true, "text": "shutter"},
-          "asset": {"enabled": true, "logo": "brand.png", "placement": "end"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "side-bar",
+          "enabled": true,
+          "edge": "right",
+          "width": {
+            "mode": "pixel",
+            "value": 140
+          },
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "make"
+            },
+            "primary-end": {
+              "enabled": true,
+              "text": "iso"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "secondary-end": {
+              "enabled": true,
+              "text": "shutter"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "brand.png",
+              "placement": "end"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "side-left-single",
-    "image": [600, 900],
+    "image": [
+      600,
+      900
+    ],
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "side-bar", "enabled": true, "edge": "left",
-        "width": {"mode": "short_edge_ratio", "value": 0.15},
-        "layout": {"mode": "single-track"},
-        "slots": {
-          "primary-start": {"enabled": true, "text": "make"},
-          "primary-end": {"enabled": true, "text": "iso"},
-          "secondary-start": {"enabled": true, "text": "camera_model"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "side-bar",
+          "enabled": true,
+          "edge": "left",
+          "width": {
+            "mode": "short_edge_ratio",
+            "value": 0.15
+          },
+          "layout": {
+            "mode": "single-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "make"
+            },
+            "primary-end": {
+              "enabled": true,
+              "text": "iso"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "footer-auto-logo-end",
-    "image": [1000, 600],
+    "image": [
+      1000,
+      600
+    ],
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "footer-bar", "enabled": true, "height": 0.09,
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-end": {"enabled": true, "text": "iso"},
-          "secondary-end": {"enabled": true, "text": "shutter"},
-          "asset": {"enabled": true, "logo": "", "placement": "end"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.09,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-end": {
+              "enabled": true,
+              "text": "iso"
+            },
+            "secondary-end": {
+              "enabled": true,
+              "text": "shutter"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "",
+              "placement": "end"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "footer-square-logo",
-    "image": [1000, 600],
+    "image": [
+      1000,
+      600
+    ],
     "asset_aspect_ratio": 1.0,
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "footer-bar", "enabled": true, "height": 0.1,
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-end": {"enabled": true, "text": "iso"},
-          "secondary-end": {"enabled": true, "text": "shutter"},
-          "asset": {"enabled": true, "logo": "brand.png", "placement": "end"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.1,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-end": {
+              "enabled": true,
+              "text": "iso"
+            },
+            "secondary-end": {
+              "enabled": true,
+              "text": "shutter"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "brand.png",
+              "placement": "end"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "footer-wide-wordmark",
-    "image": [1000, 600],
+    "image": [
+      1000,
+      600
+    ],
     "asset_aspect_ratio": 5.0,
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "footer-bar", "enabled": true, "height": 0.1,
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-start": {"enabled": true, "text": "make"},
-          "secondary-start": {"enabled": true, "text": "camera_model"},
-          "asset": {"enabled": true, "logo": "wordmark.png", "placement": "start"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.1,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "make"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "wordmark.png",
+              "placement": "start"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "side-right-square-logo",
-    "image": [800, 600],
+    "image": [
+      800,
+      600
+    ],
     "asset_aspect_ratio": 1.0,
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "side-bar", "enabled": true, "edge": "right",
-        "width": {"mode": "pixel", "value": 140},
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-start": {"enabled": true, "text": "make"},
-          "secondary-start": {"enabled": true, "text": "camera_model"},
-          "asset": {"enabled": true, "logo": "brand.png", "placement": "end"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "side-bar",
+          "enabled": true,
+          "edge": "right",
+          "width": {
+            "mode": "pixel",
+            "value": 140
+          },
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "make"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "brand.png",
+              "placement": "end"
+            }
+          }
+        }
+      ]
     }
   },
   {
     "id": "side-left-wide-wordmark",
-    "image": [800, 600],
+    "image": [
+      800,
+      600
+    ],
     "asset_aspect_ratio": 5.0,
     "config": {
-      "canvas": {"margins": {"top": 0, "right": 0, "bottom": 0, "left": 0}},
-      "regions": [{
-        "id": "flow", "type": "side-bar", "enabled": true, "edge": "left",
-        "width": {"mode": "pixel", "value": 140},
-        "layout": {"mode": "dual-track"},
-        "slots": {
-          "primary-start": {"enabled": true, "text": "make"},
-          "secondary-start": {"enabled": true, "text": "camera_model"},
-          "asset": {"enabled": true, "logo": "wordmark.png", "placement": "start"}
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
         }
-      }]
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "side-bar",
+          "enabled": true,
+          "edge": "left",
+          "width": {
+            "mode": "pixel",
+            "value": 140
+          },
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "make"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "wordmark.png",
+              "placement": "start"
+            }
+          }
+        }
+      ]
     }
+  },
+  {
+    "id": "footer-text-fit-start-owns-track",
+    "image": [
+      3024,
+      4032
+    ],
+    "asset_aspect_ratio": 0.8152,
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.15,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "lens_model",
+              "font_size": 104
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "focal_length",
+              "font_size": 104
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "builtin:apple",
+              "placement": "end"
+            }
+          }
+        }
+      ]
+    },
+    "texts": {
+      "primary-start": "iPhone 15 Pro Max iPhone 15 Pro Max back triple camera 6.765mm f/1.78",
+      "secondary-start": "24mm f/1.8 1/120s ISO 50"
+    },
+    "note": "P1-1: start slot owns the whole track (no end slot), long text shrinks to 80% then truncates; secondary is capped by the primary scale"
+  },
+  {
+    "id": "footer-paired-slots-share-track",
+    "image": [
+      6000,
+      4000
+    ],
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.15,
+          "layout": {
+            "mode": "single-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "camera_model",
+              "font_size": 120
+            },
+            "primary-end": {
+              "enabled": true,
+              "text": "iso",
+              "font_size": 120
+            }
+          }
+        }
+      ]
+    },
+    "texts": {
+      "primary-start": "Super Ultra Long Camera Model Name Mark IV Limited Edition",
+      "primary-end": "ISO 100"
+    },
+    "note": "a short end slot donates its unused length to the start slot"
+  },
+  {
+    "id": "footer-unrecognized-logo-disabled",
+    "image": [
+      6000,
+      4000
+    ],
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.15,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "lens_model"
+            },
+            "asset": {
+              "enabled": false,
+              "logo": "",
+              "placement": "end"
+            }
+          }
+        }
+      ]
+    },
+    "note": "P1-2: the auto logo resolved to nothing → slot disabled → no divider, no reserve"
+  },
+  {
+    "id": "footer-dark-background-ink",
+    "image": [
+      3000,
+      2000
+    ],
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "background": "#2B2B2B"
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.15,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "lens_model"
+            },
+            "secondary-end": {
+              "enabled": true,
+              "text": "iso",
+              "color": "#FF0000"
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "builtin:canon",
+              "placement": "end"
+            }
+          }
+        }
+      ]
+    },
+    "asset_aspect_ratio": 4.79,
+    "note": "A4: luminance-derived light ink, gray secondary, explicit colors kept; A3 wide wordmark optical size"
+  },
+  {
+    "id": "footer-blur-effect",
+    "image": [
+      4000,
+      3000
+    ],
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "background": "#FFFFFF",
+        "effect": {
+          "background": "blur",
+          "photo_radius": 0.03,
+          "shadow": true
+        }
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.15,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "camera_model"
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "lens_model"
+            }
+          }
+        }
+      ]
+    },
+    "note": "blur effect forces light ink regardless of the solid background color"
+  },
+  {
+    "id": "tiny-dual-track-no-overlap",
+    "image": [
+      120,
+      80
+    ],
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "footer-bar",
+          "enabled": true,
+          "height": 0.15,
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "camera_model",
+              "font_size": 12
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "lens_model",
+              "font_size": 12
+            }
+          }
+        }
+      ]
+    },
+    "note": "A5: font sizes are clamped to the track thickness on tiny images"
+  },
+  {
+    "id": "side-left-fit-hierarchy",
+    "image": [
+      6000,
+      4000
+    ],
+    "asset_aspect_ratio": 0.8152,
+    "config": {
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "regions": [
+        {
+          "id": "flow",
+          "type": "side-bar",
+          "enabled": true,
+          "edge": "left",
+          "width": {
+            "mode": "short_edge_ratio",
+            "value": 0.15
+          },
+          "layout": {
+            "mode": "dual-track"
+          },
+          "slots": {
+            "primary-start": {
+              "enabled": true,
+              "text": "lens_model",
+              "font_size": 138
+            },
+            "secondary-start": {
+              "enabled": true,
+              "text": "focal_length",
+              "font_size": 138
+            },
+            "asset": {
+              "enabled": true,
+              "logo": "builtin:apple",
+              "placement": "end"
+            }
+          }
+        }
+      ]
+    },
+    "texts": {
+      "primary-start": "iPhone 15 Pro Max iPhone 15 Pro Max back triple camera 6.765mm f/1.78",
+      "secondary-start": "24mm f/1.8 1/120s ISO 50"
+    },
+    "note": "A1: rotated primary shrinks/truncates, secondary never ends up larger than primary"
   }
 ]

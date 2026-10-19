@@ -139,11 +139,26 @@ export interface BorderConfig {
   color: string;
 }
 
+/**
+ * Optional canvas effect (TS ↔ Python `EffectConfig` ↔ API `CanvasEffectPayload`).
+ * A missing / null effect is identical to `DEFAULT_CANVAS_EFFECT`.
+ */
+export interface CanvasEffect {
+  background: 'solid' | 'blur';
+  /** Rounded photo corners as a ratio of the photo short edge, 0..0.08. */
+  photo_radius: number;
+  shadow: boolean;
+}
+
+export const DEFAULT_CANVAS_EFFECT: Readonly<CanvasEffect> = { background: 'solid', photo_radius: 0, shadow: false };
+export const MAX_PHOTO_RADIUS = 0.08;
+
 export interface CanvasConfig {
   margins: MarginsConfig;
   background: string;
   border_radius: number;
   border: BorderConfig;
+  effect?: CanvasEffect | null;
 }
 
 export interface ImprintConfig {

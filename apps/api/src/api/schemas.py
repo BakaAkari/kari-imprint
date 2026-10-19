@@ -9,7 +9,15 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from api.errors import ApiError
 
@@ -115,6 +123,13 @@ _FONT_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "large": 0.25,
 }
 _LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
+    "small": 0.36,
+    "medium": 0.44,
+    "large": 0.54,
+}
+# Pre-v2 logo token values; saved configs carrying these exact ratios still
+# migrate to the matching size level.
+_LEGACY_LOGO_SIZE_LEVEL_RATIOS: dict[str, float] = {
     "small": 0.65,
     "medium": 0.78,
     "large": 0.95,
@@ -253,11 +268,37 @@ class BorderConfigPayload(StrictModel):
         return _validate_color(value)
 
 
+class CanvasEffectPayload(StrictModel):
+    """Optional canvas effect. Missing ≡ solid background, no radius, no shadow."""
+
+    background: Literal["solid", "blur"] = "solid"
+    # Ratio of the photo short edge.
+    photo_radius: float = Field(default=0.0, ge=0.0, le=0.08)
+    shadow: bool = False
+
+    @field_validator("photo_radius", mode="before")
+    @classmethod
+    def _numeric_radius(cls, value: Any) -> Any:
+        # strict=True already refuses strings/bools for floats; accept JSON ints.
+        if isinstance(value, int) and not isinstance(value, bool):
+            return float(value)
+        return value
+
+
 class CanvasConfigPayload(StrictModel):
     margins: MarginsConfigPayload = Field(default_factory=MarginsConfigPayload)
     background: Color = "#FFFFFF"
     border_radius: int = Field(default=0, ge=0, le=300)
     border: BorderConfigPayload | None = None
+    effect: CanvasEffectPayload | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_missing_effect(self, handler: Any) -> Any:
+        # Keep dumps of pre-effect configs byte-identical (no "effect": null).
+        data = handler(self)
+        if isinstance(data, dict) and data.get("effect") is None:
+            data.pop("effect", None)
+        return data
 
     @field_validator("background")
     @classmethod
@@ -359,16 +400,28 @@ class ImprintPayload(StrictModel):
                 if isinstance(content, dict):
                     ratio_value = content.get("size_ratio")
                     level_value = content.get("size_level")
-                    ratios = _SIGNATURE_SIZE_LEVEL_RATIOS if "invert_mono" in content else _LOGO_SIZE_LEVEL_RATIOS
-                    if ratio_value is not None and level_value is None:
-                        for level, ratio in ratios.items():
-                            if abs(ratio_value - ratio) < 0.001:
-                                content["size_level"] = level
+                    token_sets = (
+                        (_SIGNATURE_SIZE_LEVEL_RATIOS,)
+                        if "invert_mono" in content
+                        else (_LOGO_SIZE_LEVEL_RATIOS, _LEGACY_LOGO_SIZE_LEVEL_RATIOS)
+                    )
+                    if isinstance(ratio_value, (int, float)) and not isinstance(ratio_value, bool):
+                        if level_value is None:
+                            match = next(
+                                (
+                                    level
+                                    for ratios in token_sets
+                                    for level, ratio in ratios.items()
+                                    if abs(ratio_value - ratio) < 0.001
+                                ),
+                                None,
+                            )
+                            if match is not None:
+                                content["size_level"] = match
                                 content["size_ratio"] = None
-                                break
-                    elif ratio_value is not None and level_value is not None:
-                        expected = ratios.get(level_value)
-                        if expected is not None and abs(ratio_value - expected) < 0.001:
+                        elif any(
+                            abs(ratio_value - ratios.get(level_value, -1.0)) < 0.001 for ratios in token_sets
+                        ):
                             content["size_ratio"] = None
         return data
 
@@ -404,11 +457,11 @@ def validate_imprint_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     return parsed.model_dump()
 
 
+_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$", re.ASCII)
+
+
 def _validate_color(value: str) -> str:
-    if len(value) != 7 or not value.startswith("#"):
+    # A strict pattern: int(x, 16) alone accepts "+", "-", "_" and spaces.
+    if not isinstance(value, str) or not _COLOR_RE.fullmatch(value):
         raise ValueError("颜色必须使用 #RRGGBB 格式")
-    try:
-        int(value[1:], 16)
-    except ValueError as exc:
-        raise ValueError("颜色必须使用 #RRGGBB 格式") from exc
     return value.upper()

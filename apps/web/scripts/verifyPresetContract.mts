@@ -26,7 +26,7 @@ import {
   getFirstProductPreset,
   getProductPreset,
 } from '../src/presetSession';
-import { resolveAutoLogo } from '../src/autoLogo';
+import { resolveAutoLogo, resolveAutoLogoWithScheme } from '../src/autoLogo';
 
 let failures = 0;
 function pass(label: string) {
@@ -311,12 +311,14 @@ section('10. Deep-freeze — direct mutation of the source preset is a hard erro
 section('11. Auto-Logo resolver — shared contract fixture');
 // The identical JSON file is consumed by packages/kari-core/tests/unit/test_auto_logo.py,
 // so any divergence between preview and PIL Process breaks CI on one side or the other.
-type AutoLogoFixtureCase = { make: string | null; expected: string | null; note?: string };
+type AutoLogoFixtureCase = { make: string | null; model?: string; on_dark?: boolean; expected: string | null; note?: string };
 type AutoLogoFixture = { builtins: string[]; cases: AutoLogoFixtureCase[] };
 const fixturePath = resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/auto_logo_cases.json');
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as AutoLogoFixture;
 for (const kase of fixture.cases) {
-  const r = resolveAutoLogo(kase.make, fixture.builtins);
+  const registry = fixture.builtins.map((stem) => ({ stem, variants: [] as string[] }));
+  const resolved = resolveAutoLogoWithScheme(kase.make, registry, kase.on_dark ? 'light' : 'dark', '', kase.model ?? null);
+  const r = { path: resolved.stem ? `builtin:${resolved.stem}` : null };
   const expectedPath = kase.expected === null ? null : `builtin:${kase.expected}`;
   const label = `make=${JSON.stringify(kase.make)} → ${kase.expected ?? 'null'}${kase.note ? ` (${kase.note})` : ''}`;
   assertEqual(label, r.path, expectedPath);

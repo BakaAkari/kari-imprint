@@ -295,8 +295,10 @@ class TestFooterBarLayout:
         assert square.w < fallback.w
         # Wide wordmark logos should stretch wider than the legacy 3× box (bounded by inner width).
         assert wide.w > fallback.w
-        # Same logo height across all values → only width changes.
-        assert square.h == fallback.h == wide.h
+        # Compact marks keep the full logo box height; wide wordmarks are
+        # optically reduced (height ∝ sqrt(2.5 / aspect)) so they do not dominate.
+        assert square.h >= fallback.h >= wide.h
+        assert square.h == round(54 * 0.44)
 
     def test_asset_aspect_ratio_none_matches_default(self):
         def _run(aspect: float | None) -> Rect:
