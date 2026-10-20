@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { ImprintConfig } from '../../../web/src/types';
 import type { ExifFieldValues, RuntimeCapabilities } from '../../../web/src/api';
@@ -113,7 +113,7 @@ function App() {
   useEffect(() => { if (logged) api<RuntimeCapabilities>('/capabilities').then(setCaps).catch(e => setToast({ text: errorText(e) })); }, [logged]);
 
   // ── albums & gallery ──
-  const [albums, setAlbums] = useState<Album[]>([]), [albumsAvailable, setAlbumsAvailable] = useState(true);
+  const [albums, setAlbums] = useState<Album[]>([]), [albumsAvailable, setAlbumsAvailable] = useState(true), [albumsLoaded, setAlbumsLoaded] = useState(false);
   const [album, setAlbum] = useState(() => { try { return sessionStorage.getItem('ki-album') || ''; } catch { return ''; } });
   const [albumSort, setAlbumSort] = useState<'name-asc' | 'count-desc' | 'count-asc'>('name-asc');
   useEffect(() => { try { sessionStorage.setItem('ki-album', album); } catch { /* ignore */ } }, [album]);
@@ -121,13 +121,17 @@ function App() {
     if (!logged) return;
     const control = new AbortController();
     api<{ albums: Album[]; available: boolean }>('/albums', 'GET', undefined, control.signal)
-      .then(data => { setAlbums(data.albums); setAlbumsAvailable(data.available); })
+      // The worker lists only albums with processable photos; result (Imprint)
+      // albums are dropped here too in case an older worker still returns them.
+      .then(data => {
+        const usable = data.albums.filter(a => !(a.isResult ?? a.name.trimEnd().toLowerCase().endsWith('imprint')));
+        setAlbums(usable); setAlbumsAvailable(data.available); setAlbumsLoaded(true);
+        setAlbum(current => usable.some(a => a.id === current) ? current : '');
+      })
       .catch(() => { if (!control.signal.aborted) setAlbumsAvailable(false); });
     return () => control.abort();
   }, [logged]);
-  const isResult = (a: Album) => a.isResult ?? a.name.trimEnd().toLowerCase().endsWith('imprint');
   const sortedAlbums = useMemo(() => [...albums].sort((a, b) => {
-    if (isResult(a) !== isResult(b)) return isResult(a) ? 1 : -1;
     if (albumSort === 'name-asc') return a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
     return (albumSort === 'count-desc' ? b.assetCount - a.assetCount : a.assetCount - b.assetCount) || a.name.localeCompare(b.name);
   }), [albums, albumSort]);
@@ -145,6 +149,10 @@ function App() {
 
   // ── editor ──
   const [active, setActive] = useState<Asset | null>(null);
+  // Restore the gallery offset synchronously when it remounts after editing,
+  // before paint, so it can neither flash at the top nor overwrite a later scroll.
+  const editing = active !== null;
+  useLayoutEffect(() => { if (!editing && galleryNode.current) galleryNode.current.scrollTop = scrollPosition.current; }, [editing]);
   const [photo, setPhoto] = useState<PhotoData | null>(null);
   const [previewSrc, setPreviewSrc] = useState(''), [loadError, setLoadError] = useState(''), [loadAttempt, setLoadAttempt] = useState(0);
   const { doc, dirty, load, commit: commitDoc, undo, redo, markSaved } = useEditorDoc(initial);
@@ -211,7 +219,6 @@ function App() {
       setToast({ text: `「${active.name}」的修改已保留为本机草稿`, action: { label: '放弃草稿', run: () => { drafts.clear(id); refreshDrafts(); } } });
     }
     setActive(null); setPhoto(null); setPreviewSrc(''); setSelection(null);
-    requestAnimationFrame(() => { if (galleryNode.current) galleryNode.current.scrollTop = scrollPosition.current; });
   }, [active, dirty, drafts, refreshDrafts]);
 
   const neighbour = useCallback((step: number) => {
@@ -377,13 +384,12 @@ function App() {
             <option value="name-asc">名称</option><option value="count-desc">照片多→少</option><option value="count-asc">照片少→多</option>
           </select></div>
         {!albumsAvailable && <p className="hint error" role="alert">无法读取相册，请检查 Immich 的 album.read 权限。</p>}
-        <div className="album-list">{sortedAlbums.map(item => {
-          const result = isResult(item);
-          return <button key={item.id} type="button" className={`album-item ${album === item.id ? 'selected' : ''}`} aria-pressed={album === item.id} disabled={result} title={result ? '成品相册由 Kari Imprint 生成，不能作为编辑来源' : item.name} onClick={() => setAlbum(item.id)}>
+        {albumsLoaded && albumsAvailable && !albums.length && <p className="hint">没有可处理的相册。这里只列出含有 JPEG/PNG 成片的相册，RAW 原片相册和 Imprint 成品相册不会显示。</p>}
+        <div className="album-list">{sortedAlbums.map(item =>
+          <button key={item.id} type="button" className={`album-item ${album === item.id ? 'selected' : ''}`} aria-pressed={album === item.id} title={item.name} onClick={() => setAlbum(item.id)}>
             <span className="album-cover"><img src={`/api/albums/${item.id}/thumbnail`} alt="" loading="lazy" onError={e => { e.currentTarget.style.visibility = 'hidden'; }} /></span>
-            <span className="album-meta"><span className="album-name">{item.name}</span><small>{result ? '成品 · 只读' : `${item.assetCount} 张`}</small></span>
-          </button>;
-        })}</div>
+            <span className="album-meta"><span className="album-name">{item.name}</span><small>{item.assetCount} 张</small></span>
+          </button>)}</div>
       </aside>
       <main className="gallery-scroll" ref={galleryNode} aria-label="相册照片">
         <div className="gallery-head">

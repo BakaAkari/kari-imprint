@@ -23,6 +23,7 @@ from PIL import Image
 from pydantic import Field, ValidationError, field_validator
 from starlette.middleware.gzip import GZipMiddleware
 
+from immich_ki.albums import SourceAlbums
 from immich_ki.auth import PUBLIC_AUTH_PATHS, install_auth
 from immich_ki.client import ImmichClient, UpstreamError
 from immich_ki.keyconfig import resolve_panel_config
@@ -95,6 +96,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     settings = settings or Settings.from_env()
     key, owner, initialized = resolve_panel_config(settings.data, settings.api_key)
     upstream = client or ImmichClient(settings.immich_url, key)
+    source_albums = SourceAlbums(upstream, settings.source_library)
     owner = resolve_owner_from_key(settings, upstream, key, owner)
 
     def swap_upstream_key(new_key: str) -> None:
@@ -287,9 +289,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     @app.get("/api/albums")
     def list_albums():
         try:
-            from immich_ki.albums import is_result
-
-            return {"albums": [{**a, "isResult": is_result(a["name"])} for a in upstream.albums()], "available": True}
+            return {"albums": source_albums.list(), "available": True}
         except UpstreamError as exc:
             if exc.status == 403:
                 # The panel key may lack album.read; filtering stays hidden.

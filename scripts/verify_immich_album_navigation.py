@@ -1,6 +1,6 @@
 """Mocked browser acceptance for the immich-ki album browsing flow.
 
-Covers: read-only result albums, infinite-scroll paging with dedup, the
+Covers: hidden result albums, infinite-scroll paging with dedup, the
 photo editor (open/save, automatic local drafts with badge + discard toast,
 back navigation with scroll restore),
 stale request isolation across album switches, and error states.
@@ -184,11 +184,9 @@ def main():
         crumb_name = page.locator(".crumbs .crumb-name")
         toast = page.locator(".toast")
 
-        # A ─ album list: result album is shown read-only, normal album is selectable.
-        result_card = album_button("Trip 2024 Imprint")
-        expect(result_card).to_have_count(1)
-        expect(result_card).to_be_disabled()
-        expect(result_card).to_contain_text("成品 · 只读")
+        # A ─ album list: result albums are never offered as sources, even if an
+        # older worker still returns them; normal albums are selectable.
+        expect(album_button("Trip 2024 Imprint")).to_have_count(0)
         trip_card = album_button("Trip 2024")
         expect(trip_card).to_have_count(1)
         expect(trip_card).to_be_enabled()
@@ -348,7 +346,7 @@ def main():
         assert not errors, errors
         browser.close()
     print(
-        "PASS: read-only result album, infinite scroll (auto page 2, no pager, dedup), editor open + render payload, auto draft (toast, restore, badge, discard), scroll restore, stale album response dropped, empty + permission errors, no page errors"
+        "PASS: hidden result album, infinite scroll (auto page 2, no pager, dedup), editor open + render payload, auto draft (toast, restore, badge, discard), scroll restore, stale album response dropped, empty + permission errors, no page errors"
     )
 
 

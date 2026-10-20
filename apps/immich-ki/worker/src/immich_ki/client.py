@@ -54,6 +54,21 @@ class ImmichClient:
             body["albumIds"] = [str(UUID(str(album))) for album in albums]
         return self.request("POST", "search/metadata", json=body).json()["assets"]
 
+    def album_has_images(self, library: str, album_id: str) -> bool:
+        """Whether ``album_id`` holds at least one image from ``library``.
+
+        Albums whose photos live only in another library (e.g. the RAW archive)
+        have nothing this tool can process.
+        """
+        body = {
+            "libraryId": str(UUID(library)),
+            "albumIds": [str(UUID(str(album_id)))],
+            "type": "IMAGE",
+            "page": 1,
+            "size": 1,
+        }
+        return bool(self.request("POST", "search/metadata", json=body).json()["assets"]["items"])
+
     def albums(self):
         # Requires the album.read scope; the panel degrades when it is missing.
         result = self.request("GET", "albums").json()

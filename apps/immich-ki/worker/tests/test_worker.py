@@ -28,6 +28,9 @@ class FakeImmich:
         self.owner_email = "akari@example.com"
         # Durable membership modelled on the real `GET /albums?assetId=` contract.
         self.members = {self.asset_id: {self.source_album_id}}
+        # Albums whose photos live only in another library (RAW archive).
+        self.raw_albums = []
+        self.eligibility_checks = []
 
     def me(self):
         # The owner of the service API key (x-api-key), never the login identity.
@@ -86,7 +89,11 @@ class FakeImmich:
         return [
             {"id": self.source_album_id, "name": "旅行", "assetCount": 3},
             {"id": self.result_album_id, "name": "旅行 Imprint", "assetCount": 1},
-        ]
+        ] + [{"id": album_id, "name": "RAW 原片", "assetCount": 9} for album_id in self.raw_albums]
+
+    def album_has_images(self, library, album_id):
+        self.eligibility_checks.append(album_id)
+        return album_id not in self.raw_albums
 
     def album(self, album_id):
         # Mirror the real client contract: /api/albums/:id returns albumName and
@@ -799,9 +806,9 @@ def test_imprint_album_is_never_a_source(setup):
     with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         client.post("/api/auth/immich-login", json=OPERATOR)
         albums = client.get("/api/albums").json()["albums"]
-        result = next(a for a in albums if a["name"] == "旅行 Imprint")
-        assert result["isResult"] is True
-        assert next(a for a in albums if a["name"] == "旅行")["isResult"] is False
+        # Result albums are not offered as sources at all.
+        assert [a["name"] for a in albums] == ["旅行"]
+        result = {"id": fake.result_album_id}
         response = client.get("/api/assets", params={"album": result["id"]})
         assert response.status_code == 422 and response.json()["error"] == "result_album_read_only"
         enqueue = client.post(
@@ -809,6 +816,52 @@ def test_imprint_album_is_never_a_source(setup):
         )
         assert enqueue.status_code == 422 and enqueue.json()["error"] == "result_album_read_only"
         assert fake.album_filters == [] and fake.attached == []
+
+
+def test_album_list_hides_albums_without_source_images(setup):
+    """RAW-only albums (photos only in the archive library) are not offered."""
+    settings, fake = setup
+    raw = str(uuid4())
+    fake.raw_albums = [raw]
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post("/api/auth/immich-login", json=OPERATOR)
+        names = [a["id"] for a in client.get("/api/albums").json()["albums"]]
+        assert names == [fake.source_album_id]
+        # Result albums are never checked; source/raw answers are cached.
+        assert sorted(fake.eligibility_checks) == sorted([fake.source_album_id, raw])
+        client.get("/api/albums")
+        assert len(fake.eligibility_checks) == 2
+
+
+def test_album_eligibility_unknown_keeps_album_visible(setup):
+    settings, fake = setup
+    from immich_ki.client import UpstreamError
+
+    def flaky(library, album_id):
+        raise UpstreamError()
+
+    fake.album_has_images = flaky
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post("/api/auth/immich-login", json=OPERATOR)
+        assert [a["name"] for a in client.get("/api/albums").json()["albums"]] == ["旅行"]
+
+
+def test_client_album_has_images_queries_one_source_image():
+    import json
+
+    import httpx
+    from immich_ki.client import ImmichClient
+
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"assets": {"items": [], "nextPage": None}})
+
+    library, album = str(uuid4()), str(uuid4())
+    client = ImmichClient("http://immich", "k", transport=httpx.MockTransport(handler))
+    assert client.album_has_images(library, album) is False
+    assert seen == [{"libraryId": library, "albumIds": [album], "type": "IMAGE", "page": 1, "size": 1}]
 
 
 def test_render_pairs_source_album_with_one_imprint_album(setup):
