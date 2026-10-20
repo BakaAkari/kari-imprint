@@ -21,6 +21,24 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
       - run: uv python install 3.13
       - run: uv sync --frozen --all-packages --all-groups
+      # assets/fonts is gitignored (16-17MB each). Rendering fails closed
+      # without the watermark fonts, so fetch the official Noto CJK files and
+      # pin them by SHA-256 (same files the deployment images verify).
+      - uses: actions/cache@v4
+        with:
+          path: assets/fonts
+          key: noto-cjk-sc-2c76254f-b5f0d1a1
+      - name: Fetch Noto CJK SC fonts
+        run: |
+          mkdir -p assets/fonts
+          base=https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese
+          for f in NotoSansCJKsc-Regular.otf NotoSansCJKsc-Bold.otf; do
+            [ -f "assets/fonts/$f" ] || curl -fsSL --retry 3 -o "assets/fonts/$f" "$base/$f"
+          done
+          sha256sum -c - <<'SUMS'
+          2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b  assets/fonts/NotoSansCJKsc-Regular.otf
+          b5f0d1a190a7f9b43c310a8850630af12553df32c4c050543f9059732d9b4c0a  assets/fonts/NotoSansCJKsc-Bold.otf
+          SUMS
       - run: uv run --all-packages --all-groups ruff check .
       - run: uv run --all-packages --all-groups pytest
 
