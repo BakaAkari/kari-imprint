@@ -1948,17 +1948,292 @@ hr, .divider {
   }
 }
 
+/* ========== 窄屏（平板 / 手机）：纵向堆叠，页面整体滚动 ==========
+ * ≤920px 时三栏放不下（右栏曾被直接隐藏），改为：
+ * 顶栏（吸顶、可换行）→ 图片 / 预设 → 预览 → 底栏编辑 → 右栏设置。
+ * ≥921px 的桌面布局完全不受影响。 */
 @media (max-width: 920px) {
+  html, body, #root { height: auto; min-height: 100%; }
+
+  body { overflow: visible; }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* 顶栏：品牌一行，状态 + 操作按钮一行，吸顶保证 Process / 下载始终可达 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 6px 12px 8px;
+  }
+
+  .topbar-left {
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+  }
+
+  .topbar-nav {
+    min-height: 36px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  .topbar-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .topbar-status {
+    flex: 1 1 140px;
+    min-width: 0;
+    max-width: none;
+    min-height: 36px;
+  }
+
+  .topbar-status > span:not(.spinner):not(.status-dot) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-actions > button,
+  .topbar-actions > .btn {
+    min-height: 36px;
+  }
+
+  .topbar-actions > button.ghost.micro {
+    min-width: 36px;
+  }
+
+  /* 工作区：单列流式布局 */
   .workspace {
-    grid-template-columns: 200px minmax(0, 1fr);
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
   }
 
+  .left-rail,
   .right-rail {
-    display: none;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    overflow: visible;
   }
 
-  .settings-content {
-    grid-template-columns: minmax(260px, 1fr);
+  /* 左栏：上传 / 比例 / 缩略图 / 预设各占一块，平板上并排 */
+  .left-rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    align-items: stretch;
+  }
+
+  .rail-panel-thumbnails,
+  .rail-panel-presets {
+    min-height: 0;
+    margin-top: 0;
+  }
+
+  .rail-panel-body.scroll { overflow: visible; }
+
+  .upload-zone {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 10px;
+    padding: 12px;
+    min-height: 56px;
+  }
+
+  .upload-zone-icon { font-size: 22px; }
+  .upload-zone-hint { flex-basis: 100%; }
+
+  /* 缩略图、预设：横向滚动条 */
+  .thumb-grid,
+  .preset-list {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .thumb-grid::-webkit-scrollbar,
+  .preset-list::-webkit-scrollbar { display: none; }
+
+  .thumb-grid { padding: 12px 6px 4px 12px; }
+
+  .thumb-item {
+    flex: 0 0 72px;
+    width: 72px;
+    height: 72px;
+  }
+
+  .thumb-item .thumb-remove {
+    top: -10px;
+    left: -10px;
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+
+  .preset-card {
+    flex: 0 0 auto;
+    justify-content: center;
+    min-height: 36px;
+    padding: 6px 14px;
+    border-color: var(--line);
+  }
+
+  .aspect-ratio-grid { gap: 6px; }
+  .aspect-ratio-btn { min-height: 52px; }
+
+  /* 预览 + 底栏编辑 */
+  .main-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .canvas-area {
+    flex: 0 0 auto;
+    height: 45vh;
+    height: 45dvh;
+    min-height: 220px;
+  }
+
+  .main-controls,
+  .footer-bar,
+  .footer-bar-rows {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .footer-bar {
+    grid-template-rows: auto auto;
+  }
+
+  .footer-bar-rows {
+    grid-auto-rows: 48px;
+  }
+
+  .footer-row { padding: 5px 8px; }
+
+  .footer-bar-rows-dual-track,
+  .footer-bar-rows-single-track {
+    grid-template-rows: none;
+  }
+
+  .footer-row-size { height: 36px; }
+
+  .add-chip,
+  .chip-select { height: 32px; }
+
+  /* 右栏：完整显示为全宽分区，平板上两列 */
+  .right-rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    align-items: start;
+    gap: 8px;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
+    padding-right: 0;
+  }
+
+  .layout-structure-options,
+  .triple-row .layout-structure-options {
+    flex: 0 0 150px;
+  }
+
+  .advanced-panel { max-height: none; }
+
+  /* 右栏行内表单：标签在左、控件在右（桌面版 .form-row 仍沿用列方向） */
+  .right-rail .form-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+  }
+
+  /* 触控目标 ≥ 36px */
+  .segment,
+  .segmented-option,
+  .detail-toggle,
+  .reset-btn,
+  .section-advanced-toggle,
+  .btn,
+  .btn-sm,
+  .main-controls button,
+  .right-rail button,
+  .right-rail select,
+  .right-rail input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  .left-rail button.small {
+    min-height: 36px;
+  }
+
+  .right-rail input[type="color"] {
+    flex: 0 0 44px;
+    width: 44px;
+  }
+
+  .layout-structure-row,
+  .triple-row { min-height: 36px; }
+
+  .footer-row .chip-remove {
+    width: 28px;
+    height: 28px;
+  }
+
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+/* 手机：底栏四个槽位改为单列，避免两列时 chip 区被挤到不足 60px */
+@media (max-width: 600px) {
+  .footer-bar-rows-dual-track {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "primary-start"
+      "primary-end"
+      "secondary-start"
+      "secondary-end";
+  }
+
+  .footer-bar-rows-single-track {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "primary-start"
+      "primary-end";
+  }
+
+  .layout-structure-options,
+  .triple-row .layout-structure-options {
+    flex: 0 1 150px;
+  }
+}
+
+/* 触屏没有 hover：缩略图删除按钮常显 */
+@media (hover: none) {
+  .thumb-item .thumb-remove {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
