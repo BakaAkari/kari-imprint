@@ -1,10 +1,40 @@
 import type { ImprintConfig } from '../../../web/src/types';
 export type JobState = 'queued'|'running'|'publishing'|'awaiting_import'|'refresh_pending'|'done'|'failed'|'superseded';
-export type AssetStatus = {configured: boolean; job: JobState | null; published: boolean};
+/** Single per-photo state (design 2026-10-20 §1); `none` = no output yet. */
+export type PhotoState = 'none' | 'draft' | 'busy' | 'done' | 'stale' | 'failed';
+export type AssetStatus = {
+  configured: boolean; job: JobState | null; published: boolean;
+  /** Present on workers with album looks; older workers omit them. */
+  state?: PhotoState; exception?: boolean; draft?: boolean;
+};
 export type Asset = {id: string; name: string; width?:number|null; height?:number|null; status?: AssetStatus};
 export type Album = {id: string; name: string; assetCount: number; isResult?:boolean; thumbnailAssetId?:string|null};
 export type Saved = {revision: number; config: ImprintConfig | null};
 export type Job = {id: string; asset_id: string; revision: number; generation: number; state: JobState; error: string|null};
+export type LookRef = {revision: number; config: ImprintConfig};
+export type Look = {revision: number; config: ImprintConfig | null};
+export type LookImpact = {follow: number; exceptions: number; stale: number};
+export type PhotoMode = 'follow' | 'exception' | 'standalone';
+/** GET/PUT /assets/{id}/config and POST /assets/{id}/follow. */
+export type AssetConfig = {
+  revision: number;
+  saved: ImprintConfig | null;
+  look: LookRef | null;
+  mode: PhotoMode;
+  overrides: string[];
+  resolved: ImprintConfig | null;
+  draft: ImprintConfig | null;
+  stale: boolean;
+  conflict: boolean;
+  /** Exception paths that no longer apply to the current look (e.g. look became plain). */
+  dropped?: string[];
+};
+export type AlbumSummary = {total: number; counts: Record<PhotoState, number>; exceptions: number; look: {revision: number} | null};
+/** `id`/`generation` are null for photos that failed before reaching the render queue. */
+export type ActivityJob = {assetId: string; id: string | null; state: JobState; error: string | null; generation: number | null; updated?: string};
+export type Activity = {jobs: ActivityJob[]; waiting: number; waitingAssetIds?: string[]};
+export type RenderScope = 'pending' | 'stale' | 'failed' | 'all' | 'ids';
+export type RenderResult = {queued: number; skipped: {upToDate: number; drafts: number; errors: {assetId: string; error: string}[]}};
 const errorLabels: Record<string, string> = {
   result_album_read_only: '成品相册不能再次加水印',
   asset_not_in_album: '照片已不在所选相册，请重新选择',
@@ -48,6 +78,8 @@ const errorLabels: Record<string, string> = {
   invalid_request: '请求不合法',
   init_required: '面板尚未关联 Immich，请先输入 API Key 完成初始化',
   already_initialized: '面板已完成初始化',
+  look_required: '这个相册还没有统一样式',
+  canonical_v3_required: '配置版本不受支持',
 };
 /** Human-readable message for any thrown value, without the `Error:` prefix. */
 export function errorText(error: unknown): string {
@@ -65,8 +97,13 @@ export async function api<T>(path: string, method='GET', body?: unknown, signal?
   let payload: {error?: string} & Record<string, unknown>;
   try { payload = await response.json(); }
   catch { throw new Error(response.ok ? '服务器返回了无法识别的内容' : `请求失败 (${response.status})`); }
-  if (!response.ok) throw new Error(errorLabels[payload.error ?? ''] || payload.error || `请求失败 (${response.status})`);
+  if (!response.ok) throw new ApiError(payload.error ?? '', errorLabels[payload.error ?? ''] || payload.error || `请求失败 (${response.status})`, response.status);
   return payload as T;
+}
+
+/** An error response from the worker; `code` is the stable machine code. */
+export class ApiError extends Error {
+  constructor(readonly code: string, message: string, readonly status: number) { super(message); }
 }
 
 export type MaintenanceStatus = {freeBytes:number;minimumFreeBytes:number;jobs:Record<string,number>;issues:{assetId:string;issue:string;checked:number}[]};

@@ -100,4 +100,22 @@ doc = history.reduce(doc, { type: 'redo' });
 assert.equal(state.marginValue(doc.config), 80);
 assert.equal(history.reduce(doc, { type: 'commit', config: doc.config, at: 9999 }), doc, 'no-op edits do not create history');
 
-console.log('PASS: lossless roundtrip, style detection, orthogonal style switch, position keeps margin/thickness, plain no-op, single-line fields, end-slot rule, weight font, signature rules, effect default, undo coalescing');
+// Album look: per-section differences and restore touch only that section.
+const albumLook = defaults.buildDarkConfig();
+let photo = state.setFramePosition(albumLook, 'left');
+photo = state.toggleLineField(photo, 'primary-start', 'datetime');
+photo = state.setSignature(photo, { path: 'sig', enabled: true });
+assert.deepEqual(state.differingSections(photo, albumLook).sort(), ['layout', 'signature', 'text']);
+assert.deepEqual(state.differingSections(albumLook, albumLook), []);
+const layoutBack = state.restoreSection(photo, albumLook, 'layout');
+assert.equal(state.framePosition(layoutBack), 'footer');
+assert.ok(state.lineFields(layoutBack, 'primary-start').includes('datetime'), 'restoring layout keeps text changes');
+assert.ok(state.signatureState(layoutBack).enabled, 'restoring layout keeps the signature');
+let all = photo;
+for (const section of state.differingSections(photo, albumLook)) all = state.restoreSection(all, albumLook, section);
+assert.deepEqual(state.differingSections(all, albumLook), [], 'restoring every differing section matches the look');
+assert.ok(state.sameConfig(all, albumLook) || state.differingSections(all, albumLook).length === 0);
+const plainLook = defaults.buildPlainConfig();
+assert.equal(state.frameRegion(state.restoreSection(photo, plainLook, 'layout')), null, 'restoring layout to a plain look removes the frame');
+
+console.log('PASS: album-look section diff/restore, lossless roundtrip, style detection, orthogonal style switch, position keeps margin/thickness, plain no-op, single-line fields, end-slot rule, weight font, signature rules, effect default, undo coalescing');

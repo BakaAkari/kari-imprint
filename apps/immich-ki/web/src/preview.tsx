@@ -11,12 +11,27 @@ import type { PhotoStatus } from './gallery';
  * The canvas sizes itself to its container when it draws, so a resize bumps
  * a tick that hands it a fresh config object to redraw against.
  */
-export function PreviewStage({ config, image, size, caps, fields, previewSrc, zoom, compare, epoch, selectedElementId, onElementClick }: {
+export function PreviewStage({ config, image, size, caps, fields, previewSrc, zoom, compare, epoch, selectedElementId, onElementClick, onSwipe, onHold }: {
   config: ImprintConfig; image: ImageBitmap | null; size: { width: number; height: number } | null; caps: RuntimeCapabilities | null;
   fields: ExifFieldValues; previewSrc: string; zoom: boolean; compare: boolean; epoch: number;
   selectedElementId: string | null; onElementClick: (id: string) => void;
+  /** Touch: horizontal swipe changes photo (+1 next / -1 previous). */
+  onSwipe?: (step: number) => void;
+  /** Touch: press and hold shows the original photo. */
+  onHold?: (holding: boolean) => void;
 }) {
   const stage = useRef<HTMLDivElement>(null);
+  const gesture = useRef<{ x: number; y: number; timer: number; held: boolean } | null>(null);
+  const endGesture = (x?: number, y?: number) => {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g) return;
+    clearTimeout(g.timer);
+    if (g.held) { onHold?.(false); return; }
+    if (x === undefined || y === undefined) return;
+    const dx = x - g.x, dy = y - g.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe?.(dx < 0 ? 1 : -1);
+  };
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const node = stage.current;
@@ -28,7 +43,16 @@ export function PreviewStage({ config, image, size, caps, fields, previewSrc, zo
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const drawn = useMemo(() => ({ ...config }), [config, tick, zoom, epoch]);
-  return <div ref={stage} className={`preview-stage ${zoom ? 'zoomed' : ''}`}>
+  return <div ref={stage} className={`preview-stage ${zoom ? 'zoomed' : ''}`}
+    onPointerDown={e => {
+      if (e.pointerType !== 'touch' || zoom) return;
+      const timer = window.setTimeout(() => { if (gesture.current) { gesture.current.held = true; onHold?.(true); } }, 380);
+      gesture.current = { x: e.clientX, y: e.clientY, timer, held: false };
+    }}
+    onPointerMove={e => { const g = gesture.current; if (g && !g.held && Math.hypot(e.clientX - g.x, e.clientY - g.y) > 12) clearTimeout(g.timer); }}
+    onPointerUp={e => endGesture(e.clientX, e.clientY)}
+    onPointerCancel={() => endGesture()}
+    onContextMenu={e => { if (gesture.current) e.preventDefault(); }}>
     {image && size && caps
       ? <KariImprintCanvas config={drawn} image={image} originalImageSize={size} runtimeCaps={caps} fieldValues={fields} scheme="dark" onElementClick={zoom ? undefined : onElementClick} selectedElementId={selectedElementId} />
       : null}
@@ -45,7 +69,8 @@ export function Filmstrip({ assets, activeId, statusOf, onOpen }: { assets: Asse
   return <div ref={strip} className="filmstrip" aria-label="相册中的照片">
     {assets.map(a => {
       const status = statusOf(a);
-      return <button key={a.id} type="button" data-id={a.id} className={`film-item ${a.id === activeId ? 'current' : ''}`} aria-current={a.id === activeId ? 'true' : undefined} aria-label={a.name} onClick={() => onOpen(a)}>
+      // One Tab stop for the whole strip: only the current photo is focusable.
+      return <button key={a.id} type="button" data-id={a.id} tabIndex={a.id === activeId ? 0 : -1} className={`film-item ${a.id === activeId ? 'current' : ''}`} aria-current={a.id === activeId ? 'true' : undefined} aria-label={a.name} onClick={() => onOpen(a)}>
         <img src={`/api/assets/${a.id}/thumbnail`} alt="" loading="lazy" decoding="async" />
         {status !== 'none' && <span className={`film-dot ${status}`} aria-hidden="true" />}
       </button>;

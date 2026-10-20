@@ -72,6 +72,9 @@ def main():
 
     asset_requests = []  # every /api/assets list call as (album, page)
     render_payloads = []  # bodies of POST /api/assets/<id>/render
+    rendered = []  # asset ids rendered (reported back via album activity)
+    drafts = {}  # server-side drafts by asset id
+    look = {"revision": 0, "config": None}  # album look
     held_page2 = []  # deferred trip page-2 responses (released in test C)
     held_slow = []  # deferred slow-album responses (released in test I)
     flags = {"hold_page2": True, "hold_slow": True, "albums_fail": False}
@@ -107,6 +110,8 @@ def main():
                 held_slow.append(route)
                 return
             items, following = pages.get((album, page_num), ([], None))
+            # Server-side drafts show up in the gallery status, as on the real worker.
+            items = [{**item, "status": {**item["status"], "draft": item["id"] in drafts, **({"state": "draft"} if item["id"] in drafts else {})}} for item in items]
             payload = {"items": items, "nextPage": following}
         elif path == "/api/albums":
             payload = {"available": not flags["albums_fail"], "albums": [] if flags["albums_fail"] else albums}
@@ -124,6 +129,7 @@ def main():
             payload = {"id": "job-1", "asset_id": "p3", "revision": 2, "generation": 1, "state": "done", "error": None}
         elif path.endswith("/render"):
             render_payloads.append(route.request.post_data_json)
+            rendered.append(path.split("/")[3])
             payload = {
                 "id": "job-1",
                 "asset_id": path.split("/")[3],
@@ -132,8 +138,28 @@ def main():
                 "state": "queued",
                 "error": None,
             }
+        elif path.endswith("/look"):
+            if route.request.method == "PUT":
+                look.update(revision=look["revision"] + 1, config=route.request.post_data_json["config"])
+            payload = {**look, "impact": {"follow": 0, "exceptions": 0, "stale": 0}}
+        elif path.endswith("/summary"):
+            route.fulfill(status=404, json={"error": "not_found"})
+            return
+        elif path.endswith("/activity"):
+            payload = {"jobs": [{"assetId": a, "id": "job-1", "state": "done", "error": None, "generation": 1} for a in rendered], "waiting": 0}
+        elif path.endswith("/draft"):
+            asset_id = path.split("/")[3]
+            if route.request.method == "PUT":
+                drafts[asset_id] = route.request.post_data_json["config"]
+            else:
+                drafts.pop(asset_id, None)
+            payload = {"ok": True}
         elif path.endswith("/config"):
-            payload = {"revision": 2 if route.request.method == "PUT" else 1, "config": config}
+            asset_id = path.split("/")[3]
+            if route.request.method == "PUT":
+                drafts.pop(asset_id, None)
+            payload = {"revision": 2 if route.request.method == "PUT" else 1, "saved": config, "look": look if look["config"] else None,
+                       "mode": "standalone", "overrides": [], "resolved": None, "draft": drafts.get(asset_id), "stale": False, "conflict": False}
         elif path.endswith("/job"):
             payload = {"job": None}
         elif path.endswith("/metadata"):
@@ -169,9 +195,9 @@ def main():
             return page.locator(f'.photo-tile[aria-label^="{name}，"]')
 
         def draft_keys():
-            return page.evaluate(
-                "() => Object.keys(localStorage).filter(k => k.startsWith('ki-draft-')).sort()"
-            )
+            # Drafts live on the worker (design 2026-10-20), keyed by asset.
+            page.wait_for_timeout(300)
+            return sorted(drafts)
 
         def wait_loaded():
             page.wait_for_function(
@@ -200,7 +226,7 @@ def main():
         # B ─ selecting the normal album renders page 1 of the grid only.
         trip_card.click()
         expect(trip_card).to_have_attribute("aria-pressed", "true")
-        expect(page.locator(".gallery-head h2")).to_have_text("Trip 2024")
+        expect(page.locator(".album-side h2")).to_have_text("Trip 2024")
         expect(page.locator(".photo-tile")).to_have_count(6)
         expect(tile("P7.jpg")).to_have_count(0)
 
@@ -228,20 +254,20 @@ def main():
         # H ─ leaving a dirty photo keeps its changes as a local draft (no modal),
         # announces it in a toast, and restores it when the photo is reopened.
         page.get_by_role("radio", name="深色", exact=True).click()
-        expect(status_pill).to_contain_text("有未保存修改")
+        expect(status_pill).to_contain_text("草稿")
         page.evaluate("document.activeElement && document.activeElement.blur()")
         page.keyboard.press("ArrowRight")
         expect(crumb_name).to_have_text("P3.jpg")
         expect(page.locator(".modal")).to_have_count(0)
-        expect(toast).to_contain_text("「P2.jpg」的修改已保留为本机草稿")
+        expect(toast).to_contain_text("「P2.jpg」的修改已存为草稿")
         expect(toast.get_by_role("button", name="放弃草稿")).to_be_visible()
-        assert draft_keys() == [f"ki-draft-{IDENTITY}-p2"], draft_keys()
+        assert draft_keys() == ["p2"], draft_keys()
         wait_loaded()
         page.evaluate("document.activeElement && document.activeElement.blur()")
         page.keyboard.press("ArrowLeft")
         expect(crumb_name).to_have_text("P2.jpg")
         wait_loaded()
-        expect(status_pill).to_contain_text("有未保存修改")
+        expect(status_pill).to_contain_text("草稿")
         expect(page.get_by_role("radio", name="深色", exact=True)).to_be_checked()
         page.evaluate("document.activeElement && document.activeElement.blur()")
         page.keyboard.press("ArrowRight")
@@ -249,7 +275,7 @@ def main():
         wait_loaded()
         expect(save_button).to_be_enabled()
         expect(save_button).to_have_text("保存到 Immich")
-        assert draft_keys() == [f"ki-draft-{IDENTITY}-p2"], draft_keys()
+        assert draft_keys() == ["p2"], draft_keys()
 
         # F ─ saving posts the render job with the current source album id.
         save_button.click()
@@ -309,17 +335,17 @@ def main():
         tile("P2.jpg").click()
         expect(crumb_name).to_have_text("P2.jpg")
         wait_loaded()
-        expect(status_pill).to_contain_text("有未保存修改")
+        expect(status_pill).to_contain_text("草稿")
         page.evaluate("document.activeElement && document.activeElement.blur()")
         page.keyboard.press("ArrowRight")
         expect(crumb_name).to_have_text("P3.jpg")
-        expect(toast).to_contain_text("「P2.jpg」的修改已保留为本机草稿")
+        expect(toast).to_contain_text("「P2.jpg」的修改已存为草稿")
         toast.get_by_role("button", name="放弃草稿").click()
         expect(toast).to_have_count(0)
         assert draft_keys() == [], draft_keys()
         wait_loaded()
         close_photo()
-        expect(tile("P2.jpg")).to_have_attribute("aria-label", "P2.jpg，未制作")
+        expect(tile("P2.jpg")).to_have_attribute("aria-label", "P2.jpg，未生成")
 
         # I ─ switching albums requests the new id and drops the stale response.
         album_button("Slow Album").click()

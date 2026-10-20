@@ -64,6 +64,7 @@ def main():
         }
     )
     saved = []
+    look = {"revision": 0, "config": None}
     config = deepcopy(normal)
     image = BytesIO()
     Image.new("RGB", (900, 600), (65, 93, 120)).save(image, "PNG")
@@ -91,12 +92,29 @@ def main():
             }
         elif path == "/api/capabilities":
             payload = {"preview": {"max_edge": 1440, "device_pixel_ratio_limit": 2}}
+        elif path == "/api/albums/album-1/look":
+            # Album look (design 2026-10-20): the first saved photo creates it.
+            if route.request.method == "PUT":
+                look["config"] = route.request.post_data_json["config"]
+                ImprintPayload.model_validate(deepcopy(look["config"]))
+                look["revision"] += 1
+            payload = {**look, "impact": {"follow": 1, "exceptions": 0, "stale": 0}}
+        elif path == "/api/albums/album-1/summary":
+            payload = {"total": 1, "counts": {"none": 1, "draft": 0, "busy": 0, "done": 0, "stale": 0, "failed": 0},
+                       "exceptions": 0, "look": {"revision": look["revision"]} if look["config"] else None}
+        elif path == "/api/albums/album-1/activity":
+            payload = {"jobs": [], "waiting": 0}
+        elif path.endswith("/draft"):
+            payload = {"ok": True}
         elif path.endswith("/config"):
             if route.request.method == "PUT":
                 config = route.request.post_data_json["config"]
                 ImprintPayload.model_validate(deepcopy(config))  # Real backend schema, not mock tolerance.
                 saved.append(deepcopy(config))
-            payload = {"revision": len(saved) + 1, "config": config}
+            same = look["config"] is not None and look["config"] == config
+            payload = {"revision": len(saved) + 1, "saved": config, "look": look if look["config"] else None,
+                       "mode": "follow" if same else ("exception" if look["config"] else "standalone"), "overrides": [],
+                       "resolved": config, "draft": None, "stale": False, "conflict": False}
         elif path.endswith("/metadata"):
             payload = {
                 "width": 900,
@@ -159,6 +177,9 @@ def main():
         load()
         # Untouched config survives load/save exactly (lossless roundtrip).
         assert save() == normal, "Untouched config must survive load/save exactly"
+        # The first saved photo of an album without a look defines the look.
+        assert look["config"] == normal and look["revision"] == 1
+        expect(page.locator(".mode-bar.follow")).to_be_visible()
 
         # Every style card is present and renders a live thumbnail of the photo.
         for label in ("经典", "极简单行", "深色", "模糊背景", "纯留白"):
@@ -167,6 +188,9 @@ def main():
 
         # Style: minimal is a single-track footer with no logo; the right line keeps the params.
         page.get_by_role("radio", name="极简单行", exact=True).click()
+        # Any change makes the photo an exception to the album look, with a way back.
+        expect(page.locator(".mode-bar.exception")).to_contain_text("例外")
+        expect(page.get_by_role("button", name="全部恢复统一")).to_be_visible()
         minimal = save()
         assert minimal["regions"][0]["layout"]["mode"] == "single-track"
         assert minimal["regions"][0]["slots"]["asset"]["enabled"] is False
@@ -244,7 +268,7 @@ def main():
         (ARTIFACTS / "save-payloads.json").write_text(json.dumps(saved, ensure_ascii=False, indent=2))
         browser.close()
     print(
-        "PASS: five live style cards, orthogonal style switch, position keeps margin, line fields/size/weight, keyboard undo, brand auto/manual/off, signature, honest dirty status, schema-valid saves, desktop/mobile screenshots, no overflow/errors"
+        "PASS: first save defines the album look, follow/exception mode bar, five live style cards, orthogonal style switch, position keeps margin, line fields/size/weight, keyboard undo, brand auto/manual/off, signature, honest dirty status, schema-valid saves, desktop/mobile screenshots, no overflow/errors"
     )
 
 
