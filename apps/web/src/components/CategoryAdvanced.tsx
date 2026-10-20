@@ -1,3 +1,5 @@
+import { canvasEffectOf } from '../canvasEffects';
+import { MAX_PHOTO_RADIUS } from '../types';
 import type {
   RegionConfig,
   RootOverrides,
@@ -67,9 +69,9 @@ export function AppearanceAdvanced({ config, onRootOverride }: Props) {
       <label className="form-row"><span className="text-sm">背景色</span>
         <input type="color" value={config.canvas.background} onChange={(e) => updateCanvas({ background: e.target.value })} />
       </label>
-      <label className="form-row"><span className="text-sm">圆角半径</span>
-        <input type="number" min={0} max={160} step={2} value={config.canvas.border_radius}
-          onChange={(e) => updateCanvas({ border_radius: Number(e.target.value) })} />
+      <label className="form-row"><span className="text-sm">照片圆角（短边 %）</span>
+        <input type="number" min={0} max={MAX_PHOTO_RADIUS * 100} step={0.5} value={Math.round(canvasEffectOf(config.canvas.effect).photo_radius * 1000) / 10}
+          onChange={(e) => updateCanvas({ effect: { ...canvasEffectOf(config.canvas.effect), photo_radius: Math.min(MAX_PHOTO_RADIUS, Math.max(0, (Number(e.target.value) || 0) / 100)) } })} />
       </label>
       <label className="form-row"><span className="text-sm">默认字号比例</span>
         <input type="number" min={0} max={0.5} step={0.005} value={config.defaults.font_size_ratio ?? ''}

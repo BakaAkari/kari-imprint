@@ -7,6 +7,8 @@
  * - 隐藏新增 Region / 删除 Region / 新增 Slot/Line/Signature 等危险入口。
  */
 
+import { canvasEffectOf } from '../canvasEffects';
+import { MAX_PHOTO_RADIUS } from '../types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_LOGO_PLACEHOLDER_URL, uploadResource, fetchLogos, builtinLogoUrl, type LogoVariant } from '../api';
 import type {
@@ -959,14 +961,14 @@ function AdvancedTab({
           />
         </label>
         <label className="small-label">
-          圆角半径
+          照片圆角（短边 %）
           <input
             type="number"
             min={0}
-            max={160}
-            step={2}
-            value={config.canvas.border_radius}
-            onChange={(e) => updateCanvas({ border_radius: Number(e.target.value) })}
+            max={MAX_PHOTO_RADIUS * 100}
+            step={0.5}
+            value={Math.round(canvasEffectOf(config.canvas.effect).photo_radius * 1000) / 10}
+            onChange={(e) => updateCanvas({ effect: { ...canvasEffectOf(config.canvas.effect), photo_radius: Math.min(MAX_PHOTO_RADIUS, Math.max(0, (Number(e.target.value) || 0) / 100)) } })}
           />
         </label>
       </div>

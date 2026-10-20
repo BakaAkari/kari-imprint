@@ -17,6 +17,7 @@ import { PREVIEW_ASPECT_RATIOS } from './types';
 import { computeLayout } from './layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './layout/layoutEngine';
 import { fitLayoutTexts, type FittedText } from './layout/textFit';
+import { buildText } from './layout/textContent';
 import { builtinLogoUrl, fetchLogos, resourceUrl } from './api';
 import type { ExifFieldValues, RuntimeCapabilities } from './api';
 import { resolveAutoLogoWithScheme, type LogoRegistryEntry } from './autoLogo';
@@ -125,19 +126,6 @@ function resolveAssetAspectRatio(
 }
 
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
-
-function resolveText(chip: FieldChip, customText: string, fieldValues: ExifFieldValues): string {
-  if (chip.field_id === 'custom_text') return chip.custom_text || customText || '';
-  if (chip.field_id === 'empty') return '';
-  return fieldValues[chip.field_id] ?? '';
-}
-
-function buildText(content: TextContent, customText: string, fieldValues: ExifFieldValues): string {
-  const texts = content.chips
-    .filter(c => c.field_id !== 'empty')
-    .map(c => resolveText(c, customText, fieldValues));
-  return texts.join(content.separator);
-}
 
 // ── Logo 缓存 ─────────────────────────────────────────────────────────
 
@@ -670,25 +658,6 @@ export function KariImprintCanvas({
     canvas.height = hasOriginalSize ? Math.max(1, Math.round(layout.canvas.h * previewScale * dpr)) : layout.canvas.h * dpr;
     ctx.setTransform(dpr * previewScale, 0, 0, dpr * previewScale, 0, 0);
 
-    // 圆角裁剪（如果需要）
-    if (config.canvas.border_radius > 0) {
-      ctx.save();
-      const r = config.canvas.border_radius;
-      const cw = layout.canvas.w;
-      const ch = layout.canvas.h;
-      ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(cw - r, 0);
-      ctx.quadraticCurveTo(cw, 0, cw, r);
-      ctx.lineTo(cw, ch - r);
-      ctx.quadraticCurveTo(cw, ch, cw - r, ch);
-      ctx.lineTo(r, ch);
-      ctx.quadraticCurveTo(0, ch, 0, ch - r);
-      ctx.lineTo(0, r);
-      ctx.quadraticCurveTo(0, 0, r, 0);
-      ctx.closePath();
-      ctx.clip();
-    }
 
     // 收集需要加载的 logo / 签名路径。对 logo 元素做 auto-Logo 解析，
     // 只有解析到具体品牌资源时才发起加载请求；未解析则由骨架占位处理。
@@ -719,10 +688,6 @@ export function KariImprintCanvas({
       }
     }
 
-    // 恢复 clip
-    if (config.canvas.border_radius > 0) {
-      ctx.restore();
-    }
 
     // 选中对象高亮（仅编辑态，不进入成品）
     if (selectedElementId) {

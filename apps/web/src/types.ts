@@ -156,6 +156,7 @@ export const MAX_PHOTO_RADIUS = 0.08;
 export interface CanvasConfig {
   margins: MarginsConfig;
   background: string;
+  /** Deprecated: no longer applied by preview or output (JPEG cannot hold transparent corners); use effect.photo_radius. */
   border_radius: number;
   border: BorderConfig;
   effect?: CanvasEffect | null;
@@ -401,7 +402,10 @@ export const presetSoftCardBase: ImprintConfig = {
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
-    border_radius: 24,
+    // 圆润 = 照片本身圆角（canvas.effect.photo_radius）。画布外角圆角需要透明，
+    // JPEG 成品无法表达，因此 border_radius 已停用，预览与成品都不再应用。
+    border_radius: 0,
+    effect: { background: 'solid', photo_radius: 0.02, shadow: false },
     // 拍立得的白纸边由 border 实现；controlSurface.border.enabled 打开时由 controls.border_enabled 权威覆盖。
     border: { enabled: true, width_level: 'medium', color: '#FFFFFF' },
   },
