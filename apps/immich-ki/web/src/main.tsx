@@ -141,6 +141,7 @@ function App() {
   const galleryNode = useRef<HTMLElement>(null), scrollPosition = useRef(0);
   useEffect(() => { setSelected(new Set()); setSelecting(false); setFilter('all'); }, [album]);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [lookSavedAt, setLookSavedAt] = useState(0);
 
   // ── editor ──
   const [target, setTarget] = useState<Target | null>(null);
@@ -335,6 +336,7 @@ function App() {
       const saved = await api<Look & { impact: LookImpact }>(`/albums/${album}/look`, 'PUT', { expectedRevision: look?.revision ?? 0, config: serializeEditorConfig(config) });
       setLook({ revision: saved.revision, config: saved.config });
       markSaved(config);
+      setLookSavedAt(Date.now());
       setGalleryVersion(v => v + 1); refreshAlbum();
       const { exceptions, stale } = saved.impact;
       // Photos never saved yet are not bound to the look but follow it too.
@@ -461,6 +463,10 @@ function App() {
   const differs = target?.kind === 'photo' ? differingSections(doc.config, lookConfig) : [];
   const affected = summary ? summary.total : assets.length;
 
+  const tray = (inline: boolean) => <Tray inline={inline} since={lookSavedAt} jobs={activity.jobs} waiting={activity.waiting} names={names}
+    onRetry={id => void renderAlbum('ids', [id])} onRetryAll={() => void renderAlbum('failed')}
+    onOpen={id => { const a = assets.find(x => x.id === id); if (a) openAsset(a); }} />;
+
   const modeBar = target?.kind === 'look'
     ? <div className="mode-bar look"><b>正在编辑「{albumName}」的统一样式</b><span>影响 {affected} 张{summary?.exceptions ? `（${summary.exceptions} 张例外保留各自调整）` : ''}。←/→ 换一张照片预览效果。</span></div>
     : target?.kind === 'photo' && loaded ? (!lookConfig
@@ -523,9 +529,10 @@ function App() {
     {target && imageAsset && <div className="edit">
       <section className="stage" aria-label="预览">
         <div className="stage-tools">
-          <button type="button" className={zoom ? 'active' : ''} aria-pressed={zoom} onClick={() => setZoom(z => !z)} title="快捷键 Z">{zoom ? '适应窗口' : '放大检查'}</button>
-          <button type="button" aria-pressed={compare} onPointerDown={() => setCompare(true)} onPointerUp={() => setCompare(false)} onPointerLeave={() => setCompare(false)} title="按住查看原图（或按住空格 / \）">按住看原图</button>
+          <button type="button" className={`desktop-only ${zoom ? 'active' : ''}`} aria-pressed={zoom} onClick={() => setZoom(z => !z)} title="快捷键 Z">{zoom ? '适应窗口' : '放大检查'}</button>
+          <button type="button" className="desktop-only" aria-pressed={compare} onPointerDown={() => setCompare(true)} onPointerUp={() => setCompare(false)} onPointerLeave={() => setCompare(false)} title="按住查看原图（或按住空格 / \）">按住看原图</button>
           <span className="spacer" />
+          {tray(true)}
           <button type="button" disabled={!doc.undo.length} onClick={undo} title="⌘Z">撤销</button>
           <button type="button" disabled={!doc.redo.length} onClick={redo} title="⇧⌘Z">重做</button>
         </div>
@@ -574,9 +581,7 @@ function App() {
       </aside>
     </div>}
 
-    {album && <Tray jobs={activity.jobs} waiting={activity.waiting} names={names}
-      onRetry={id => void renderAlbum('ids', [id])} onRetryAll={() => void renderAlbum('failed')}
-      onOpen={id => { const a = assets.find(x => x.id === id); if (a) openAsset(a); }} />}
+    {album && !target && tray(false)}
     {toast && <div className="toast" role="status"><span>{toast.text}</span>{toast.action && <button type="button" className="link" onClick={() => { toast.action!.run(); setToast(null); }}>{toast.action.label}</button>}</div>}
     {help && <div className="modal" role="dialog" aria-modal="true" aria-label="快捷键" onClick={() => setHelp(false)}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>

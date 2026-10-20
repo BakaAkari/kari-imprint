@@ -319,7 +319,6 @@ body:has(.login){overflow:auto}
 .tray-item.failed .state{color:var(--bad)}.tray-item.done .state{color:var(--good)}
 .spinner{width:10px;height:10px;border-radius:50%;border:2px solid var(--busy);border-right-color:transparent;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
-.is-editing .tray{right:auto;left:16px;bottom:96px}
 .all-busy{display:inline-flex;align-items:center;gap:8px;color:var(--busy)}
 .toast{z-index:60}
 
@@ -341,5 +340,18 @@ body:has(.login){overflow:auto}
   .toast{left:12px;right:12px;transform:none;max-width:none}
   .is-editing .toast{top:auto;bottom:calc(150px + env(safe-area-inset-bottom))}
   .is-browsing .toast{top:auto;bottom:calc(68px + env(safe-area-inset-bottom))}
-  .is-editing .tray{display:none}
+  .is-editing .tray:not(.inline){display:none}
+}
+
+/* In the editor the tray lives in the preview toolbar and never covers the photo. */
+.tray.inline{position:relative;right:auto;bottom:auto;top:auto;left:auto;width:auto;box-shadow:none;background:transparent;border:0}
+.tray.inline .tray-head{padding:5px 10px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--raised)}
+.tray.inline .tray-body{position:absolute;right:0;top:calc(100% + 6px);width:300px;z-index:40;background:var(--raised);border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;box-shadow:0 12px 40px rgba(0,0,0,.55)}
+@media (max-width:820px){
+  .tray.inline .tray-body{position:fixed;left:12px;right:12px;width:auto;top:96px}
+  /* Phones: long-press the preview for the original; zoom is not useful there. */
+  .stage-tools .desktop-only{display:none}
+  .stage-tools{min-width:0}
+  .tray.inline .tray-head{max-width:58vw;overflow:hidden}
+  .tray.inline .tray-head span:not(.spinner):not(.section-caret){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }

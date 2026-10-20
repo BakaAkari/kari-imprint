@@ -101,20 +101,27 @@ export function AlbumHeader({ name, look, sample, caps, summary, filter, onFilte
   </section>;
 }
 
-export function Tray({ jobs, waiting, names, onRetry, onRetryAll, onOpen }: {
+export function Tray({ jobs, waiting, names, onRetry, onRetryAll, onOpen, inline = false, since = 0 }: {
   jobs: Record<string, ActivityJob>; waiting: number; names: Map<string, string>;
   onRetry: (assetId: string) => void; onRetryAll: () => void; onOpen: (assetId: string) => void;
+  /** In the editor toolbar instead of floating over the photo. */
+  inline?: boolean;
+  /** Ignore completions before this time (ms), e.g. the last look save. */
+  since?: number;
 }) {
   const [open, setOpen] = useState(false);
   const list = Object.values(jobs).sort((a, b) => rank(a) - rank(b) || (b.updated ?? '').localeCompare(a.updated ?? ''));
   const busy = list.filter(j => isBusy(j.state)).length;
   const failed = list.filter(j => j.state === 'failed').length;
   // Only recent completions; older ones would read as current after a look change.
-  const recent = (j: ActivityJob) => !j.updated || Date.now() - Date.parse(j.updated) < 2 * 60_000;
+  const recent = (j: ActivityJob) => {
+    const at = j.updated ? Date.parse(j.updated) : NaN;
+    return Number.isNaN(at) || (Date.now() - at < 2 * 60_000 && at >= since);
+  };
   const done = list.filter(j => j.state === 'done' && recent(j)).length;
   if (!busy && !failed && !done && !waiting) return null;
   const summary = [busy + waiting ? `处理中 ${busy + waiting}` : '', failed ? `失败 ${failed}` : '', done ? `完成 ${done}` : ''].filter(Boolean).join(' · ');
-  return <aside className={`tray ${open ? 'open' : ''}`} aria-label="生成任务">
+  return <aside className={`tray ${inline ? 'inline' : ''} ${open ? 'open' : ''}`} aria-label="生成任务">
     <button type="button" className="tray-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
       {busy + waiting > 0 && <span className="spinner" aria-hidden="true" />}
       <span>{summary || '任务'}</span>
