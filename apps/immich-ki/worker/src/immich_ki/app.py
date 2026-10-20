@@ -96,7 +96,25 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     settings = settings or Settings.from_env()
     key, owner, initialized = resolve_panel_config(settings.data, settings.api_key)
     upstream = client or ImmichClient(settings.immich_url, key)
-    source_albums = SourceAlbums(upstream, settings.source_library)
+    def processable(asset) -> bool:
+        """Whether the gallery offers ``asset``; album counts use the same rule."""
+        from immich_ki.paths import relative_path
+
+        try:
+            path = relative_path(asset["originalPath"], settings.source_prefix)
+        except (KeyError, ValueError):
+            return False
+        reserved = settings.reserved_output
+        if reserved and (path == reserved or path.startswith(reserved + "/")):
+            return False
+        return (
+            asset.get("libraryId") == settings.source_library
+            and asset.get("type") == "IMAGE"
+            and not asset.get("isOffline")
+            and not asset.get("isTrashed")
+        )
+
+    source_albums = SourceAlbums(upstream, settings.source_library, processable)
     owner = resolve_owner_from_key(settings, upstream, key, owner)
 
     def swap_upstream_key(new_key: str) -> None:
@@ -315,20 +333,9 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
             service.albums.source(str(album))
         result = upstream.search(settings.source_library, page, albums=[str(album)] if album else None)
         items = []
-        reserved = settings.reserved_output
         for asset in result["items"]:
             try:
-                from immich_ki.paths import relative_path
-
-                path = relative_path(asset["originalPath"], settings.source_prefix)
-                if reserved and (path == reserved or path.startswith(reserved + "/")):
-                    continue
-                if (
-                    asset.get("libraryId") != settings.source_library
-                    or asset.get("type") != "IMAGE"
-                    or asset.get("isOffline")
-                    or asset.get("isTrashed")
-                ):
+                if not processable(asset):
                     continue
                 exif = asset.get("exifInfo") or {}
                 items.append(

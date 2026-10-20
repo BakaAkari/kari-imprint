@@ -13,41 +13,55 @@ def is_result(name):
 
 
 class SourceAlbums:
-    """Lists only albums the panel can work on.
+    """Lists only albums the panel can work on, with processable photo counts.
 
     Result albums are hidden (they hold generated outputs), and so are albums
-    with no image in the source library -- e.g. albums of RAW files that live
-    only in the camera archive library.  Per-album answers are cached briefly
-    so opening the panel does not fan out to Immich on every request.
+    with no processable image -- e.g. albums of RAW files that live only in
+    the camera archive library.  For mixed albums the count covers only the
+    photos the gallery will show, using the same ``accept`` predicate.
+    Per-album counts are cached briefly so opening the panel does not fan out
+    to Immich on every request.
     """
 
     TTL = 300.0
+    PAGE_SIZE = 1000
+    MAX_PAGES = 100
 
-    def __init__(self, client, library, *, clock=time.monotonic):
-        self.client, self.library, self.clock = client, library, clock
-        self.cache: dict[str, tuple[float, bool]] = {}
+    def __init__(self, client, library, accept, *, clock=time.monotonic):
+        self.client, self.library, self.accept, self.clock = client, library, accept, clock
+        self.cache: dict[str, tuple[float, int]] = {}
         self.lock = threading.Lock()
 
-    def _eligible(self, album_id):
+    def _count(self, album_id):
         now = self.clock()
         with self.lock:
             hit = self.cache.get(album_id)
             if hit and hit[0] > now:
                 return hit[1]
+        total, page = 0, 1
         try:
-            value = self.client.album_has_images(self.library, album_id)
-        except UpstreamError:
+            for _ in range(self.MAX_PAGES):
+                result = self.client.search(self.library, page, albums=[album_id], size=self.PAGE_SIZE, with_exif=False)
+                total += sum(1 for asset in result["items"] if self.accept(asset))
+                if not result.get("nextPage"):
+                    break
+                page = int(result["nextPage"])
+        except (UpstreamError, KeyError, TypeError, ValueError):
             # Unknown is not "empty": keep the album visible and do not cache.
-            return True
+            return None
         with self.lock:
-            self.cache[album_id] = (now + self.TTL, value)
-        return value
+            self.cache[album_id] = (now + self.TTL, total)
+        return total
 
     def list(self):
         albums = [a for a in self.client.albums() if not is_result(a["name"])]
         with ThreadPoolExecutor(max_workers=8) as pool:
-            flags = list(pool.map(lambda a: self._eligible(a["id"]), albums))
-        return [{**a, "isResult": False} for a, ok in zip(albums, flags, strict=True) if ok]
+            counts = list(pool.map(lambda a: self._count(a["id"]), albums))
+        return [
+            {**a, "assetCount": a["assetCount"] if count is None else count, "isResult": False}
+            for a, count in zip(albums, counts, strict=True)
+            if count != 0
+        ]
 
 
 class AlbumCoordinator:

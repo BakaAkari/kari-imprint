@@ -30,7 +30,9 @@ class FakeImmich:
         self.members = {self.asset_id: {self.source_album_id}}
         # Albums whose photos live only in another library (RAW archive).
         self.raw_albums = []
-        self.eligibility_checks = []
+        # album id -> search items (mix of processable and non-processable assets).
+        self.mixed_albums = {}
+        self.count_queries = []
 
     def me(self):
         # The owner of the service API key (x-api-key), never the login identity.
@@ -61,14 +63,21 @@ class FakeImmich:
     def album_membership(self, asset_id):
         return set(self.members.get(str(asset_id), set()))
 
-    def search(self, library, page=1, path=None, albums=None):
+    def search(self, library, page=1, path=None, albums=None, size=50, with_exif=True):
         if albums:
             for album in albums:
                 # Mirror the real client's wire contract: album ids must arrive
                 # as strings, never as UUID objects.
                 if not isinstance(album, str):
                     raise TypeError("album ids must be strings")
-            self.album_filters.append(list(albums))
+            if size == 50:
+                self.album_filters.append(list(albums))
+            else:
+                self.count_queries.append(list(albums))
+            if any(album in self.raw_albums for album in albums):
+                return {"items": [], "nextPage": None}
+            if any(album in self.mixed_albums for album in albums):
+                return {"items": self.mixed_albums[albums[0]], "nextPage": None}
         if path is None:
             return {
                 "items": [
@@ -89,11 +98,9 @@ class FakeImmich:
         return [
             {"id": self.source_album_id, "name": "旅行", "assetCount": 3},
             {"id": self.result_album_id, "name": "旅行 Imprint", "assetCount": 1},
-        ] + [{"id": album_id, "name": "RAW 原片", "assetCount": 9} for album_id in self.raw_albums]
-
-    def album_has_images(self, library, album_id):
-        self.eligibility_checks.append(album_id)
-        return album_id not in self.raw_albums
+        ] + [{"id": album_id, "name": "RAW 原片", "assetCount": 9} for album_id in self.raw_albums] + [
+            {"id": album_id, "name": "混合", "assetCount": 9} for album_id in self.mixed_albums
+        ]
 
     def album(self, album_id):
         # Mirror the real client contract: /api/albums/:id returns albumName and
@@ -113,6 +120,8 @@ class FakeImmich:
                 "assetCount": 1,
                 "albumThumbnailAssetId": self.thumbnail_asset_id,
             }
+        if str(album_id) in self.mixed_albums:
+            return {"id": str(album_id), "albumName": "混合", "assetCount": 9, "albumThumbnailAssetId": None}
         raise ValueError("album_not_found")
 
     def create_album(self, name):
@@ -825,28 +834,60 @@ def test_album_list_hides_albums_without_source_images(setup):
     fake.raw_albums = [raw]
     with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         client.post("/api/auth/immich-login", json=OPERATOR)
-        names = [a["id"] for a in client.get("/api/albums").json()["albums"]]
-        assert names == [fake.source_album_id]
-        # Result albums are never checked; source/raw answers are cached.
-        assert sorted(fake.eligibility_checks) == sorted([fake.source_album_id, raw])
+        albums = client.get("/api/albums").json()["albums"]
+        assert [a["id"] for a in albums] == [fake.source_album_id]
+        # Result albums are never counted; source/raw answers are cached.
+        assert sorted(q[0] for q in fake.count_queries) == sorted([fake.source_album_id, raw])
         client.get("/api/albums")
-        assert len(fake.eligibility_checks) == 2
+        assert len(fake.count_queries) == 2
 
 
-def test_album_eligibility_unknown_keeps_album_visible(setup):
+def test_album_count_covers_only_processable_photos(setup):
+    """A mixed album reports the photos the gallery will show, not Immich's total."""
+    settings, fake = setup
+    mixed = str(uuid4())
+    library = settings.source_library
+
+    def asset(name, **extra):
+        return {
+            "id": str(uuid4()), "libraryId": library, "type": "IMAGE",
+            "originalPath": f"/external/camera-exports/{name}", "originalFileName": name, **extra,
+        }
+
+    fake.mixed_albums = {mixed: [
+        asset("a.jpg"), asset("b.JPEG"), asset("c.png"),
+        asset("d.ARW"),  # RAW sidecar in the same library
+        asset("e.jpg", isTrashed=True), asset("f.jpg", isOffline=True),
+        {**asset("g.jpg"), "libraryId": str(uuid4())},  # other library
+    ]}
+    with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
+        client.post("/api/auth/immich-login", json=OPERATOR)
+        albums = {a["id"]: a for a in client.get("/api/albums").json()["albums"]}
+        assert albums[mixed]["assetCount"] == 3
+        # The count and the gallery use the same rule.
+        assert len(client.get("/api/assets", params={"album": mixed}).json()["items"]) == 3
+
+
+def test_album_count_unknown_keeps_album_visible(setup):
     settings, fake = setup
     from immich_ki.client import UpstreamError
 
-    def flaky(library, album_id):
-        raise UpstreamError()
+    original = fake.search
 
-    fake.album_has_images = flaky
+    def flaky(library, page=1, path=None, albums=None, size=50, with_exif=True):
+        if size != 50:
+            raise UpstreamError()
+        return original(library, page, path=path, albums=albums, size=size, with_exif=with_exif)
+
+    fake.search = flaky
     with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         client.post("/api/auth/immich-login", json=OPERATOR)
-        assert [a["name"] for a in client.get("/api/albums").json()["albums"]] == ["旅行"]
+        albums = client.get("/api/albums").json()["albums"]
+        # Unknown count falls back to Immich's own total rather than hiding the album.
+        assert [(a["name"], a["assetCount"]) for a in albums] == [("旅行", 3)]
 
 
-def test_client_album_has_images_queries_one_source_image():
+def test_client_search_count_query_is_lightweight():
     import json
 
     import httpx
@@ -860,8 +901,8 @@ def test_client_album_has_images_queries_one_source_image():
 
     library, album = str(uuid4()), str(uuid4())
     client = ImmichClient("http://immich", "k", transport=httpx.MockTransport(handler))
-    assert client.album_has_images(library, album) is False
-    assert seen == [{"libraryId": library, "albumIds": [album], "type": "IMAGE", "page": 1, "size": 1}]
+    client.search(library, 1, albums=[album], size=1000, with_exif=False)
+    assert seen == [{"libraryId": library, "type": "IMAGE", "page": 1, "size": 1000, "withExif": False, "albumIds": [album]}]
 
 
 def test_render_pairs_source_album_with_one_imprint_album(setup):

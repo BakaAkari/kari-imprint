@@ -43,8 +43,8 @@ class ImmichClient:
         """Return the Immich user that owns the service API key (x-api-key)."""
         return self.request("GET", "users/me").json()
 
-    def search(self, library: str, page: int = 1, *, path: str | None = None, albums=None):
-        body = {"libraryId": str(UUID(library)), "type": "IMAGE", "page": page, "size": 50, "withExif": True}
+    def search(self, library: str, page: int = 1, *, path: str | None = None, albums=None, size: int = 50, with_exif: bool = True):
+        body = {"libraryId": str(UUID(library)), "type": "IMAGE", "page": page, "size": size, "withExif": with_exif}
         if path is not None:
             body["originalPath"] = path
         if albums:
@@ -53,21 +53,6 @@ class ImmichClient:
             # AttributeError, so normalise through str first.
             body["albumIds"] = [str(UUID(str(album))) for album in albums]
         return self.request("POST", "search/metadata", json=body).json()["assets"]
-
-    def album_has_images(self, library: str, album_id: str) -> bool:
-        """Whether ``album_id`` holds at least one image from ``library``.
-
-        Albums whose photos live only in another library (e.g. the RAW archive)
-        have nothing this tool can process.
-        """
-        body = {
-            "libraryId": str(UUID(library)),
-            "albumIds": [str(UUID(str(album_id)))],
-            "type": "IMAGE",
-            "page": 1,
-            "size": 1,
-        }
-        return bool(self.request("POST", "search/metadata", json=body).json()["assets"]["items"])
 
     def albums(self):
         # Requires the album.read scope; the panel degrades when it is missing.
