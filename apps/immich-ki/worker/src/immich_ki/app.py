@@ -20,7 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-from pydantic import Field, ValidationError, field_validator
+from pydantic import AfterValidator, Field, ValidationError, field_validator, model_validator
 from starlette.middleware.gzip import GZipMiddleware
 
 from immich_ki.albums import SourceAlbums
@@ -56,6 +56,7 @@ PUBLIC_VALUE_ERRORS = {
     "album_pair_changed",
     "ambiguous_album_pair",
     "too_many_frames",
+    "look_required",
 }
 
 
@@ -70,9 +71,50 @@ class PanelState:
         self.on_key = on_key or (lambda _key: None)
 
 
+def canonical_uuid(value: str) -> str:
+    # StrictModel keeps this a JSON string; reject anything but a UUID.
+    if len(value) > 64:
+        raise ValueError("invalid_uuid")
+    return str(UUID(value))
+
+
+AlbumId = Annotated[str, AfterValidator(canonical_uuid)]
+Revision = Annotated[int, Field(ge=0, le=2**31 - 1)]
+
+
 class SaveConfig(StrictModel):
-    expectedRevision: int = Field(ge=0, le=2**31 - 1)
+    expectedRevision: Revision
     config: dict
+    # Omitted ⇒ legacy standalone save (pre-look clients).
+    album: AlbumId | None = None
+
+
+class SaveLook(StrictModel):
+    expectedRevision: Revision
+    config: dict
+
+
+class Follow(StrictModel):
+    album: AlbumId
+    expectedRevision: Revision
+
+
+class SaveDraft(StrictModel):
+    config: dict
+    album: AlbumId
+
+
+class BatchRender(StrictModel):
+    scope: Literal["pending", "stale", "failed", "all", "ids"]
+    assetIds: list[AlbumId] | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def ids_only_for_ids_scope(self):
+        if (self.scope == "ids") != (self.assetIds is not None):
+            raise ValueError("asset_ids_scope_mismatch")
+        if self.assetIds is not None and (not self.assetIds or len(set(self.assetIds)) != len(self.assetIds)):
+            raise ValueError("invalid_asset_ids")
+        return self
 
 
 class Render(StrictModel):
@@ -138,6 +180,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                 if not panel.initialized:
                     # Init mode: never touch Immich with an empty key.
                     continue
+                service.looks.feed()
                 if service.render_next() is None:
                     service.reconcile_next()
                 if time.monotonic() >= next_maintenance:
@@ -373,10 +416,66 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
     def metadata(asset_id: UUID):
         return service.metadata(str(asset_id))
 
+    def album_asset(album, asset_id):
+        """Validate album + membership + source photo; return the source path."""
+        service.albums.source(album, asset_id)
+        return service.source(asset_id)[1]
+
     @app.get("/api/assets/{asset_id}/config")
-    def get_config(asset_id: UUID):
-        service.source(str(asset_id))
-        return service.config(str(asset_id))
+    def get_config(asset_id: UUID, album: UUID | None = None):
+        if album is None:
+            service.source(str(asset_id))
+            return service.config(str(asset_id))
+        album_asset(str(album), str(asset_id))
+        return service.looks.view(str(asset_id), str(album))
+
+    @app.post("/api/assets/{asset_id}/follow")
+    def follow(asset_id: UUID, body: Follow):
+        path = album_asset(body.album, str(asset_id))
+        return service.looks.follow(str(asset_id), body.album, path, body.expectedRevision)
+
+    @app.put("/api/assets/{asset_id}/draft")
+    def put_draft(asset_id: UUID, body: SaveDraft):
+        album_asset(body.album, str(asset_id))
+        return service.looks.put_draft(str(asset_id), body.album, body.config)
+
+    @app.delete("/api/assets/{asset_id}/draft")
+    def delete_draft(asset_id: UUID):
+        service.looks.delete_draft(str(asset_id))
+        return {"ok": True}
+
+    @app.get("/api/albums/{album_id}/look")
+    def get_look(album_id: UUID):
+        service.albums.source(str(album_id))
+        return service.looks.get_look(str(album_id))
+
+    @app.put("/api/albums/{album_id}/look")
+    def save_look(album_id: UUID, body: SaveLook):
+        service.albums.source(str(album_id))
+        return service.looks.save_look(str(album_id), body.config, body.expectedRevision)
+
+    @app.get("/api/albums/{album_id}/summary")
+    def album_summary(album_id: UUID):
+        album = str(album_id)
+
+        def enumerate_album():
+            service.albums.source(album)
+            return source_albums.assets(album)
+
+        return service.looks.summary(album, enumerate_album)
+
+    @app.post("/api/albums/{album_id}/render")
+    def album_render(album_id: UUID, body: BatchRender):
+        album = str(album_id)
+        service.albums.source(album)
+        items = source_albums.assets(album)
+        return service.looks.queue(album, body.scope, body.assetIds or [], items)
+
+    @app.get("/api/albums/{album_id}/activity")
+    def album_activity(album_id: UUID):
+        # Polled by the tray: database only, no Immich round trip. A result
+        # album never has jobs or batches of its own, so it reads back empty.
+        return service.looks.activity(str(album_id))
 
     @app.get("/api/assets/{asset_id}/job")
     def latest_job(asset_id: UUID):
@@ -408,7 +507,10 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
 
     @app.put("/api/assets/{asset_id}/config")
     def save(asset_id: UUID, body: SaveConfig):
-        return service.save(str(asset_id), body.config, body.expectedRevision)
+        if body.album is None:
+            return service.save(str(asset_id), body.config, body.expectedRevision)
+        path = album_asset(body.album, str(asset_id))
+        return service.looks.save_asset(str(asset_id), body.album, path, body.config, body.expectedRevision)
 
     @app.post("/api/assets/{asset_id}/render", status_code=202)
     def render(asset_id: UUID, body: Render):

@@ -62,6 +62,9 @@ class Service:
         from immich_ki.albums import AlbumCoordinator
 
         self.albums = AlbumCoordinator(self.store, client)
+        from immich_ki.album_looks import AlbumLooks
+
+        self.looks = AlbumLooks(self)
         self.tmp = settings.output / ".ki-tmp"
         self.metadata_tmp = workspace(settings.data, "metadata-tmp", code="workspace_unavailable")
         self.resources = settings.data / "resources"
@@ -137,33 +140,44 @@ class Service:
         return config
 
     def save(self, asset_id, config, expected):
+        """Legacy save without an album: the photo becomes standalone."""
         _, path = self.source(asset_id)
         encoded = canonical(self.validate(config))
-        new_hash = sha(encoded)
         with self.store.transaction() as db:
-            db.execute("INSERT OR IGNORE INTO assets(id,path) VALUES(?,?)", (asset_id, path))
-            asset = db.execute("SELECT * FROM assets WHERE id=?", (asset_id,)).fetchone()
-            if asset is None or asset["path"] != path:
-                raise Conflict("path_conflict")
-            if asset["revision"] != expected:
-                raise Conflict("revision_conflict")
-            # Idempotent save: re-saving the identical config is a no-op that
-            # keeps the revision. Without this, every identical PUT would bump
-            # the revision and bypass the enqueue dedup (which keys on revision),
-            # turning a repeated save during the waiting state into a duplicate
-            # render and generation.
-            existing = db.execute(
-                "SELECT hash FROM configs WHERE asset_id=? AND revision=?", (asset_id, expected)
-            ).fetchone()
-            if existing and existing["hash"] == new_hash:
-                return {"revision": expected, "config": json.loads(encoded)}
-            revision = expected + 1
-            db.execute(
-                "INSERT INTO configs(asset_id,revision,config,hash) VALUES(?,?,?,?)",
-                (asset_id, revision, encoded, new_hash),
-            )
-            db.execute("UPDATE assets SET revision=? WHERE id=?", (revision, asset_id))
+            revision = self.store_config(db, asset_id, path, encoded, expected)
+            # Without an album the caller owns the whole config; keeping a look
+            # binding would later report it stale and re-render the look.
+            db.execute("DELETE FROM asset_looks WHERE asset_id=?", (asset_id,))
+            db.execute("DELETE FROM drafts WHERE asset_id=?", (asset_id,))
+        self.looks.invalidate()
         return {"revision": revision, "config": json.loads(encoded)}
+
+    def store_config(self, db, asset_id, path, encoded, expected):
+        """Persist a validated canonical config inside ``db``'s transaction."""
+        new_hash = sha(encoded)
+        db.execute("INSERT OR IGNORE INTO assets(id,path) VALUES(?,?)", (asset_id, path))
+        asset = db.execute("SELECT * FROM assets WHERE id=?", (asset_id,)).fetchone()
+        if asset is None or asset["path"] != path:
+            raise Conflict("path_conflict")
+        if asset["revision"] != expected:
+            raise Conflict("revision_conflict")
+        # Idempotent save: re-saving the identical config is a no-op that
+        # keeps the revision. Without this, every identical PUT would bump
+        # the revision and bypass the enqueue dedup (which keys on revision),
+        # turning a repeated save during the waiting state into a duplicate
+        # render and generation.
+        existing = db.execute(
+            "SELECT hash FROM configs WHERE asset_id=? AND revision=?", (asset_id, expected)
+        ).fetchone()
+        if existing and existing["hash"] == new_hash:
+            return expected
+        revision = expected + 1
+        db.execute(
+            "INSERT INTO configs(asset_id,revision,config,hash) VALUES(?,?,?,?)",
+            (asset_id, revision, encoded, new_hash),
+        )
+        db.execute("UPDATE assets SET revision=? WHERE id=?", (revision, asset_id))
+        return revision
 
     def enqueue(self, asset_id, revision, source_album_id=None):
         if source_album_id is not None:
@@ -201,6 +215,7 @@ class Service:
                 ).fetchone()
                 if active:
                     shutil.rmtree(directory, ignore_errors=True)
+                    db.execute("DELETE FROM render_batches WHERE asset_id=?", (asset_id,))
                     return self.store.job(active["id"])
                 if (
                     db.execute("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running')").fetchone()[0]
@@ -215,6 +230,9 @@ class Service:
                 )
                 if source_album_id is not None:
                     db.execute("INSERT INTO job_albums(job_id,source_album_id) VALUES(?,?)", (job_id, source_album_id))
+                # A direct render satisfies (or retries) any batch entry.
+                db.execute("DELETE FROM render_batches WHERE asset_id=?", (asset_id,))
+            self.looks.invalidate()
             return self.store.job(job_id)
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
@@ -437,24 +455,7 @@ class Service:
 
     def gallery_status(self, asset_ids):
         """Badge data for a gallery page; no paths or config contents exposed."""
-        statuses = {}
-        with self.store.transaction() as db:
-            for asset_id in asset_ids:
-                asset = db.execute(
-                    "SELECT revision, generation, published_hash FROM assets WHERE id=?", (asset_id,)
-                ).fetchone()
-                if asset is None:
-                    statuses[asset_id] = {"configured": False, "job": None, "published": False}
-                    continue
-                job = db.execute(
-                    "SELECT state FROM jobs WHERE asset_id=? ORDER BY generation DESC LIMIT 1", (asset_id,)
-                ).fetchone()
-                statuses[asset_id] = {
-                    "configured": asset["revision"] > 0,
-                    "job": job["state"] if job else None,
-                    "published": asset["published_hash"] is not None,
-                }
-        return statuses
+        return self.looks.statuses(asset_ids)
 
     def published_output(self, asset_id, generation):
         """Read the full published output bytes under the current-ness guards.

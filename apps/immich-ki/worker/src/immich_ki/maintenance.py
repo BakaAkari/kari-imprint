@@ -96,8 +96,10 @@ class Maintenance:
         with s.store.lock:
             # Preserve historical configs too, so backups and old revisions remain usable.
             used = set()
-            for row in s.store.db.execute('SELECT config FROM configs'):
-                used.update(references(json.loads(row[0])))
+            # Album looks and drafts reference resources before any photo saves them.
+            for table in ('configs', 'album_looks', 'drafts'):
+                for row in s.store.db.execute(f'SELECT config FROM {table}'):
+                    used.update(references(json.loads(row[0])))
             active = {r[0] for r in s.store.db.execute("SELECT id FROM jobs WHERE state IN ('queued','running','publishing')")}
             for file in s.resources.iterdir():
                 if (re.fullmatch(r'[0-9a-f]{32}\.png', file.name) and not file.is_symlink()
@@ -160,10 +162,14 @@ def restore_backup(source: Path, destination: Path):
     with closing(sqlite3.connect(f'file:{source / "immich-ki.db"}?mode=ro', uri=True)) as db:
         if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
             raise ValueError('invalid_backup_database')
-        for row in db.execute('SELECT config FROM configs'):
-            for name in references(json.loads(row[0])):
-                if 'resources/'+name not in manifest['files']:
-                    raise ValueError('backup_resource_missing')
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table in ('configs', 'album_looks', 'drafts'):
+            if table not in tables:
+                continue  # Version 1 backups predate album looks.
+            for row in db.execute(f'SELECT config FROM {table}'):
+                for name in references(json.loads(row[0])):
+                    if 'resources/'+name not in manifest['files']:
+                        raise ValueError('backup_resource_missing')
     destination.mkdir(mode=0o700)
     try:
         for name in manifest['files']:
@@ -174,6 +180,8 @@ def restore_backup(source: Path, destination: Path):
             # Snapshots/output photos are deliberately not part of this backup.
             # Never replay an old publication into existing outputs on restore.
             db.execute("UPDATE jobs SET state='failed',error='restored_requires_review' WHERE state IN ('queued','running','publishing')")
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='render_batches'").fetchone():
+                db.execute('DELETE FROM render_batches')  # Nor start a restored batch unattended.
         shutil.copy2(source/'manifest.json', destination/'restored-manifest.json')
     except Exception:
         shutil.rmtree(destination)

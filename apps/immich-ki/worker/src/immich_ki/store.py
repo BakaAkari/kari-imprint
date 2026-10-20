@@ -31,7 +31,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA foreign_keys=ON')
         version = self.db.execute('PRAGMA user_version').fetchone()[0]
-        if version not in {0, 1}:
+        if version not in {0, 1, 2}:
             self.close()
             raise ValueError('unsupported_database_version')
         self.db.executescript('''
@@ -63,7 +63,33 @@ class Store:
         CREATE TABLE IF NOT EXISTS job_albums (
           job_id TEXT PRIMARY KEY REFERENCES jobs(id), source_album_id TEXT NOT NULL
         );
-        PRAGMA user_version=1;
+        ''')
+        # v2 (album looks): additive only. Existing configs keep their rows and
+        # have no asset_looks binding, which reads back as mode 'standalone'.
+        self.db.executescript('''
+        CREATE TABLE IF NOT EXISTS album_looks (
+          album_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, config TEXT NOT NULL,
+          hash TEXT NOT NULL, updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS asset_looks (
+          asset_id TEXT PRIMARY KEY REFERENCES assets(id), album_id TEXT NOT NULL, patch TEXT
+        );
+        CREATE TABLE IF NOT EXISTS drafts (
+          asset_id TEXT PRIMARY KEY, config TEXT NOT NULL, updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS render_batches (
+          asset_id TEXT PRIMARY KEY, album_id TEXT NOT NULL,
+          created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, error TEXT,
+          updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS asset_looks_album ON asset_looks(album_id);
+        CREATE INDEX IF NOT EXISTS render_batches_album ON render_batches(album_id);
+        CREATE INDEX IF NOT EXISTS job_albums_album ON job_albums(source_album_id);
+        CREATE INDEX IF NOT EXISTS jobs_asset_generation ON jobs(asset_id, generation);
+        -- Activity needs the time a job reached its current state.
+        CREATE TRIGGER IF NOT EXISTS jobs_touch AFTER UPDATE OF state ON jobs
+        BEGIN UPDATE jobs SET updated=CURRENT_TIMESTAMP WHERE id=NEW.id; END;
+        PRAGMA user_version=2;
         ''')
 
     @contextmanager

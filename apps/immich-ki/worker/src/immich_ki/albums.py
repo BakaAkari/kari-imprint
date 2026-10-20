@@ -38,20 +38,30 @@ class SourceAlbums:
             hit = self.cache.get(album_id)
             if hit and hit[0] > now:
                 return hit[1]
-        total, page = 0, 1
         try:
-            for _ in range(self.MAX_PAGES):
-                result = self.client.search(self.library, page, albums=[album_id], size=self.PAGE_SIZE, with_exif=False)
-                total += sum(1 for asset in result["items"] if self.accept(asset))
-                if not result.get("nextPage"):
-                    break
-                page = int(result["nextPage"])
+            total = len(self.assets(album_id))
         except (UpstreamError, KeyError, TypeError, ValueError):
             # Unknown is not "empty": keep the album visible and do not cache.
             return None
         with self.lock:
             self.cache[album_id] = (now + self.TTL, total)
         return total
+
+    def assets(self, album_id):
+        """Every processable photo of ``album_id`` (the gallery's rule), lightweight.
+
+        Raises on upstream failure; callers decide whether unknown is fatal.
+        """
+        found, page = [], 1
+        for _ in range(self.MAX_PAGES):
+            result = self.client.search(
+                self.library, page, albums=[str(album_id)], size=self.PAGE_SIZE, with_exif=False
+            )
+            found.extend(asset for asset in result["items"] if self.accept(asset))
+            if not result.get("nextPage"):
+                break
+            page = int(result["nextPage"])
+        return found
 
     def list(self):
         albums = [a for a in self.client.albums() if not is_result(a["name"])]
