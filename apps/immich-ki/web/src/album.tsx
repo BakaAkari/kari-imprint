@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KariImprintCanvas } from '../../../web/src/KariImprintCanvas';
 import type { ExifFieldValues, RuntimeCapabilities } from '../../../web/src/api';
 import type { ImprintConfig } from '../../../web/src/types';
@@ -110,6 +110,20 @@ export function Tray({ jobs, waiting, names, onRetry, onRetryAll, onOpen, inline
   since?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLElement>(null);
+  const [dropTop, setDropTop] = useState<number | null>(null);
+  // An open list closes on an outside tap, and Esc closes only the list
+  // (captured before the editor's own Esc, which would leave the editor).
+  useEffect(() => {
+    if (!open) return;
+    const head = root.current?.querySelector<HTMLElement>('.tray-head');
+    setDropTop(head ? head.getBoundingClientRect().bottom + 6 : null);
+    const onPointer = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); setOpen(false); } };
+    document.addEventListener('pointerdown', onPointer);
+    window.addEventListener('keydown', onKey, true);
+    return () => { document.removeEventListener('pointerdown', onPointer); window.removeEventListener('keydown', onKey, true); };
+  }, [open]);
   const list = Object.values(jobs).sort((a, b) => rank(a) - rank(b) || (b.updated ?? '').localeCompare(a.updated ?? ''));
   const busy = list.filter(j => isBusy(j.state)).length;
   const failed = list.filter(j => j.state === 'failed').length;
@@ -120,17 +134,19 @@ export function Tray({ jobs, waiting, names, onRetry, onRetryAll, onOpen, inline
   };
   const done = list.filter(j => j.state === 'done' && recent(j)).length;
   if (!busy && !failed && !done && !waiting) return null;
+  // Phones position the inline list under the header (it is fixed to the viewport there).
+  const bodyStyle = inline && dropTop !== null && typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches ? { top: dropTop } : undefined;
   const summary = [busy + waiting ? `处理中 ${busy + waiting}` : '', failed ? `失败 ${failed}` : '', done ? `完成 ${done}` : ''].filter(Boolean).join(' · ');
-  return <aside className={`tray ${inline ? 'inline' : ''} ${open ? 'open' : ''}`} aria-label="生成任务">
+  return <aside ref={root} className={`tray ${inline ? 'inline' : ''} ${open ? 'open' : ''}`} aria-label="生成任务">
     <button type="button" className="tray-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
       {busy + waiting > 0 && <span className="spinner" aria-hidden="true" />}
       <span>{summary || '任务'}</span>
       <span className="section-caret" aria-hidden="true">{open ? '−' : '+'}</span>
     </button>
-    {open && <div className="tray-body">
+    {open && <div className="tray-body" style={bodyStyle}>
       {waiting > 0 && <p className="hint">另有 {waiting} 张在等待进入队列。</p>}
       {failed > 1 && <button type="button" className="mini" onClick={onRetryAll}>重试全部 {failed} 张失败</button>}
-      {done > 0 && <p className="hint">已完成 {done} 张{list.length > busy + failed ? '' : ''}。</p>}
+      {done > 0 && <p className="hint">已完成 {done} 张。</p>}
       <ul>{list.filter(job => job.state !== 'done' && job.state !== 'superseded').map(job => <li key={job.assetId} className={`tray-item ${job.state}`}>
         <button type="button" className="link name" onClick={() => onOpen(job.assetId)}>{names.get(job.assetId) ?? job.assetId.slice(0, 8)}</button>
         <span className="state">{job.state === 'failed' ? failureText(job.error) : JOB_TEXT[job.state] ?? job.state}</span>
