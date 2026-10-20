@@ -403,3 +403,8 @@ class TestBuildTextDedup:
     def test_empty_values_add_no_separator(self):
         values = {"focal_length": "35mm", "aperture": "", "iso": "ISO 100"}
         assert _build_text(self._content("focal_length", "aperture", "iso"), values, "") == "35mm ISO 100"
+
+    def test_lens_drops_repeated_model_prefix(self):
+        values = {"camera_model": "iPhone 15 Pro", "lens_model": "iPhone 15 Pro back triple camera 6.765mm f/1.78"}
+        assert _build_text(self._content("camera_model", "lens_model"), values, "") == "iPhone 15 Pro back triple camera 6.765mm f/1.78"
+        assert _build_text(self._content("lens_model"), values, "") == values["lens_model"]

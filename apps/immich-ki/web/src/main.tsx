@@ -60,6 +60,22 @@ function App() {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.action ? 9000 : 5000); return () => clearTimeout(t); }, [toast]);
   useEffect(() => { if (logged) api<RuntimeCapabilities>('/capabilities').then(setCaps).catch(e => setToast({ text: errorText(e) })); }, [logged]);
   const compact = useMediaQuery('(max-width: 820px)');
+  // The phone tab bar sits right above the save dock, whose height varies with its notes.
+  useEffect(() => {
+    if (!compact) return;
+    let observer: ResizeObserver | null = null;
+    const attach = () => {
+      const dock = document.querySelector<HTMLElement>('.save-dock');
+      observer?.disconnect();
+      if (!dock) return;
+      observer = new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', `${dock.offsetHeight}px`));
+      observer.observe(dock);
+    };
+    const mutation = new MutationObserver(attach);
+    mutation.observe(document.body, { childList: true, subtree: true });
+    attach();
+    return () => { mutation.disconnect(); observer?.disconnect(); };
+  }, [compact]);
 
   // ── albums ──
   const [albums, setAlbums] = useState<Album[]>([]), [albumsAvailable, setAlbumsAvailable] = useState(true), [albumsLoaded, setAlbumsLoaded] = useState(false);
@@ -115,6 +131,8 @@ function App() {
   // Keep the album counts in step with the live jobs (throttled to one refresh per 2 s).
   const jobSignature = Object.values(activity.jobs).map(j => j.state).sort().join(',') + '|' + activity.waiting;
   useEffect(() => { const t = setTimeout(refreshAlbum, 2000); return () => clearTimeout(t); }, [jobSignature, refreshAlbum]);
+  // While anything is processing, also refresh the counts on a steady beat.
+  useEffect(() => { if (!anyBusy) return; const t = setInterval(refreshAlbum, 4000); return () => clearInterval(t); }, [anyBusy, refreshAlbum]);
   const statusOf = useCallback((a: Asset) => photoStatus(a, activity.jobs[a.id]), [activity.jobs]);
   const names = useMemo(() => new Map(assets.map(a => [a.id, a.name])), [assets]);
   const [filter, setFilter] = useState<GalleryFilter>('all');
@@ -318,7 +336,9 @@ function App() {
       setLook({ revision: saved.revision, config: saved.config });
       markSaved(config);
       setGalleryVersion(v => v + 1); refreshAlbum();
-      const { follow, exceptions, stale } = saved.impact;
+      const { exceptions, stale } = saved.impact;
+      // Photos never saved yet are not bound to the look but follow it too.
+      const follow = Math.max(saved.impact.follow, (summary?.total ?? 0) - exceptions);
       setToast({
         text: `统一样式已保存 · 跟随 ${follow} 张，例外 ${exceptions} 张${stale ? `，${stale} 张成品已过期` : ''}`,
         action: { label: '生成待处理的照片', run: () => void renderAlbum('all') },
@@ -326,7 +346,7 @@ function App() {
     } catch (e) {
       setMessage(e instanceof ApiError && e.code === 'revision_conflict' ? '统一样式已在其他页面修改，请返回图库后重新打开' : errorText(e));
     } finally { setSaving(false); }
-  }, [target, saving, album, look, markSaved, refreshAlbum, renderAlbum]);
+  }, [target, saving, album, look, markSaved, refreshAlbum, renderAlbum, summary]);
 
   const restoreSelected = useCallback(async () => {
     let done = 0;
@@ -339,6 +359,7 @@ function App() {
       } catch { /* the refreshed summary shows what is left */ }
     }
     setToast({ text: done ? `${done} 张已恢复为统一样式，可重新生成` : '所选照片都已跟随统一样式' });
+    setSelected(new Set()); setSelecting(false);
     setGalleryVersion(v => v + 1); refreshAlbum();
   }, [selected, album, refreshAlbum]);
 

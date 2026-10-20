@@ -319,7 +319,7 @@ body:has(.login){overflow:auto}
 .tray-item.failed .state{color:var(--bad)}.tray-item.done .state{color:var(--good)}
 .spinner{width:10px;height:10px;border-radius:50%;border:2px solid var(--busy);border-right-color:transparent;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
-.is-editing .tray{right:376px;bottom:96px}
+.is-editing .tray{right:auto;left:16px;bottom:96px}
 .all-busy{display:inline-flex;align-items:center;gap:8px;color:var(--busy)}
 .toast{z-index:60}
 
@@ -333,14 +333,13 @@ body:has(.login){overflow:auto}
   .album-header{grid-template-columns:minmax(0,1fr)}
   .look-thumb{height:120px}
   .app.compact.is-editing .stage{grid-template-rows:auto 36dvh auto}
-  .app.compact .panel-scroll{padding:8px 12px 150px}
+  .app.compact .panel-scroll{padding:8px 12px calc(var(--dock-h,98px) + 64px)}
   .app.compact .filmstrip{display:none}
   .app.compact .mode-bar{position:sticky;top:calc(84px + 36dvh + 44px);z-index:15}
-  .app.compact .tabbar{position:fixed;left:0;right:0;bottom:calc(98px + env(safe-area-inset-bottom));padding:6px 12px;z-index:34}
+  .app.compact .tabbar{position:fixed;left:0;right:0;bottom:var(--dock-h,98px);padding:6px 12px;z-index:34}
   .tray{left:12px;right:12px;width:auto;bottom:calc(12px + env(safe-area-inset-bottom));top:auto}
   .toast{left:12px;right:12px;transform:none;max-width:none}
   .is-editing .toast{top:auto;bottom:calc(150px + env(safe-area-inset-bottom))}
   .is-browsing .toast{top:auto;bottom:calc(68px + env(safe-area-inset-bottom))}
   .is-editing .tray{display:none}
 }
-@media (min-width:821px) and (max-width:1100px){.is-editing .tray{right:336px}}

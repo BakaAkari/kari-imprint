@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { KariImprintCanvas } from '../../../web/src/KariImprintCanvas';
-import type { RuntimeCapabilities } from '../../../web/src/api';
+import type { ExifFieldValues, RuntimeCapabilities } from '../../../web/src/api';
 import type { ImprintConfig } from '../../../web/src/types';
-import { isBusy, type ActivityJob, type AlbumSummary, type Asset, type RenderScope } from './api';
+import { api, isBusy, type ActivityJob, type AlbumSummary, type Asset, type RenderScope } from './api';
 import { FILTER_LABEL, STATUS_LABEL, type GalleryFilter } from './gallery';
 
 const JOB_TEXT: Record<string, string> = {
@@ -43,6 +43,13 @@ export function nextAction(summary: AlbumSummary | null, hasLook: boolean): { sc
 /** The album's look rendered on a representative photo (its small thumbnail, original coordinates). */
 function LookThumb({ look, sample, caps }: { look: ImprintConfig | null; sample: Asset | null; caps: RuntimeCapabilities | null }) {
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
+  const [fields, setFields] = useState<ExifFieldValues>({});
+  useEffect(() => {
+    if (!sample) return;
+    const control = new AbortController();
+    api<{ fields: ExifFieldValues }>(`/assets/${sample.id}/metadata`, 'GET', undefined, control.signal).then(m => setFields(m.fields)).catch(() => {});
+    return () => control.abort();
+  }, [sample?.id]);
   useEffect(() => {
     if (!sample) return;
     let image: ImageBitmap | null = null, cancelled = false;
@@ -52,7 +59,7 @@ function LookThumb({ look, sample, caps }: { look: ImprintConfig | null; sample:
   }, [sample?.id]);
   const thumbCaps = useMemo(() => caps ? { ...caps, preview: { ...caps.preview, max_edge: 480 } } : null, [caps]);
   const size = sample?.width && sample.height ? { width: sample.width, height: sample.height } : null;
-  return <span className="look-thumb">{look && bitmap && thumbCaps ? <KariImprintCanvas config={look} image={bitmap} originalImageSize={size} runtimeCaps={thumbCaps} fieldValues={{}} /> : <span className="look-empty">{look ? '' : '未设定'}</span>}</span>;
+  return <span className="look-thumb">{look && bitmap && thumbCaps ? <KariImprintCanvas config={look} image={bitmap} originalImageSize={size} runtimeCaps={thumbCaps} fieldValues={fields} /> : <span className="look-empty">{look ? '' : '未设定'}</span>}</span>;
 }
 
 export function AlbumHeader({ name, look, sample, caps, summary, filter, onFilter, onEditLook, onRender, busy }: {
@@ -102,8 +109,10 @@ export function Tray({ jobs, waiting, names, onRetry, onRetryAll, onOpen }: {
   const list = Object.values(jobs).sort((a, b) => rank(a) - rank(b) || (b.updated ?? '').localeCompare(a.updated ?? ''));
   const busy = list.filter(j => isBusy(j.state)).length;
   const failed = list.filter(j => j.state === 'failed').length;
-  const done = list.filter(j => j.state === 'done').length;
-  if (!list.length && !waiting) return null;
+  // Only recent completions; older ones would read as current after a look change.
+  const recent = (j: ActivityJob) => !j.updated || Date.now() - Date.parse(j.updated) < 2 * 60_000;
+  const done = list.filter(j => j.state === 'done' && recent(j)).length;
+  if (!busy && !failed && !done && !waiting) return null;
   const summary = [busy + waiting ? `处理中 ${busy + waiting}` : '', failed ? `失败 ${failed}` : '', done ? `完成 ${done}` : ''].filter(Boolean).join(' · ');
   return <aside className={`tray ${open ? 'open' : ''}`} aria-label="生成任务">
     <button type="button" className="tray-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
