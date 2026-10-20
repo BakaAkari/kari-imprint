@@ -1051,12 +1051,9 @@ hr, .divider {
 }
 
 /* 表单 */
-.form-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-}
+/* .form-row is defined once (label left, control right); a second, earlier
+   column definition used to leak flex-direction into it and stack every
+   detail row vertically. */
 
 .form-row:last-child { margin-bottom: 0; }
 
@@ -1196,10 +1193,12 @@ hr, .divider {
 
 .form-row {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-height: 0;
+  margin-bottom: 10px;
 }
 
 .form-row label {
@@ -1318,7 +1317,8 @@ hr, .divider {
 }
 
 .triple-row .layout-structure-options {
-  flex: 0 0 126px;
+  flex: 0 1 126px;
+  min-width: 96px;
 }
 
 .color-hex {
@@ -1932,12 +1932,15 @@ hr, .divider {
   min-height: 26px;
 }
 
+/* Shrinkable so a narrow right rail (e.g. 1024px windows) never clips it. */
 .layout-structure-options {
-  flex: 0 0 126px;
+  flex: 0 1 126px;
+  min-width: 96px;
 }
 
 .layout-structure-options .segment {
   flex: 1;
+  min-width: 0;
   padding: 3px 0;
   text-align: center;
 }
