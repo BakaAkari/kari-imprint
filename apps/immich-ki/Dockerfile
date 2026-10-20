@@ -1,4 +1,10 @@
-FROM public.ecr.aws/docker/library/node:24-bookworm-slim AS web
+# Base images are parameterized: GitHub runners hit public.ecr.aws data limits
+# (429), while NAS builds may prefer a nearby mirror. Defaults stay on
+# public.ecr.aws for parity with the validated NAS builds.
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:24-bookworm-slim
+ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.13-slim-bookworm
+
+FROM ${NODE_IMAGE} AS web
 WORKDIR /app
 COPY apps/web/package*.json apps/web/
 RUN npm ci --prefix apps/web
@@ -7,7 +13,7 @@ COPY apps/immich-ki/web apps/immich-ki/web
 WORKDIR /app/apps/immich-ki/web
 RUN npm ci && npm run build
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm
+FROM ${PYTHON_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends libimage-exiftool-perl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
