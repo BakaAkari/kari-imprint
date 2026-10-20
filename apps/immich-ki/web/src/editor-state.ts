@@ -331,3 +331,98 @@ export function selectionElementId(selection: Selection | null): string | null {
     if (!selection) return null;
     return `${selection.regionId}-${selection.kind === 'brand' ? 'asset' : selection.slotId}`;
 }
+
+// ── 与统一样式的差异（分区级） ─────────────────────────────────────
+
+/** Editor sections that can differ from the album look and be restored on their own. */
+export type LookSection = 'layout' | 'text' | 'brand' | 'appearance' | 'signature' | 'spacing';
+export const LOOK_SECTIONS: { id: LookSection; label: string }[] = [
+  { id: 'layout', label: '版式' },
+  { id: 'text', label: '文字' },
+  { id: 'brand', label: '品牌 Logo' },
+  { id: 'appearance', label: '背景与效果' },
+  { id: 'signature', label: '署名' },
+  { id: 'spacing', label: '排版细节' },
+];
+
+function frameShape(region: RegionConfig | null) {
+  return region ? { type: region.type, edge: region.edge ?? null, height: region.height ?? null, width: region.width ?? null } : null;
+}
+
+function textSlots(region: RegionConfig | null) {
+  if (!region?.slots) return null;
+  return Object.fromEntries(Object.entries(region.slots).filter(([id]) => id !== 'asset').sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** The part of a config a section owns, in a comparable shape. */
+function sectionPart(config: ImprintConfig, section: LookSection): unknown {
+  const frame = frameRegion(config);
+  switch (section) {
+    case 'layout': return { margins: config.canvas.margins, frame: frameShape(frame) };
+    case 'text': return textSlots(frame);
+    case 'brand': return frame?.slots?.asset ?? null;
+    case 'appearance': return { background: config.canvas.background.toUpperCase(), effect: canvasEffect(config), border: config.canvas.border };
+    case 'signature': return signatureRegion(config) ?? null;
+    case 'spacing': return frame?.layout ?? null;
+  }
+}
+
+export function sectionDiffers(config: ImprintConfig, look: ImprintConfig, section: LookSection): boolean {
+  return JSON.stringify(sectionPart(config, section)) !== JSON.stringify(sectionPart(look, section));
+}
+
+export function differingSections(config: ImprintConfig, look: ImprintConfig | null): LookSection[] {
+  if (!look) return [];
+  return LOOK_SECTIONS.map(s => s.id).filter(id => sectionDiffers(config, look, id));
+}
+
+/** Copy one section from the album look into `config`, leaving every other section alone. */
+export function restoreSection(config: ImprintConfig, look: ImprintConfig, section: LookSection): ImprintConfig {
+  const lookFrame = frameRegion(look);
+  const frame = frameRegion(config);
+  const withFrame = (next: RegionConfig | null): ImprintConfig => {
+    const others = config.regions.filter(r => r.type === 'free');
+    return { ...config, regions: next ? [next, ...others] : others };
+  };
+  switch (section) {
+    case 'layout': {
+      const canvas = { ...config.canvas, margins: structuredClone(look.canvas.margins) };
+      if (!lookFrame) return { ...withFrame(null), canvas };
+      if (!frame) return { ...withFrame(structuredClone(lookFrame)), canvas };
+      const shaped: RegionConfig = { ...frame, type: lookFrame.type };
+      delete shaped.edge; delete shaped.height; delete shaped.width;
+      if (lookFrame.edge !== undefined) shaped.edge = lookFrame.edge;
+      if (lookFrame.height !== undefined) shaped.height = lookFrame.height;
+      if (lookFrame.width !== undefined) shaped.width = structuredClone(lookFrame.width);
+      return { ...withFrame(shaped), canvas };
+    }
+    case 'text': {
+      if (!frame || !lookFrame) return config;
+      const asset = frame.slots?.asset;
+      const text = structuredClone(textSlots(lookFrame) ?? {});
+      return withFrame({ ...frame, slots: { ...text, ...(asset ? { asset } : {}) } });
+    }
+    case 'brand': {
+      if (!frame || !lookFrame) return config;
+      const slots = { ...frame.slots };
+      if (lookFrame.slots?.asset) slots.asset = structuredClone(lookFrame.slots.asset);
+      else delete slots.asset;
+      return withFrame({ ...frame, slots });
+    }
+    case 'spacing': {
+      if (!frame || !lookFrame) return config;
+      return withFrame({ ...frame, layout: structuredClone(lookFrame.layout ?? defaultFlowLayout()) });
+    }
+    case 'appearance': {
+      const canvas = { ...config.canvas, background: look.canvas.background, border: structuredClone(look.canvas.border) } as ImprintConfig['canvas'] & { effect?: unknown };
+      const effect = (look.canvas as { effect?: unknown }).effect;
+      if (effect) canvas.effect = structuredClone(effect) as never; else delete canvas.effect;
+      return { ...config, canvas };
+    }
+    case 'signature': {
+      const sig = signatureRegion(look);
+      const others = config.regions.filter(r => r.type !== 'free');
+      return { ...config, regions: sig ? [...others, structuredClone(sig)] : others };
+    }
+  }
+}

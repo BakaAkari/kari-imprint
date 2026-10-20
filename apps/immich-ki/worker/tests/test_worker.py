@@ -793,7 +793,9 @@ def test_gallery_status_badges_and_album_filter(setup):
     with TestClient(attach_login_transport(create_app(settings, fake, background=False))) as client:
         client.post("/api/auth/immich-login", json=OPERATOR)
         listed = client.get("/api/assets").json()
-        assert listed["items"][0]["status"] == {"configured": False, "job": None, "published": False}
+        assert listed["items"][0]["status"] == {
+            "configured": False, "job": None, "published": False, "state": "none", "exception": False, "draft": False,
+        }
         albums = client.get("/api/albums").json()
         assert albums["available"] is True and albums["albums"][0]["name"] == "旅行"
         endpoint = f"/api/assets/{fake.asset_id}"
@@ -801,7 +803,11 @@ def test_gallery_status_badges_and_album_filter(setup):
         client.post(endpoint + "/render", json={"revision": 1})
         client.app.state.service.render_next()
         status = client.get("/api/assets").json()["items"][0]["status"]
-        assert status == {"configured": True, "job": "awaiting_import", "published": True}
+        # A legacy (album-less) save is standalone, which counts as an exception.
+        assert status == {
+            "configured": True, "job": "awaiting_import", "published": True,
+            "state": "busy", "exception": True, "draft": False,
+        }
         selected = fake.source_album_id
         filtered = client.get("/api/assets", params={"album": selected}).json()
         assert filtered["items"][0]["status"]["job"] == "awaiting_import"

@@ -8,7 +8,7 @@ import {
   applyStylePreset, availableLines, brandMode, canvasEffect, detectStyle, framePosition, frameRegion, frameLayout, frameThickness,
   isDark, lineFields, lineLabel, lineStyle, logoSize, marginValue, moveLineField, patchFrameLayout, patchLineStyle, setBackground,
   setBrandMode, setCustomLogo, setFramePosition, setFrameThickness, setLogoSize, setMarginValue, setSignature, signatureState,
-  toggleLineField, withCanvasEffect, type FramePosition, type Selection,
+  toggleLineField, withCanvasEffect, restoreSection, sectionDiffers, type FramePosition, type LookSection, type Selection,
 } from './editor-state';
 import { errorText } from './api';
 
@@ -27,17 +27,25 @@ const fieldLabel = (id: FieldId) => fieldOptions.find(o => o.id === id)?.label ?
 
 export type SectionId = 'text' | 'brand' | 'background' | 'signature' | 'spacing';
 
-function Section({ id, title, summary, open, onToggle, highlighted, children }: { id: SectionId; title: string; summary?: string; open: boolean; onToggle: (id: SectionId) => void; highlighted?: boolean; children: ReactNode }) {
+function Section({ id, title, summary, open, onToggle, highlighted, restore, children }: { id: SectionId; title: string; summary?: string; open: boolean; onToggle: (id: SectionId) => void; highlighted?: boolean; restore?: (() => void) | null; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { if (highlighted) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [highlighted]);
-  return <section ref={ref} className={`panel-section ${open ? 'open' : ''} ${highlighted ? 'highlighted' : ''}`} data-section={id}>
-    <button type="button" className="section-head" aria-expanded={open} onClick={() => onToggle(id)}>
-      <span className="section-title">{title}</span>
-      {summary && <span className="section-summary">{summary}</span>}
-      <span className="section-caret" aria-hidden="true">{open ? '−' : '+'}</span>
-    </button>
+  return <section ref={ref} className={`panel-section ${open ? 'open' : ''} ${highlighted ? 'highlighted' : ''} ${restore ? 'differs' : ''}`} data-section={id}>
+    <div className="section-head-row">
+      <button type="button" className="section-head" aria-expanded={open} onClick={() => onToggle(id)}>
+        <span className="section-title">{title}</span>
+        {restore && <span className="differs-dot" title="与统一样式不同" aria-label="与统一样式不同" />}
+        {summary && <span className="section-summary">{summary}</span>}
+        <span className="section-caret" aria-hidden="true">{open ? '−' : '+'}</span>
+      </button>
+      {restore && <RestoreButton onClick={restore} />}
+    </div>
     {open && <div className="section-body">{children}</div>}
   </section>;
+}
+
+function RestoreButton({ onClick }: { onClick: () => void }) {
+  return <button type="button" className="restore" onClick={onClick} title="把这一部分恢复为相册统一样式">↺ 恢复统一</button>;
 }
 
 function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T | null; options: { value: T; label: string; title?: string }[]; onChange: (v: T) => void }) {
@@ -53,12 +61,12 @@ function Slider({ label, value, min, max, step, format, onChange }: { label: str
   </label>;
 }
 
-function StyleCards({ config, current, onPick, image, size, caps, fields }: { config: ImprintConfig; current: StylePresetId; onPick: (id: StylePresetId) => void; image: ImageBitmap | null; size: { width: number; height: number } | null; caps: RuntimeCapabilities | null; fields: ExifFieldValues }) {
+function StyleCards({ config, current, onPick, image, size, caps, fields, strip = false }: { config: ImprintConfig; current: StylePresetId; onPick: (id: StylePresetId) => void; image: ImageBitmap | null; size: { width: number; height: number } | null; caps: RuntimeCapabilities | null; fields: ExifFieldValues; strip?: boolean }) {
   const shortEdge = size ? Math.min(size.width, size.height) : undefined;
   // Each card renders the current photo in that style, keeping the user's orthogonal choices.
   const previews = useMemo(() => STYLE_PRESETS.map(p => ({ ...p, config: applyStylePreset(config, p.id, shortEdge) })), [config, shortEdge]);
   const thumbCaps = useMemo(() => caps ? { ...caps, preview: { ...caps.preview, max_edge: 420 } } : null, [caps]);
-  return <div className="style-cards" role="radiogroup" aria-label="样式">
+  return <div className={`style-cards ${strip ? 'strip' : ''}`} role="radiogroup" aria-label="样式">
     {previews.map((p, index) => <button key={p.id} type="button" role="radio" aria-checked={current === p.id} className={`style-card ${current === p.id ? 'active' : ''}`} onClick={() => onPick(p.id)} title={`${p.caption}（快捷键 ${index + 1}）`}>
       <span className="style-thumb">{image && size && thumbCaps ? <KariImprintCanvas config={p.config} image={image} originalImageSize={size} runtimeCaps={thumbCaps} fieldValues={fields} scheme="dark" /> : null}</span>
       <span className="style-name">{p.label}</span>
@@ -175,7 +183,12 @@ function SpacingControls({ config, commit }: { config: ImprintConfig; commit: Co
   </div>;
 }
 
-export function Editor({ config, commit, fields, selection, onSelect, image, size, caps }: {
+type MobileTab = 'style' | 'layout' | 'info' | 'appearance';
+const MOBILE_TABS: { id: MobileTab; label: string }[] = [
+  { id: 'style', label: '样式' }, { id: 'layout', label: '版式' }, { id: 'info', label: '信息' }, { id: 'appearance', label: '外观' },
+];
+
+export function Editor({ config, commit, fields, selection, onSelect, image, size, caps, look, compact }: {
   config: ImprintConfig;
   commit: Commit;
   fields: ExifFieldValues;
@@ -184,12 +197,21 @@ export function Editor({ config, commit, fields, selection, onSelect, image, siz
   image: ImageBitmap | null;
   size: { width: number; height: number } | null;
   caps: RuntimeCapabilities | null;
+  /** The album look this photo is compared against; null while editing the look itself. */
+  look: ImprintConfig | null;
+  /** Phone layout: bottom tabs instead of the stacked panel. */
+  compact: boolean;
 }) {
-  const [open, setOpen] = useState<Set<SectionId>>(() => new Set(['text']));
+  const [open, setOpen] = useState<Set<SectionId>>(() => new Set());
+  const [tab, setTab] = useState<MobileTab>('style');
   const toggle = (id: SectionId) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   // Selecting an object in the preview opens and highlights its section.
   const focus: SectionId | null = selection?.kind === 'text' ? 'text' : selection?.kind === 'brand' ? 'brand' : selection?.kind === 'signature' ? 'signature' : null;
-  useEffect(() => { if (focus) setOpen(s => s.has(focus) ? s : new Set([...s, focus])); }, [focus, selection]);
+  useEffect(() => {
+    if (!focus) return;
+    setOpen(s => s.has(focus) ? s : new Set([...s, focus]));
+    setTab('info');
+  }, [focus, selection]);
   const style = detectStyle(config);
   const region = frameRegion(config);
   const shortEdge = size ? Math.min(size.width, size.height) : null;
@@ -197,34 +219,73 @@ export function Editor({ config, commit, fields, selection, onSelect, image, siz
   const lines = availableLines(config);
   const brand = brandMode(config);
   const sig = signatureState(config);
+  const restoreFor = (section: LookSection) => look && sectionDiffers(config, look, section) ? () => commit(c => restoreSection(c, look, section)) : null;
+  const layoutRestore = restoreFor('layout');
+
+  const styleCards = (strip: boolean) => <StyleCards strip={strip} config={config} current={style} onPick={id => { commit(c => applyStylePreset(c, id, shortEdge ?? undefined)); onSelect(null); }} image={image} size={size} caps={caps} fields={fields} />;
+  const layoutControls = <>
+    {region && <div className="row">
+      <span className="row-label">信息条</span>
+      <Segmented label="信息条位置" value={framePosition(config)} options={POSITIONS.map(p => ({ value: p.value, label: p.label, title: `快捷键 ${p.key}` }))} onChange={v => commit(c => setFramePosition(c, v))} />
+    </div>}
+    {region && <Slider label="信息条厚度" value={frameThickness(config) * 100} min={5} max={30} step={0.5} format={v => `短边 ${v.toFixed(1)}%`} onChange={v => commit(c => setFrameThickness(c, v / 100), 'thickness')} />}
+    <Slider label={region ? '其余三边留白' : '四边留白'} value={margin} min={0} max={shortEdge ? Math.max(600, Math.round(shortEdge * 0.2)) : 600} step={shortEdge && shortEdge > 3000 ? 10 : 2}
+      format={v => shortEdge ? `${v}px · 短边 ${(v / shortEdge * 100).toFixed(1)}%` : `${v}px`} onChange={v => commit(c => setMarginValue(c, v), 'margin')} />
+  </>;
+  const textControls = <>
+    {lines.map(slotId => <LineEditor key={slotId} config={config} slotId={slotId} commit={commit} fields={fields} highlighted={selection?.kind === 'text' && selection.slotId === slotId} />)}
+    {brand !== 'off' && <p className="hint">关闭 Logo 后可在右侧添加文字。</p>}
+  </>;
+  const textSummary = lines.map(l => lineFields(config, l).length).reduce((a, b) => a + b, 0) + ' 项信息';
+  const brandSummary = brand === 'off' ? '不显示' : brand === 'auto' ? '自动' : brand === 'custom' ? '自定义' : brand;
+  const appearanceSummary = canvasEffect(config).background === 'blur' ? '模糊照片' : config.canvas.background.toUpperCase();
+
+  if (compact) {
+    const restoreRow = (section: LookSection) => { const r = restoreFor(section); return r ? <div className="restore-row"><span className="differs-dot" />与统一样式不同<RestoreButton onClick={r} /></div> : null; };
+    return <div className="editor-panel compact">
+      <div className="tab-body">
+        {tab === 'style' && styleCards(true)}
+        {tab === 'layout' && <div className="stack">{restoreRow('layout')}{layoutControls}{region && <><div className="block-title">排版细节</div>{restoreRow('spacing')}<SpacingControls config={config} commit={commit} /></>}</div>}
+        {tab === 'info' && <div className="stack">
+          {region && <><div className="block-title">文字 · {textSummary}</div>{restoreRow('text')}{textControls}</>}
+          {region && <><div className="block-title">品牌 Logo</div>{restoreRow('brand')}<BrandControls config={config} commit={commit} fields={fields} /></>}
+          <div className="block-title">署名</div>{restoreRow('signature')}<SignatureControls config={config} commit={commit} />
+        </div>}
+        {tab === 'appearance' && <div className="stack">{restoreRow('appearance')}<BackgroundControls config={config} commit={commit} /></div>}
+      </div>
+      <div className="tabbar" role="tablist" aria-label="设置分类">
+        {MOBILE_TABS.map(t => {
+          const differs = !!look && (t.id === 'layout' ? (sectionDiffers(config, look, 'layout') || sectionDiffers(config, look, 'spacing'))
+            : t.id === 'info' ? (['text', 'brand', 'signature'] as LookSection[]).some(s => sectionDiffers(config, look, s))
+            : t.id === 'appearance' ? sectionDiffers(config, look, 'appearance') : false);
+          return <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>{t.label}{differs && <span className="differs-dot" aria-label="已调整" />}</button>;
+        })}
+      </div>
+    </div>;
+  }
+
   return <div className="editor-panel">
     <div className="panel-block">
       <div className="block-title">样式</div>
-      <StyleCards config={config} current={style} onPick={id => { commit(c => applyStylePreset(c, id, shortEdge ?? undefined)); onSelect(null); }} image={image} size={size} caps={caps} fields={fields} />
+      {styleCards(false)}
     </div>
-    <div className="panel-block">
-      {region && <div className="row">
-        <span className="row-label">信息条</span>
-        <Segmented label="信息条位置" value={framePosition(config)} options={POSITIONS.map(p => ({ value: p.value, label: p.label, title: `快捷键 ${p.key}` }))} onChange={v => commit(c => setFramePosition(c, v))} />
-      </div>}
-      {region && <Slider label="信息条厚度" value={frameThickness(config) * 100} min={5} max={30} step={0.5} format={v => `短边 ${v.toFixed(1)}%`} onChange={v => commit(c => setFrameThickness(c, v / 100), 'thickness')} />}
-      <Slider label={region ? '其余三边留白' : '四边留白'} value={margin} min={0} max={shortEdge ? Math.max(600, Math.round(shortEdge * 0.2)) : 600} step={shortEdge && shortEdge > 3000 ? 10 : 2}
-        format={v => shortEdge ? `${v}px · 短边 ${(v / shortEdge * 100).toFixed(1)}%` : `${v}px`} onChange={v => commit(c => setMarginValue(c, v), 'margin')} />
+    <div className={`panel-block ${layoutRestore ? 'differs' : ''}`}>
+      <div className="block-head"><span className="block-title">版式</span>{layoutRestore && <><span className="differs-dot" title="与统一样式不同" /><RestoreButton onClick={layoutRestore} /></>}</div>
+      {layoutControls}
     </div>
-    {region && <Section id="text" title="文字" summary={lines.map(l => lineFields(config, l).length).reduce((a, b) => a + b, 0) + ' 项信息'} open={open.has('text')} onToggle={toggle} highlighted={focus === 'text'}>
-      {lines.map(slotId => <LineEditor key={slotId} config={config} slotId={slotId} commit={commit} fields={fields} highlighted={selection?.kind === 'text' && selection.slotId === slotId} />)}
-      {brand !== 'off' && <p className="hint">关闭 Logo 后可在右侧添加文字。</p>}
+    {region && <Section id="text" title="文字" summary={textSummary} open={open.has('text')} onToggle={toggle} highlighted={focus === 'text'} restore={restoreFor('text')}>
+      {textControls}
     </Section>}
-    {region && <Section id="brand" title="品牌 Logo" summary={brand === 'off' ? '不显示' : brand === 'auto' ? '自动' : brand === 'custom' ? '自定义' : brand} open={open.has('brand')} onToggle={toggle} highlighted={focus === 'brand'}>
+    {region && <Section id="brand" title="品牌 Logo" summary={brandSummary} open={open.has('brand')} onToggle={toggle} highlighted={focus === 'brand'} restore={restoreFor('brand')}>
       <BrandControls config={config} commit={commit} fields={fields} />
     </Section>}
-    <Section id="background" title="背景与效果" summary={canvasEffect(config).background === 'blur' ? '模糊照片' : config.canvas.background.toUpperCase()} open={open.has('background')} onToggle={toggle}>
+    <Section id="background" title="背景与效果" summary={appearanceSummary} open={open.has('background')} onToggle={toggle} restore={restoreFor('appearance')}>
       <BackgroundControls config={config} commit={commit} />
     </Section>
-    <Section id="signature" title="署名" summary={sig.enabled ? '已开启' : '未开启'} open={open.has('signature')} onToggle={toggle} highlighted={focus === 'signature'}>
+    <Section id="signature" title="署名" summary={sig.enabled ? '已开启' : '未开启'} open={open.has('signature')} onToggle={toggle} highlighted={focus === 'signature'} restore={restoreFor('signature')}>
       <SignatureControls config={config} commit={commit} />
     </Section>
-    {region && <Section id="spacing" title="排版细节" open={open.has('spacing')} onToggle={toggle}>
+    {region && <Section id="spacing" title="排版细节" open={open.has('spacing')} onToggle={toggle} restore={restoreFor('spacing')}>
       <SpacingControls config={config} commit={commit} />
     </Section>}
   </div>;

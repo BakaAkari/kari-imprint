@@ -125,9 +125,10 @@ def _build_text(
 ) -> str:
     """将 TextContent 的 chips 拼接为实际文本字符串。
 
-    Mirrors ``buildText`` in ``apps/web/src/KariImprintCanvas.tsx``: empty values
-    contribute no separator, and the make is dropped when the camera model on
-    the same line already starts with it ("Canon" + "Canon EOS R5").
+    Mirrors ``buildText`` in ``apps/web/src/layout/textContent.ts``: empty values
+    contribute no separator, the make is dropped when the camera model on the
+    same line already starts with it ("Canon" + "Canon EOS R5"), and a lens that
+    repeats the model on the same line loses that prefix.
     """
     field_ids = {chip.field_id for chip in content.chips}
     make = (field_values.get("make") or "").strip()
@@ -145,6 +146,9 @@ def _build_text(
             value = chip_custom
         else:
             value = _resolve_field_value(chip.field_id, field_values, custom_text)
+        # Phone lenses repeat the model ("iPhone 15 Pro back triple camera…"); drop that prefix.
+        if chip.field_id == "lens_model" and "camera_model" in field_ids and model and value.lower().startswith(model.lower() + " "):
+            value = value[len(model) + 1:].strip()
         if value:
             texts.append(value)
     return content.separator.join(texts)

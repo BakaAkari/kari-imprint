@@ -64,10 +64,20 @@ def main():
                     payload = {'preview': {'max_edge': 1440, 'device_pixel_ratio_limit': 2}}
                 elif path.endswith('/job'):
                     payload = {'job': None}
+                elif path.endswith('/look'):
+                    # Album look API (design 2026-10-20); saving creates the look first.
+                    payload = {'revision': 0, 'config': None, 'impact': {'follow': 0, 'exceptions': 0, 'stale': 0}}
+                    if route.request.method == 'PUT':
+                        payload.update(revision=1, config=route.request.post_data_json['config'])
+                elif path.endswith('/activity'):
+                    payload = {'jobs': [{'assetId': '11111111-1111-4111-8111-111111111111', 'id': '22222222222242228222222222222222', 'state': 'refresh_pending', 'error': None, 'generation': 1}] if saved_payloads else [], 'waiting': 0}
+                elif path.endswith(('/summary', '/draft')):
+                    payload = None if path.endswith('/summary') else {'ok': True}
                 elif path.endswith('/config'):
                     if route.request.method == 'PUT':
                         saved_payloads.append(route.request.post_data_json['config'])
-                    payload = {'revision': 1, 'config': config}
+                    payload = {'revision': 1, 'saved': config, 'look': None, 'mode': 'standalone', 'overrides': [],
+                               'resolved': None, 'draft': None, 'stale': False, 'conflict': False}
                 elif path.endswith('/render'):
                     payload = {'id': '22222222222242228222222222222222', 'asset_id': '11111111-1111-4111-8111-111111111111', 'revision': 1, 'generation': 1, 'state': 'refresh_pending', 'error': None}
                 elif path.endswith('/metadata'):
