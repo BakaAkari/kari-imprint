@@ -502,3 +502,40 @@ def _signature(name):
         "enabled": True,
         "slots": {"sig1": {"enabled": True, "content": {"path": name, "invert_mono": False}}},
     }
+
+
+def test_summary_reflects_job_state_changes_without_waiting_for_ttl(api):
+    """The worker loop changes job states without invalidating; counts must follow."""
+    client, fake, service = api
+    album = fake.source_album_id
+    put_look(client, fake, LOOK)
+    put_config(client, fake, fake.asset_id, LOOK)
+    service.enqueue(fake.asset_id, service.config(fake.asset_id)["revision"], album)
+    assert client.get(f"/api/albums/{album}/summary").json()["counts"]["busy"] == 1
+    with service.store.transaction() as db:
+        db.execute("UPDATE jobs SET state='failed'")
+    assert client.get(f"/api/albums/{album}/summary").json()["counts"]["failed"] == 1
+    with service.store.transaction() as db:
+        db.execute("UPDATE jobs SET state='done'")
+        db.execute("UPDATE assets SET published_hash='x'")
+    counts = client.get(f"/api/albums/{album}/summary").json()["counts"]
+    assert counts["busy"] == 0 and counts["done"] == 1
+
+
+def test_follow_after_render_reports_stale_in_photo_view(api):
+    """Restoring an exception keeps the old output until regenerated: the photo is stale."""
+    client, fake, service = api
+    asset, album = fake.asset_id, fake.source_album_id
+    put_look(client, fake, LOOK)
+    put_config(client, fake, asset, with_color(LOOK, "#FF0000"))
+    service.enqueue(asset, service.config(asset)["revision"], album)
+    service.render_next()
+    with service.store.transaction() as db:
+        db.execute("UPDATE jobs SET state='done'")
+    revision = client.get(f"/api/assets/{asset}/config", params={"album": album}).json()["revision"]
+    body = client.post(f"/api/assets/{asset}/follow", json={"album": album, "expectedRevision": revision}).json()
+    view = client.get(f"/api/assets/{asset}/config", params={"album": album}).json()
+    assert body["mode"] == view["mode"] == "follow"
+    assert view["stale"] is True
+    items = {i["id"]: i["status"] for i in client.get("/api/assets", params={"album": album}).json()["items"]}
+    assert items[asset]["state"] == "stale"

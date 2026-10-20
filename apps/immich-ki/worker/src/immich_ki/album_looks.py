@@ -67,7 +67,7 @@ class AlbumLooks:
         self.service, self.store, self.clock = service, service.store, clock
         self.cache_lock = threading.Lock()
         self.resolutions: dict[tuple[str, str], Resolution] = {}
-        self.summaries: dict[str, tuple[float, dict]] = {}
+        self.summaries: dict[str, tuple[float, str, str]] = {}
 
     # ── caches ────────────────────────────────────────────────────────────
 
@@ -175,7 +175,9 @@ class AlbumLooks:
                 mode="follow" if binding["patch"] is None else "exception",
                 overrides=overrides(json.loads(binding["patch"])) if binding["patch"] else [],
                 resolved=resolution.config,
-                stale=saved is not None and saved["hash"] != resolution.hash,
+                # Same rule as the gallery: the look/exception changed, or a newer
+                # saved revision has not been rendered yet (e.g. after "follow").
+                stale=(saved is not None and saved["hash"] != resolution.hash) or self._rows([asset_id])[asset_id]["outdated"],
                 conflict=resolution.conflict,
                 dropped=list(resolution.dropped),
             )
@@ -318,11 +320,31 @@ class AlbumLooks:
         public = ("configured", "job", "published", "state", "exception", "draft")
         return {k: {f: v[f] for f in public} for k, v in self._rows(asset_ids).items()}
 
+    def _activity_signature(self):
+        """Cheap fingerprint of everything that changes a photo's state."""
+        with self.store.transaction() as db:
+            # updated has 1 s resolution; a per-state weight (its distinct offset in
+            # this list) catches transitions within the same second.
+            jobs = db.execute(
+                "SELECT COUNT(*), MAX(updated), MAX(rowid), SUM(instr("
+                "'|queued|running|publishing|awaiting_import|refresh_pending|done|failed|superseded|', '|' || state || '|'"
+                ")) FROM jobs"
+            ).fetchone()
+            other = db.execute(
+                "SELECT (SELECT COUNT(*) FROM drafts), (SELECT MAX(updated) FROM drafts), "
+                "(SELECT COUNT(*) FROM render_batches), (SELECT MAX(updated) FROM render_batches)"
+            ).fetchone()
+        return json.dumps([list(jobs), list(other)], default=str)
+
     def summary(self, album_id, list_assets):
         now = self.clock()
+        # Job state changes in the worker loop do not call invalidate(); the
+        # signature makes a finished render visible immediately instead of
+        # after the TTL (the cache then only saves the Immich album listing).
+        signature = self._activity_signature()
         with self.cache_lock:
             hit = self.summaries.get(album_id)
-            if hit and hit[0] > now:
+            if hit and hit[0] > now and hit[2] == signature:
                 return json.loads(hit[1])
         items = list_assets()
         rows = self._rows(a["id"] for a in items)
@@ -338,7 +360,7 @@ class AlbumLooks:
             "look": {"revision": look["revision"]} if look else None,
         }
         with self.cache_lock:
-            self.summaries[album_id] = (now + self.SUMMARY_TTL, json.dumps(result))
+            self.summaries[album_id] = (now + self.SUMMARY_TTL, json.dumps(result), signature)
         return result
 
     # ── batch render ──────────────────────────────────────────────────────

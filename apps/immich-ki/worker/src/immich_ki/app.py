@@ -181,8 +181,10 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                     # Init mode: never touch Immich with an empty key.
                     continue
                 service.looks.feed()
-                if service.render_next() is None:
-                    service.reconcile_next()
+                # Import checks interleave with renders, so a long batch shows
+                # finished photos as they land instead of all at the end.
+                service.render_next()
+                service.reconcile_next()
                 if time.monotonic() >= next_maintenance:
                     service.maintenance.tick()
                     next_maintenance = time.monotonic() + 5
