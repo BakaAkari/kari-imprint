@@ -123,17 +123,30 @@ def _resolve_field_value(
 def _build_text(
     content: TextContent, field_values: dict[str, str], custom_text: str
 ) -> str:
-    """将 TextContent 的 chips 拼接为实际文本字符串。"""
+    """将 TextContent 的 chips 拼接为实际文本字符串。
+
+    Mirrors ``buildText`` in ``apps/web/src/KariImprintCanvas.tsx``: empty values
+    contribute no separator, and the make is dropped when the camera model on
+    the same line already starts with it ("Canon" + "Canon EOS R5").
+    """
+    field_ids = {chip.field_id for chip in content.chips}
+    make = (field_values.get("make") or "").strip()
+    model = (field_values.get("camera_model") or "").strip()
+    redundant_make = bool(
+        make and "camera_model" in field_ids and (model.lower() == make.lower() or model.lower().startswith(make.lower() + " "))
+    )
     texts: list[str] = []
     for chip in content.chips:
-        if chip.field_id == "empty":
+        if chip.field_id == "empty" or (chip.field_id == "make" and redundant_make):
             continue
         # 优先使用 chip 级别的 custom_text（前端 v3Types 支持）
         chip_custom = getattr(chip, "custom_text", "") or ""
         if chip.field_id == "custom_text" and chip_custom:
-            texts.append(chip_custom)
+            value = chip_custom
         else:
-            texts.append(_resolve_field_value(chip.field_id, field_values, custom_text))
+            value = _resolve_field_value(chip.field_id, field_values, custom_text)
+        if value:
+            texts.append(value)
     return content.separator.join(texts)
 
 

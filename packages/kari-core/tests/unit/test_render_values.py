@@ -84,3 +84,19 @@ def test_field_values_never_evaluate_exif_text_as_template() -> None:
     values = resolve_field_values({"LensModel": "{{ 7 * 7 }}", "Artist": "{% for x in y %}"})
     assert values["lens_model"] == "{{ 7 * 7 }}"
     assert values["artist"] == "{% for x in y %}"
+
+
+@pytest.mark.parametrize(
+    ("make", "expected"),
+    [
+        ("NIKON CORPORATION", "NIKON"),
+        ("LEICA CAMERA AG", "LEICA"),
+        ("RICOH IMAGING COMPANY, LTD.", "RICOH"),
+        ("OLYMPUS IMAGING CORP.", "OLYMPUS"),
+        ("Canon", "Canon"),
+        ("OM Digital Solutions", "OM Digital Solutions"),
+        ("CAMERA", "CAMERA"),
+    ],
+)
+def test_make_drops_corporate_suffixes(make, expected):
+    assert resolve_field_values({"Make": make})["make"] == expected

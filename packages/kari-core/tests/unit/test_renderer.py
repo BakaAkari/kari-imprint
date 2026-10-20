@@ -379,3 +379,27 @@ class TestEffectiveFontFamily:
                 self.style = StyleConfig(font_family="NotoSansCJKsc-Bold.otf", bold=bold)
 
         assert cache.measure(El(False), text, 40) < cache.measure(El(True), text, 40)
+
+
+class TestBuildTextDedup:
+    """Make + model on one line never repeats the vendor; empty fields add no separator."""
+
+    @staticmethod
+    def _content(*ids):
+        return TextContent(chips=[FieldChip(field_id=i) for i in ids], separator=" ")
+
+    def test_make_dropped_when_model_starts_with_it(self):
+        values = {"make": "Canon", "camera_model": "Canon EOS R5"}
+        assert _build_text(self._content("make", "camera_model"), values, "") == "Canon EOS R5"
+
+    def test_make_kept_when_model_does_not_repeat_it(self):
+        values = {"make": "Apple", "camera_model": "iPhone 15 Pro Max"}
+        assert _build_text(self._content("make", "camera_model"), values, "") == "Apple iPhone 15 Pro Max"
+
+    def test_make_kept_without_model_chip(self):
+        values = {"make": "Canon", "camera_model": "Canon EOS R5"}
+        assert _build_text(self._content("make", "lens_model"), values, "") == "Canon"
+
+    def test_empty_values_add_no_separator(self):
+        values = {"focal_length": "35mm", "aperture": "", "iso": "ISO 100"}
+        assert _build_text(self._content("focal_length", "aperture", "iso"), values, "") == "35mm ISO 100"

@@ -154,6 +154,18 @@ def _format_gps(exif: Mapping[str, object]) -> str:
     return f"{latitude}, {longitude}"
 
 
+# Trailing corporate words that make EXIF ``Make`` noisy in a caption, e.g.
+# "NIKON CORPORATION", "LEICA CAMERA AG", "RICOH IMAGING COMPANY, LTD.".
+_MAKE_SUFFIX_WORDS = {"corporation", "corp", "co", "company", "ltd", "limited", "inc", "imaging", "camera", "ag", "gmbh"}
+
+
+def _format_make(exif: Mapping[str, object]) -> str:
+    words = _clean_text(exif.get("Make")).split(" ")
+    while len(words) > 1 and words[-1].strip(".,").casefold() in _MAKE_SUFFIX_WORDS:
+        words.pop()
+    return " ".join(words).rstrip(" ,")
+
+
 def _format_camera_model(exif: Mapping[str, object]) -> str:
     return _clean_text(exif.get("CameraModelName") or exif.get("Model")).replace("_", "")
 
@@ -166,7 +178,7 @@ _FORMATTERS: dict[str, Callable[[Mapping[str, object]], str]] = {
     "shutter": format_shutter,
     "iso": format_iso,
     "datetime": _format_datetime,
-    "make": lambda exif: _clean_text(exif.get("Make")),
+    "make": _format_make,
     "artist": lambda exif: _clean_text(exif.get("Artist")),
     "gps": _format_gps,
 }
