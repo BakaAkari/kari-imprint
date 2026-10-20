@@ -192,6 +192,23 @@ def _anchor_to_paste_offset(
 # ── 元素渲染 ──────────────────────────────────────────────────────────
 
 
+_NOTO_WEIGHTS = {"NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf"}
+
+
+def effective_font_family(style) -> str:
+    """The font file to measure and draw with.
+
+    The browser preview selects weight from ``style.bold`` (400/700 of the
+    same Noto family), so for the two bundled Noto weights the ``bold`` flag
+    decides the file here too; otherwise fitting would truncate the output at
+    a different point than the preview the user approved.
+    """
+    family = style.font_family
+    if family in _NOTO_WEIGHTS:
+        return "NotoSansCJKsc-Bold.otf" if style.bold else "NotoSansCJKsc-Regular.otf"
+    return family
+
+
 class _FontCache:
     """Per-render font cache so text fitting can probe many sizes cheaply."""
 
@@ -207,7 +224,7 @@ class _FontCache:
         return font
 
     def measure(self, el: ComputedElement, text: str, size: int) -> float:
-        return float(self.get(el.style.font_family, size).getlength(text))
+        return float(self.get(effective_font_family(el.style), size).getlength(text))
 
 
 def _slot_length(el: ComputedElement) -> int:
@@ -244,7 +261,7 @@ def _render_text_element(
     if not text:
         return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
-    font = fonts.get(style.font_family, font_size)
+    font = fonts.get(effective_font_family(style), font_size)
     color = _parse_color(style.color)
 
     if direction == "vertical-glyphs":

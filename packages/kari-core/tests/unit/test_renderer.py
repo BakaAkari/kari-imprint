@@ -356,3 +356,26 @@ class TestRenderPil:
         result = render_pil(layout, img)
 
         assert result.size == (400, 300)
+
+
+class TestEffectiveFontFamily:
+    """Output measures and draws with the same weight the browser preview uses."""
+
+    def test_bold_flag_selects_noto_weight(self):
+        regular = StyleConfig(font_family="NotoSansCJKsc-Bold.otf", bold=False)
+        bold = StyleConfig(font_family="NotoSansCJKsc-Regular.otf", bold=True)
+        assert renderer.effective_font_family(regular) == "NotoSansCJKsc-Regular.otf"
+        assert renderer.effective_font_family(bold) == "NotoSansCJKsc-Bold.otf"
+
+    def test_other_fonts_are_untouched(self):
+        assert renderer.effective_font_family(StyleConfig(font_family="Custom.ttf", bold=True)) == "Custom.ttf"
+
+    def test_measurement_follows_bold_flag(self):
+        cache = renderer._FontCache()
+        text = "ILCE-7RM5 FE 24-70mm F2.8 GM II"
+
+        class El:
+            def __init__(self, bold):
+                self.style = StyleConfig(font_family="NotoSansCJKsc-Bold.otf", bold=bold)
+
+        assert cache.measure(El(False), text, 40) < cache.measure(El(True), text, 40)
