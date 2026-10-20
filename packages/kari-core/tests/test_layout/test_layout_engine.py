@@ -533,6 +533,17 @@ class TestLogoSymmetricSafeArea:
         assert logo.rect.x == result.canvas.w - 10
         assert (logo.rect.x - logo.rect.w) - (divider.rect.x + divider.rect.w) == 10
 
+    def test_horizontal_start_logo_gap_is_symmetric(self):
+        # Ported from da0b823: a start-placed logo keeps the same gap to the
+        # region edge and to the divider, and the divider to the text.
+        result = compute_layout(self._footer("start", 10), 1000, 600)
+        elements = {el.id: el for el in result.elements}
+        logo, divider, text = elements["footer-asset"], elements["footer-divider"], elements["footer-primary-start"]
+        # anchor 'middle-left' → rect.x is the logo's left edge.
+        assert logo.rect.x == 10
+        assert divider.rect.x - (logo.rect.x + logo.rect.w) == 10
+        assert text.rect.x - (divider.rect.x + divider.rect.w) == 10
+
     def test_vertical_end_logo_gap_is_symmetric(self):
         result = compute_layout(self._side("right", "end", 10), 800, 600)
         elements = {el.id: el for el in result.elements}

@@ -170,7 +170,6 @@ function SpacingControls({ config, commit }: { config: ImprintConfig; commit: Co
   const dual = layout.mode === 'dual-track';
   return <div className="stack">
     <Segmented label="行数" value={layout.mode} options={[{ value: 'dual-track', label: '两行' }, { value: 'single-track', label: '一行' }]} onChange={v => commit(c => patchFrameLayout(c, { mode: v }))} />
-    <Segmented label="对齐" value={layout.main_alignment} options={[{ value: 'space-between', label: '两端' }, { value: 'start', label: '靠前' }, { value: 'center', label: '居中' }]} onChange={v => commit(c => patchFrameLayout(c, { main_alignment: v }))} />
     <Slider label="元素间距" value={asRatio(layout.item_gap) * 100} min={0} max={5} step={0.1} format={v => `短边 ${v.toFixed(1)}%`} onChange={v => commit(c => patchFrameLayout(c, { item_gap: { mode: 'short_edge_ratio', value: Math.round(v * 10) / 1000 } }), 'item-gap')} />
     {dual && <Slider label="行间距" value={asRatio(layout.track_gap) * 100} min={0} max={5} step={0.1} format={v => `短边 ${v.toFixed(1)}%`} onChange={v => commit(c => patchFrameLayout(c, { track_gap: { mode: 'short_edge_ratio', value: Math.round(v * 10) / 1000 } }), 'track-gap')} />}
   </div>;

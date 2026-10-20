@@ -827,6 +827,35 @@ def test_imprint_album_is_never_a_source(setup):
         assert fake.album_filters == [] and fake.attached == []
 
 
+def test_client_add_to_album_requires_membership_readback():
+    """Ported from 4993ac8: a successful PUT whose read-back lacks the album is an error."""
+    import httpx
+    from immich_ki.client import ImmichClient, UpstreamError
+
+    calls = []
+    album_id, asset_id = str(uuid4()), str(uuid4())
+    membership = []
+
+    def handle(request):
+        calls.append(request)
+        if request.url.path == "/api/albums" and request.url.params.get("assetId"):
+            return httpx.Response(200, json=[{"id": m} for m in membership])
+        if request.url.path == f"/api/albums/{album_id}/assets":
+            return httpx.Response(200, json=[{"assetId": asset_id, "success": True}])
+        return httpx.Response(404)
+
+    client = ImmichClient("http://immich:2283", "private", transport=httpx.MockTransport(handle))
+    try:
+        assert client.album_membership(asset_id) == set()
+        assert calls[0].url.params["assetId"] == asset_id
+        with pytest.raises(UpstreamError):
+            client.add_to_album(album_id, asset_id)
+        membership.append(album_id)
+        client.add_to_album(album_id, asset_id)
+    finally:
+        client.close()
+
+
 def test_album_list_hides_albums_without_source_images(setup):
     """RAW-only albums (photos only in the archive library) are not offered."""
     settings, fake = setup

@@ -62,3 +62,19 @@ editor.tsx padding 未设置显示8，实际引擎按条带厚度14%等动态计
 ## 修复顺序
 
 先补身份绑定与真实相册契约，再修双端布局与几何断言，接着修状态闭环/退出/单边框规则，最后完成面板信息架构和真实浏览器验收。发布门禁应包括真实API只读契约、schema-valid浏览器payload、双端parity和目标平台隔离出图；不能以health=true替代业务验收。
+
+## 修复与部署记录（2026-10-12，来自 `feat/logo-real-aspect-ratio`）
+
+该轮修复先在分支 `feat/logo-real-aspect-ratio` 上实现并部署（`4993ac8`、`b7283bc`、`da0b823`、`84eb2ef`、`9c2cd84`、`9781a94`），
+随后在 `feat/imprint-experience` 上以不同实现重做并扩展（`2928637`、`fff2717`、`d2c27f9` 及之后提交）。下面只保留部署事实；
+该分支中“首次登录认领 owner”“`single_frame_only`/停用边框不计”等实现细节已被当前分支取代，不再适用。
+
+- 部署时间：2026-10-12 13:26（NAS）。
+- 镜像：`kari-imprint/immich-ki:release-audit-20261012-132346`（sha256:238156e6f6140…，基于 release-sort-20261012-114822 增量补丁，逐文件 SHA-256 与仓库核对一致）。
+- 升级前备份：`/mnt/user/appdata/app-immich-ki-m0/backup-audit-20261012-132346`（DB + resources + compose 快照）。
+- 部署后：容器 healthy、`/api/health` ok；线上 config.json 已于 2026-10-12 01:40 绑定 ownerEmail。
+- 当时线上有 18 条历史 `refresh_pending` 任务，由验证轮逐步核销为 done。
+
+当前分支对应实现：相册成员走 `GET /albums?assetId=`（`client.album_membership`，PUT 后回读）；owner 由服务 key 的
+`users/me` 解析且失败即拒绝（`owner_unbound`）；`POST /api/auth/logout` 幂等；`refresh_pending → done` 闭环并核对输出身份与
+相册关系；`renderer_version` 含渲染管线源码指纹；单边框由 `too_many_frames` 在保存边界强制。
