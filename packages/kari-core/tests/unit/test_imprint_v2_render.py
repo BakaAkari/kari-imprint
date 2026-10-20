@@ -1,4 +1,8 @@
-"""Regression tests for the Imprint v2 rendering fixes (text fit, logo, scheme, effect)."""
+"""Regression tests for the Imprint v2 rendering fixes (text fit, logo, scheme, effect).
+
+Logo-dependent cases use FUJIFILM: assets/logos is gitignored except
+fujifilm.png, so other brands have no logo file in CI.
+"""
 
 from __future__ import annotations
 
@@ -112,7 +116,7 @@ def test_no_exif_make_disables_logo():
 
 
 def test_divider_gap_is_symmetric_and_logo_stays_inside_padding():
-    layout, _cfg = _layout(classic(), 6000, 4000, {"make": "Canon"})
+    layout, _cfg = _layout(classic(), 6000, 4000, {"make": "FUJIFILM"})
     by_id = {el.id: el for el in layout.elements}
     text = by_id["footer-primary-start"]
     divider = by_id["footer-divider"]
@@ -148,7 +152,7 @@ def test_background_luminance_scheme(background, dark):
 def test_dark_background_switches_default_ink_only():
     config = classic(background="#2B2B2B")
     config["regions"][0]["slots"]["secondary-start"]["style"]["color"] = "#FF0000"
-    layout, _cfg = _layout(config, 3000, 2000, {"make": "Canon", "camera_model": "EOS R5"})
+    layout, _cfg = _layout(config, 3000, 2000, {"make": "FUJIFILM", "camera_model": "X-T5"})
     by_id = {el.id: el for el in layout.elements}
     assert by_id["footer-primary-start"].style.color == "#F5F5F5"
     assert by_id["footer-secondary-start"].style.color == "#FF0000"
@@ -167,8 +171,8 @@ def _render(config: dict, image: Image.Image, field_values: dict) -> Image.Image
 
 
 def test_long_horizontal_text_never_crosses_divider_or_canvas():
-    fields = {"make": "Apple", "camera_model": "iPhone 15 Pro Max",
-              "lens_model": "iPhone 15 Pro Max back triple camera 6.765mm f/1.78", "focal_length": "24mm", "aperture": "f/1.8"}
+    fields = {"make": "FUJIFILM", "camera_model": "X-T5 Limited Edition With An Exceptionally Long Name",
+              "lens_model": "XF16-55mmF2.8 R LM WR II with an absurdly long lens description string", "focal_length": "24mm", "aperture": "f/1.8"}
     config = classic()
     cfg = _dict_to_imprint_config(deepcopy(config))
     aspect = resolve_logo_slots(cfg, fields)
@@ -183,7 +187,7 @@ def test_long_horizontal_text_never_crosses_divider_or_canvas():
 
 
 def test_divider_is_blended_and_exact_width():
-    fields = {"make": "Canon", "camera_model": "EOS R5", "focal_length": "35mm"}
+    fields = {"make": "FUJIFILM", "camera_model": "X-T5", "focal_length": "35mm"}
     cfg = _dict_to_imprint_config(deepcopy(classic()))
     layout = compute_layout(cfg, 6000, 4000, resolve_logo_slots(cfg, fields))
     out = render_pil(layout, Image.new("RGB", (6000, 4000), "white"), field_values=fields, config=cfg)
@@ -225,7 +229,7 @@ def test_dark_background_inverts_mono_logo_and_mattes_white_box(tmp_path, monkey
 
 
 def test_noop_effect_renders_byte_identical():
-    fields = {"make": "Canon", "camera_model": "EOS R5"}
+    fields = {"make": "FUJIFILM", "camera_model": "X-T5"}
     image = Image.new("RGB", (600, 400), (90, 140, 200))
     plain = _render(classic(), image, fields)
     noop = _render(classic(effect={"background": "solid", "photo_radius": 0, "shadow": False}), image, fields)
@@ -233,7 +237,7 @@ def test_noop_effect_renders_byte_identical():
 
 
 def test_blur_effect_with_radius_and_shadow():
-    fields = {"make": "Canon", "camera_model": "EOS R5"}
+    fields = {"make": "FUJIFILM", "camera_model": "X-T5"}
     image = Image.new("RGB", (600, 400), (220, 30, 30))
     image.paste((30, 60, 220), (300, 0, 600, 400))
     config = classic(effect={"background": "blur", "photo_radius": 0.05, "shadow": True})
