@@ -1,0 +1,35 @@
+# 方案A 归档模式：源库与输出库同为成品库，成品直接发布进 finished/imprint。
+# 要求 Immich 扫描排除 /external/camera-data/finished/imprint/.ki-tmp（.immichignore 或库配置）。
+# 相册由 NAS user script immich-album-sync 每 30 分钟幂等补齐（含 "Imprint" 相册）。
+services:
+  immich-ki-m0:
+    image: ${KI_IMAGE:-kari-imprint/immich-ki:release-albums-20261012-065936}
+    platform: linux/amd64
+    user: "${KI_UID:-10001}:${KI_GID:-10001}"
+    # Unraid shared output directories use nobody:users (99:100), mode 775.
+    # Keep the private appdata UID while granting only the mounted output group access.
+    group_add: ["${KI_OUTPUT_GID:-100}"]
+    ports: ["127.0.0.1:2285:2285"]
+    environment:
+      KI_PUBLIC_ORIGIN: ${KI_PUBLIC_ORIGIN:-}
+      IMMICH_URL: http://app-immich-server:2283
+      IMMICH_API_KEY: ${IMMICH_API_KEY:-}
+      KI_SOURCE_LIBRARY_ID: ${KI_SOURCE_LIBRARY_ID:?required}
+      KI_OUTPUT_LIBRARY_ID: ${KI_OUTPUT_LIBRARY_ID:?required}
+      KI_SOURCE_PREFIX: /external/camera-data/finished
+      KI_OUTPUT_PREFIX: /external/camera-data/finished/imprint
+      KI_IMPRINT_DIR: ""
+    volumes:
+      - /mnt/user/camera-data/finished:/imports:ro
+      - /mnt/user/camera-data/finished/imprint:/output:rw
+      - /mnt/user/appdata/app-immich-ki-m0:/data:rw
+    mem_limit: 10g
+    cpus: 2
+    pids_limit: 64
+    init: true
+    restart: unless-stopped
+    networks: [media-edit]
+networks:
+  media-edit:
+    external: true
+    name: app-media-edit

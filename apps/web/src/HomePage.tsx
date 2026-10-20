@@ -5,6 +5,7 @@ import { LeftRail } from './components/LeftRail';
 import MainControls from './components/MainControls';
 import { RightRail } from './components/RightRail';
 import { KariImprintCanvas } from './KariImprintCanvas';
+import { ErrorBoundary } from './ErrorBoundary';
 import { createLocalPreview } from './localPreview';
 import {
   resolveConfig,
@@ -129,6 +130,9 @@ export function HomePage() {
   const previewRequestId = useRef(0);
   const processingAbort = useRef<AbortController | null>(null);
   const [canvasImage, setCanvasImage] = useState<ImageBitmap | null>(null);
+  // Original (EXIF-oriented) pixel size from the server, so the preview lays
+  // out in the same coordinates as the final render rather than the proxy's.
+  const [originalSize, setOriginalSize] = useState<{ width: number; height: number } | null>(null);
   const [previewRevision, setPreviewRevision] = useState(0);
   const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>('3:2');
   const [placeholderFieldValues, setPlaceholderFieldValues] = useState<ExifFieldValues>(() => createRandomPlaceholderExif());
@@ -193,16 +197,21 @@ export function HomePage() {
     const file = files[activeFileIndex];
     if (!file) {
       setFieldValues({});
+      setOriginalSize(null);
       return;
     }
     const controller = new AbortController();
+    setOriginalSize(null);
     void fetchImageMetadata(file, controller.signal)
       .then((metadata) => {
         setFieldValues(metadata.fields);
+        const { width, height } = metadata;
+        setOriginalSize(width && height && width > 0 && height > 0 ? { width, height } : null);
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
         setFieldValues({});
+        setOriginalSize(null);
         showToast(error instanceof Error ? error.message : '读取 EXIF 失败，预览使用示例字段', 'error');
       });
     return () => controller.abort();
@@ -338,15 +347,26 @@ export function HomePage() {
           <LeftRail aspectRatio={previewAspectRatio} onAspectRatioChange={setPreviewAspectRatio} runtimeCaps={runtimeCaps} />
           <main className="main-workspace">
             <div className="canvas-area">
-              <KariImprintCanvas
-                config={config}
-                image={canvasImage}
-                placeholderAspectRatio={previewAspectRatio}
-                runtimeCaps={runtimeCaps}
-                fieldValues={canvasFieldValues}
-                scheme={controls.scheme}
-                logoVariant={controls.logo_variant}
-              />
+              <ErrorBoundary
+                onReset={() => {
+                  setFiles([]);
+                  setActiveFileIndex(0);
+                  clearOutputs();
+                  setStatus('idle');
+                  setMessage('Kari Imprint 编辑器');
+                }}
+              >
+                <KariImprintCanvas
+                  config={config}
+                  image={canvasImage}
+                  originalImageSize={originalSize}
+                  placeholderAspectRatio={previewAspectRatio}
+                  runtimeCaps={runtimeCaps}
+                  fieldValues={canvasFieldValues}
+                  scheme={controls.scheme}
+                  logoVariant={controls.logo_variant}
+                />
+              </ErrorBoundary>
             </div>
             <MainControls config={config} onChange={onControlsChange} />
           </main>

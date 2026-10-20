@@ -7,6 +7,8 @@
  * - 隐藏新增 Region / 删除 Region / 新增 Slot/Line/Signature 等危险入口。
  */
 
+import { canvasEffectOf } from '../canvasEffects';
+import { MAX_PHOTO_RADIUS } from '../types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_LOGO_PLACEHOLDER_URL, uploadResource, fetchLogos, builtinLogoUrl, type LogoVariant } from '../api';
 import type {
@@ -496,7 +498,7 @@ function LogoContentEditor({
   const [resourceStatus, setResourceStatus] = useState('');
 
   useEffect(() => {
-    void fetchLogos().then(setLogoVariants);
+    void fetchLogos().then(setLogoVariants).catch(() => setResourceStatus('Logo 列表暂不可用'));
   }, []);
 
   const isAuto = !content.path;
@@ -620,16 +622,18 @@ function LogoContentEditor({
 
 // ── Content Editor ───────────────────────────────────────
 
-function ContentEditor({
+export function ContentEditor({
   content,
   style,
   onUpdateContent,
   onUpdateStyle,
+  showStyle = true,
 }: {
   content: Content;
   style: StyleConfig | null;
   onUpdateContent: (c: Content) => void;
   onUpdateStyle: (s: StyleConfig | null) => void;
+  showStyle?: boolean;
 }) {
   const mergedStyle: StyleConfig = style ?? defaultStyle;
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -659,7 +663,7 @@ function ContentEditor({
           separator={content.separator}
           onUpdate={(chips, separator) => onUpdateContent({ chips, separator })}
         />
-        <StyleEditor style={mergedStyle} onUpdate={onUpdateStyle} />
+        {showStyle && <StyleEditor style={mergedStyle} onUpdate={onUpdateStyle} />}
       </div>
     );
   }
@@ -754,6 +758,7 @@ function ChipListEditor({
         {chips.map((chip, i) => (
           <div key={`${chip.field_id}-${i}`} className="chip-item">
             <select
+              aria-label={`字段 ${i + 1}`}
               value={chip.field_id}
               onChange={(e) => updateChip(i, { field_id: e.target.value as FieldId })}
             >
@@ -766,19 +771,20 @@ function ChipListEditor({
             {chip.field_id === 'custom_text' && (
               <input
                 type="text"
+                maxLength={160}
                 value={chip.custom_text ?? ''}
                 placeholder="自定义文本"
                 onChange={(e) => updateChip(i, { custom_text: e.target.value })}
               />
             )}
-            <button className="chip-remove" onClick={() => removeChip(i)}>
+            <button aria-label={`删除字段 ${i + 1}`} className="chip-remove" onClick={() => removeChip(i)}>
               ×
             </button>
           </div>
         ))}
       </div>
       <div className="form-row" style={{ gap: 8, marginTop: 8 }}>
-        <button className="small" onClick={addChip}>
+        <button className="small" disabled={chips.length >= 20} onClick={addChip}>
           + 字段
         </button>
         <label className="small-label">
@@ -786,6 +792,7 @@ function ChipListEditor({
           <input
             type="text"
             value={separator}
+            maxLength={8}
             onChange={(e) => onUpdate(chips, e.target.value)}
             style={{ width: 80 }}
           />
@@ -954,14 +961,14 @@ function AdvancedTab({
           />
         </label>
         <label className="small-label">
-          圆角半径
+          照片圆角（短边 %）
           <input
             type="number"
             min={0}
-            max={160}
-            step={2}
-            value={config.canvas.border_radius}
-            onChange={(e) => updateCanvas({ border_radius: Number(e.target.value) })}
+            max={MAX_PHOTO_RADIUS * 100}
+            step={0.5}
+            value={Math.round(canvasEffectOf(config.canvas.effect).photo_radius * 1000) / 10}
+            onChange={(e) => updateCanvas({ effect: { ...canvasEffectOf(config.canvas.effect), photo_radius: Math.min(MAX_PHOTO_RADIUS, Math.max(0, (Number(e.target.value) || 0) / 100)) } })}
           />
         </label>
       </div>

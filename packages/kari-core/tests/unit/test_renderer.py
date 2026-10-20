@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from PIL import Image
 
 from kari_core.processor import renderer
@@ -30,6 +31,19 @@ from kari_core.shared.layout.layout_engine import (
 
 class TestHelpers:
     """单元测试：独立辅助函数。"""
+
+    def test_missing_requested_font_preserves_cjk_and_size(self):
+        font = renderer._load_font("missing-watermark-font.otf", 96)
+        assert font.size == 96
+        assert font.getbbox("水印")[2] > 100
+
+    def test_unreadable_fonts_fail_instead_of_publishing_tiny_text(self, monkeypatch):
+        def unreadable(*args, **kwargs):
+            raise OSError("cannot open resource")
+
+        monkeypatch.setattr(renderer.ImageFont, "truetype", unreadable)
+        with pytest.raises(OSError, match="watermark_font_unavailable"):
+            renderer._load_font("NotoSansCJKsc-Bold.otf", 96)
 
     def test_parse_color_hex6(self):
         assert _parse_color("#FF5733") == (255, 87, 51, 255)
@@ -96,6 +110,27 @@ class TestHelpers:
 
 class TestRenderPil:
     """集成测试：render_pil 主入口。"""
+
+    def test_free_signature_with_fractional_ratio_offsets(self, tmp_path):
+        from kari_core.processor.kari_imprint import _dict_to_imprint_config
+
+        signature = tmp_path / "signature.png"
+        Image.new("RGBA", (240, 80), (0, 0, 0, 255)).save(signature)
+        config = _dict_to_imprint_config({
+            "schema_version": 3,
+            "regions": [{
+                "id": "signature", "type": "free", "enabled": True,
+                "anchor": "bottom-right", "offset_x": -0.02, "offset_y": -0.02,
+                "offset_unit": "short_edge_ratio",
+                "slots": {"sig1": {"enabled": True, "content": {
+                    "path": str(signature), "invert_mono": False, "size_level": "small",
+                }}},
+            }],
+        })
+        layout = compute_layout(config, 961, 962)
+        result = render_pil(layout, Image.new("RGB", (961, 962), "white"))
+        assert result.size == (961, 962)
+        assert result.convert("RGB").getextrema() == ((0, 255), (0, 255), (0, 255))
 
     def _make_test_image(self, w: int = 800, h: int = 600) -> Image.Image:
         return Image.new("RGB", (w, h), (128, 128, 128))
@@ -321,3 +356,50 @@ class TestRenderPil:
         result = render_pil(layout, img)
 
         assert result.size == (400, 300)
+
+
+class TestEffectiveFontFamily:
+    """Output measures and draws with the same weight the browser preview uses."""
+
+    def test_bold_flag_selects_noto_weight(self):
+        regular = StyleConfig(font_family="NotoSansCJKsc-Bold.otf", bold=False)
+        bold = StyleConfig(font_family="NotoSansCJKsc-Regular.otf", bold=True)
+        assert renderer.effective_font_family(regular) == "NotoSansCJKsc-Regular.otf"
+        assert renderer.effective_font_family(bold) == "NotoSansCJKsc-Bold.otf"
+
+    def test_other_fonts_are_untouched(self):
+        assert renderer.effective_font_family(StyleConfig(font_family="Custom.ttf", bold=True)) == "Custom.ttf"
+
+    def test_measurement_follows_bold_flag(self):
+        cache = renderer._FontCache()
+        text = "ILCE-7RM5 FE 24-70mm F2.8 GM II"
+
+        class El:
+            def __init__(self, bold):
+                self.style = StyleConfig(font_family="NotoSansCJKsc-Bold.otf", bold=bold)
+
+        assert cache.measure(El(False), text, 40) < cache.measure(El(True), text, 40)
+
+
+class TestBuildTextDedup:
+    """Make + model on one line never repeats the vendor; empty fields add no separator."""
+
+    @staticmethod
+    def _content(*ids):
+        return TextContent(chips=[FieldChip(field_id=i) for i in ids], separator=" ")
+
+    def test_make_dropped_when_model_starts_with_it(self):
+        values = {"make": "Canon", "camera_model": "Canon EOS R5"}
+        assert _build_text(self._content("make", "camera_model"), values, "") == "Canon EOS R5"
+
+    def test_make_kept_when_model_does_not_repeat_it(self):
+        values = {"make": "Apple", "camera_model": "iPhone 15 Pro Max"}
+        assert _build_text(self._content("make", "camera_model"), values, "") == "Apple iPhone 15 Pro Max"
+
+    def test_make_kept_without_model_chip(self):
+        values = {"make": "Canon", "camera_model": "Canon EOS R5"}
+        assert _build_text(self._content("make", "lens_model"), values, "") == "Canon"
+
+    def test_empty_values_add_no_separator(self):
+        values = {"focal_length": "35mm", "aperture": "", "iso": "ISO 100"}
+        assert _build_text(self._content("focal_length", "aperture", "iso"), values, "") == "35mm ISO 100"

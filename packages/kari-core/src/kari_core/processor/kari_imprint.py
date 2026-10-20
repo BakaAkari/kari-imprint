@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from kari_core.processor.core import PipelineContext, register
 from kari_core.processor.filters import FilterProcessor
-from kari_core.processor.renderer import render_pil
+from kari_core.processor.renderer import render_pil, resolve_logo_slots
 from kari_core.shared.layout.layout_engine import TextContent, compute_layout
 from kari_core.shared.render_values import resolve_field_values
 
@@ -30,11 +30,13 @@ class KariImprintFilter(FilterProcessor):
         config = _dict_to_imprint_config(config_dict)
         img = ctx.get_buffer()[0]
 
-        layout = compute_layout(config, img.width, img.height)
-
         exif = ctx.get_exif() or {}
         file_path = ctx.get("input_path", "")
         field_values = resolve_field_values(exif, file_path)
+
+        # Unresolvable logos disable their slot so no space / divider is reserved.
+        asset_aspect_ratio = resolve_logo_slots(config, field_values)
+        layout = compute_layout(config, img.width, img.height, asset_aspect_ratio)
 
         canvas = render_pil(
             layout,
@@ -71,6 +73,7 @@ def _dict_to_imprint_config(data: dict):
     from kari_core.shared.layout.layout_engine import (
         BorderConfig,
         CanvasConfig,
+        EffectConfig,
         FieldChip,
         FlowLayoutConfig,
         ImprintConfig,
@@ -179,6 +182,7 @@ def _dict_to_imprint_config(data: dict):
     canvas = data.get("canvas", {})
     margins = canvas.get("margins", {})
     border = canvas.get("border")
+    effect = canvas.get("effect")
 
     return ImprintConfig(
         canvas=CanvasConfig(
@@ -195,8 +199,23 @@ def _dict_to_imprint_config(data: dict):
                 width_level=border.get("width_level", "medium"),
                 color=border.get("color", "#FFFFFF"),
             ) if isinstance(border, dict) else None,
+            effect=EffectConfig(
+                background="blur" if effect.get("background") == "blur" else "solid",
+                photo_radius=_effect_radius(effect.get("photo_radius", 0.0)),
+                shadow=effect.get("shadow") is True,
+            ) if isinstance(effect, dict) else None,
         ),
         regions=[_region(r) for r in data.get("regions", [])],
         defaults=_style(data.get("defaults")) or StyleConfig(),
         custom_text=data.get("custom_text", ""),
     )
+
+
+def _effect_radius(value: object) -> float:
+    """Clamp the photo radius ratio defensively (the API already validates it)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    number = float(value)
+    if number != number or number <= 0:
+        return 0.0
+    return min(0.08, number)

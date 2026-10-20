@@ -53,8 +53,9 @@ def test_flow_fixtures_are_deterministic_and_bounded():
     cases = json.loads(FIXTURES.read_text())
     for case in cases:
         config = _config(case)
-        first = compute_layout(config, *case["image"])
-        second = compute_layout(config, *case["image"])
+        aspect = case.get("asset_aspect_ratio")
+        first = compute_layout(config, *case["image"], aspect)
+        second = compute_layout(config, *case["image"], aspect)
         assert first == second, case["id"]
         assert all(0 <= el.rect.x <= first.canvas.w and 0 <= el.rect.y <= first.canvas.h for el in first.elements)
         if case["config"]["regions"][0]["layout"]["mode"] == "single-track":

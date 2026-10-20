@@ -60,7 +60,10 @@ class TestV3AutoLogoContract:
                 field_values: dict[str, str] = {}
                 if make is not None:
                     field_values["make"] = make
-                result = _resolve_auto_logo_path(LogoContent(path=""), field_values)
+                if case.get("model"):
+                    field_values["camera_model"] = case["model"]
+                scheme = "light" if case.get("on_dark") else "dark"
+                result = _resolve_auto_logo_path(LogoContent(path=""), field_values, scheme=scheme)
                 if expected_stem is None:
                     assert result is None, (
                         f"case {case} — expected None, got {result}"

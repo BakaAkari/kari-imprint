@@ -237,3 +237,61 @@ class TestRegionLayoutFields:
         region = result["regions"][0]
         assert region["vertical_alignment"] == "end"
         assert region["padding"]["bottom"] == 30
+
+
+class TestColorValidation:
+    @pytest.mark.parametrize("color", ["#+1_234", "#-12345", "# 12345", "#FFF", "red", "#12345G", "#1234567"])
+    def test_rejects_malformed_colors(self, color):
+        from api.errors import ApiError
+
+        with pytest.raises(ApiError):
+            validate_imprint_payload({"canvas": {"background": color}})
+        with pytest.raises(ValidationError):
+            StyleConfigPayload(color=color)
+
+    def test_normalizes_valid_colors(self):
+        assert validate_imprint_payload({"canvas": {"background": "#2b2b2b"}})["canvas"]["background"] == "#2B2B2B"
+
+
+class TestCanvasEffect:
+    def test_missing_effect_is_not_serialized(self):
+        result = validate_imprint_payload({"canvas": {"background": "#FFFFFF"}})
+        assert "effect" not in result["canvas"]
+
+    def test_accepts_full_effect(self):
+        result = validate_imprint_payload(
+            {"canvas": {"effect": {"background": "blur", "photo_radius": 0.03, "shadow": True}}}
+        )
+        assert result["canvas"]["effect"] == {"background": "blur", "photo_radius": 0.03, "shadow": True}
+
+    @pytest.mark.parametrize(
+        "effect",
+        [
+            {"background": "gradient"},
+            {"photo_radius": 0.081},
+            {"photo_radius": -0.01},
+            {"photo_radius": float("inf")},
+            {"photo_radius": "0.02"},
+            {"shadow": "yes"},
+            {"shadow": 1},
+            {"extra": True},
+        ],
+    )
+    def test_rejects_invalid_effect(self, effect):
+        from api.errors import ApiError
+
+        with pytest.raises(ApiError):
+            validate_imprint_payload({"canvas": {"effect": effect}})
+
+
+def test_legacy_logo_ratio_still_migrates_to_level():
+    payload = {
+        "schema_version": 3,
+        "regions": [{
+            "id": "footer", "type": "footer-bar", "height": 0.1,
+            "slots": {"asset": {"enabled": True, "content": {"path": "", "size_ratio": 0.78}}},
+        }],
+    }
+    result = validate_imprint_payload(payload)
+    content = result["regions"][0]["slots"]["asset"]["content"]
+    assert content["size_level"] == "medium" and content["size_ratio"] is None

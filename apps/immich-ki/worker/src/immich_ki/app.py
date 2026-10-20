@@ -1,0 +1,478 @@
+"""Companion preview same-origin API. The panel's sole credential is one Immich API key."""
+
+from __future__ import annotations
+
+import errno
+import logging
+import os
+import threading
+import time
+from contextlib import asynccontextmanager
+from io import BytesIO
+from pathlib import Path
+from typing import Annotated, Literal
+from urllib.parse import quote
+from uuid import UUID, uuid4
+
+from api.schemas import StrictModel
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from PIL import Image
+from pydantic import Field, ValidationError, field_validator
+from starlette.middleware.gzip import GZipMiddleware
+
+from immich_ki.albums import SourceAlbums
+from immich_ki.auth import PUBLIC_AUTH_PATHS, install_auth
+from immich_ki.client import ImmichClient, UpstreamError
+from immich_ki.keyconfig import resolve_panel_config
+from immich_ki.owner import resolve_owner_from_key
+from immich_ki.service import Conflict, Service
+from immich_ki.settings import Settings
+from immich_ki.workspace import StorageUnavailable
+
+PUBLIC_VALUE_ERRORS = {
+    "not_source_asset",
+    "file_too_large",
+    "invalid_image",
+    "source_changed",
+    "unsupported_path",
+    "unsafe_path",
+    "not_regular_file",
+    "invalid_preview",
+    "invalid_resource",
+    "output_too_large",
+    "renderer_changed",
+    "queue_full",
+    "job_not_found",
+    "insufficient_disk_space",
+    "must_not_exist",
+    "checksum_mismatch",
+    "image_too_large",
+    "unsupported_image",
+    "result_album_read_only",
+    "asset_not_in_album",
+    "album_pair_changed",
+    "ambiguous_album_pair",
+    "too_many_frames",
+}
+
+
+class PanelState:
+    """Mutable runtime credential state shared between the app, auth endpoints and the worker loop."""
+
+    def __init__(self, key: str, initialized: bool, upstream: ImmichClient, owner: str = "", on_key=None) -> None:
+        self.key = key
+        self.initialized = initialized
+        self.upstream = upstream
+        self.owner = owner
+        self.on_key = on_key or (lambda _key: None)
+
+
+class SaveConfig(StrictModel):
+    expectedRevision: int = Field(ge=0, le=2**31 - 1)
+    config: dict
+
+
+class Render(StrictModel):
+    # StrictModel refuses to coerce a string into UUID, and the Immich wire
+    # contract is a canonical UUID string anyway. Validate explicitly here so a
+    # malformed id is a 422 instead of a silent scope widening.
+    sourceAlbumId: str | None = None
+    revision: int = Field(ge=1, le=2**31 - 1)
+
+    @field_validator("sourceAlbumId")
+    @classmethod
+    def canonical_album(cls, value: str | None) -> str | None:
+        return None if value is None else str(UUID(value))
+
+
+def public_job(job):
+    return {key: job[key] for key in ("id", "asset_id", "revision", "generation", "state", "error")}
+
+
+def create_app(settings: Settings | None = None, client=None, *, background=True):
+    settings = settings or Settings.from_env()
+    key, owner, initialized = resolve_panel_config(settings.data, settings.api_key)
+    upstream = client or ImmichClient(settings.immich_url, key)
+    def processable(asset) -> bool:
+        """Whether the gallery offers ``asset``; album counts use the same rule."""
+        from immich_ki.paths import relative_path
+
+        try:
+            path = relative_path(asset["originalPath"], settings.source_prefix)
+        except (KeyError, ValueError):
+            return False
+        reserved = settings.reserved_output
+        if reserved and (path == reserved or path.startswith(reserved + "/")):
+            return False
+        return (
+            asset.get("libraryId") == settings.source_library
+            and asset.get("type") == "IMAGE"
+            and not asset.get("isOffline")
+            and not asset.get("isTrashed")
+        )
+
+    source_albums = SourceAlbums(upstream, settings.source_library, processable)
+    owner = resolve_owner_from_key(settings, upstream, key, owner)
+
+    def swap_upstream_key(new_key: str) -> None:
+        # Test fakes without a real httpx client are left untouched.
+        http = getattr(upstream, "http", None)
+        if http is not None:
+            http.headers["x-api-key"] = new_key
+
+    panel = PanelState(key, initialized, upstream, owner, swap_upstream_key)
+    service = Service(settings, upstream)
+    sessions = {}
+    stopped = threading.Event()
+    worker_error = None
+    log = logging.getLogger(__name__)
+
+    def run():
+        nonlocal worker_error
+        next_maintenance = 0.0
+        while not stopped.wait(0.5):
+            try:
+                if not panel.initialized:
+                    # Init mode: never touch Immich with an empty key.
+                    continue
+                if service.render_next() is None:
+                    service.reconcile_next()
+                if time.monotonic() >= next_maintenance:
+                    service.maintenance.tick()
+                    next_maintenance = time.monotonic() + 5
+                worker_error = None
+            except (StorageUnavailable, UpstreamError) as exc:
+                service.recovery_needed = True
+                worker_error = exc.code if isinstance(exc, StorageUnavailable) else "immich_unavailable"
+                log.warning("Worker retry scheduled: %s", worker_error)
+                stopped.wait(5)
+            except OSError as exc:
+                if exc.errno not in {
+                    errno.ENOENT,
+                    errno.EACCES,
+                    errno.EPERM,
+                    errno.EROFS,
+                    errno.ENOSPC,
+                    errno.EIO,
+                    errno.ESTALE,
+                }:
+                    worker_error = "worker_failed"
+                    stopped.set()
+                else:
+                    service.recovery_needed = True
+                    worker_error = "storage_unavailable"
+                    log.warning("Worker retry scheduled: storage_unavailable")
+                    stopped.wait(5)
+            except Exception:
+                # Structural bugs are fatal, not an unbounded retry loop. No raw
+                # paths, keys or EXIF may be included in the diagnostic.
+                worker_error = "worker_failed"
+                log.error("Worker stopped: worker_failed")
+                stopped.set()
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        thread = threading.Thread(target=run, daemon=True)
+        if background:
+            thread.start()
+        yield
+        stopped.set()
+        if background:
+            thread.join()
+        service.store.close()
+        upstream.close()
+
+    app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.service = service
+    install_auth(app, settings, sessions, panel)
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next):
+        if request.url.path.startswith("/api/"):
+            if request.method not in {"GET", "HEAD"}:
+                origin = request.headers.get("origin")
+                expected_origin = settings.public_origin or str(request.base_url).rstrip("/")
+                if origin and origin != expected_origin:
+                    return JSONResponse({"error": "invalid_origin"}, 403)
+            if request.url.path not in {"/api/health"} | PUBLIC_AUTH_PATHS:
+                if not panel.initialized:
+                    return JSONResponse({"error": "init_required"}, 403)
+                session = request.cookies.get("ki_session", "")
+                if sessions.get(session, 0) < time.monotonic():
+                    sessions.pop(session, None)
+                    return JSONResponse({"error": "login_required"}, 401)
+                if not panel.owner:
+                    # Defense-in-depth: a session can only be minted after owner
+                    # resolution, but an unbound owner must never serve assets.
+                    return JSONResponse({"error": "owner_unbound"}, 403)
+            # Bound body before FastAPI JSON/multipart parsing (including chunked).
+            body = bytearray()
+            async for chunk in request.stream():
+                body.extend(chunk)
+                if len(body) > (
+                    11 * 1024 * 1024 if request.url.path in {"/api/resources", "/api/upload-resource"} else 256 * 1024
+                ):
+                    return JSONResponse({"error": "request_too_large"}, 413)
+            request._body = bytes(body)
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            # A silent 500 made the album-filter type error undiagnosable from
+            # the outside. Log method, route template and exception class only:
+            # never raw paths, keys, EXIF or exception text.
+            route = request.scope.get("route")
+            log.error(
+                "Unhandled request failure: %s %s (%s)",
+                request.method,
+                getattr(route, "path", request.url.path),
+                type(exc).__name__,
+            )
+            return JSONResponse({"error": "operation_failed"}, 500)
+        # Only public build assets may be cached. Photos and authenticated API
+        # responses must never become persistent browser/proxy cache entries.
+        path = request.url.path
+        if response.status_code in {200, 304} and path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif response.status_code in {200, 304} and path.startswith("/fonts/"):
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        elif path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
+    @app.exception_handler(RequestValidationError)
+    @app.exception_handler(ValidationError)
+    async def invalid(_request, _exc):
+        return JSONResponse({"error": "invalid_request"}, 422)
+
+    @app.exception_handler(ValueError)
+    async def invalid_value(_request, exc):
+        code = str(exc)
+        return JSONResponse({"error": code if code in PUBLIC_VALUE_ERRORS else "invalid_input_or_asset"}, 422)
+
+    @app.exception_handler(Conflict)
+    async def conflict(_request, exc):
+        return JSONResponse({"error": str(exc)}, 409)
+
+    @app.exception_handler(StorageUnavailable)
+    async def storage_error(_request, exc):
+        return JSONResponse({"error": exc.code}, 503)
+
+    @app.exception_handler(UpstreamError)
+    async def upstream_error(_request, _exc):
+        return JSONResponse({"error": "immich_unavailable"}, 502)
+
+    @app.get("/api/health")
+    def health():
+        error = worker_error
+        try:
+            service.ensure_output()
+            from immich_ki.workspace import workspace
+
+            workspace(settings.data, "metadata-tmp", code="workspace_unavailable")
+        except StorageUnavailable as exc:
+            error = exc.code
+        except ValueError:
+            error = "unsafe_workspace"
+        return {
+            "ok": not stopped.is_set() and error is None,
+            "phase": "M1-preview",
+            "initialized": panel.initialized,
+            "error": error,
+        }
+
+    @app.get("/api/maintenance")
+    def maintenance_status():
+        return service.maintenance.status()
+
+    @app.post("/api/maintenance/backup")
+    def backup():
+        return service.maintenance.backup()
+
+    @app.get("/api/capabilities")
+    def capabilities():
+        return {
+            "upload": {"max_file_bytes": settings.max_bytes, "allowed_extensions": [".jpg", ".jpeg", ".png"]},
+            "preview": {"max_edge": settings.preview_edge, "device_pixel_ratio_limit": 2},
+            "process": {"max_image_pixels": settings.max_pixels, "concurrency": 1},
+        }
+
+    @app.get("/api/albums")
+    def list_albums():
+        try:
+            return {"albums": source_albums.list(), "available": True}
+        except UpstreamError as exc:
+            if exc.status == 403:
+                # The panel key may lack album.read; filtering stays hidden.
+                return {"albums": [], "available": False}
+            raise
+
+    @app.get("/api/albums/{album_id}/thumbnail")
+    def album_thumbnail(album_id: UUID):
+        album = upstream.album(str(album_id))
+        asset_id = album.get("albumThumbnailAssetId")
+        if not asset_id:
+            raise HTTPException(404)
+        data, mime = upstream.preview(str(UUID(asset_id)), maximum=2 * 1024 * 1024, thumbnail=True)
+        if mime.split(";")[0] not in {"image/jpeg", "image/png", "image/webp"}:
+            raise ValueError("invalid_preview")
+        return Response(data, media_type=mime)
+
+    @app.get("/api/assets")
+    def assets(page: Annotated[int, Field(ge=1, le=10000)] = 1, album: UUID | None = None):
+        # The upstream wire contract takes album ids as strings; pass the
+        # validated UUID in its canonical string form.
+        if album:
+            service.albums.source(str(album))
+        result = upstream.search(settings.source_library, page, albums=[str(album)] if album else None)
+        items = []
+        for asset in result["items"]:
+            try:
+                if not processable(asset):
+                    continue
+                exif = asset.get("exifInfo") or {}
+                items.append(
+                    {
+                        "id": asset["id"],
+                        "name": asset["originalFileName"],
+                        "width": exif.get("exifImageWidth"),
+                        "height": exif.get("exifImageHeight"),
+                    }
+                )
+            except (KeyError, ValueError):
+                continue
+        statuses = service.gallery_status([item["id"] for item in items])
+        for item in items:
+            item["status"] = statuses[item["id"]]
+        return {"items": items, "nextPage": result.get("nextPage")}
+
+    @app.get("/api/assets/{asset_id}/preview")
+    def preview(asset_id: UUID):
+        service.source(str(asset_id))
+        data, mime = upstream.preview(str(asset_id))
+        if mime.split(";")[0] not in {"image/jpeg", "image/png", "image/webp"}:
+            raise ValueError("invalid_preview")
+        return Response(data, media_type=mime)
+
+    @app.get("/api/assets/{asset_id}/thumbnail")
+    def thumbnail(asset_id: UUID):
+        service.source(str(asset_id))
+        data, mime = upstream.preview(str(asset_id), maximum=2 * 1024 * 1024, thumbnail=True)
+        if mime.split(";")[0] not in {"image/jpeg", "image/png", "image/webp"}:
+            raise ValueError("invalid_preview")
+        return Response(data, media_type=mime)
+
+    @app.get("/api/assets/{asset_id}/metadata")
+    def metadata(asset_id: UUID):
+        return service.metadata(str(asset_id))
+
+    @app.get("/api/assets/{asset_id}/config")
+    def get_config(asset_id: UUID):
+        service.source(str(asset_id))
+        return service.config(str(asset_id))
+
+    @app.get("/api/assets/{asset_id}/job")
+    def latest_job(asset_id: UUID):
+        service.source(str(asset_id))
+        job = service.latest_job(str(asset_id))
+        return {"job": public_job(job) if job else None}
+
+    @app.get("/api/assets/{asset_id}/output")
+    def output(
+        asset_id: UUID,
+        generation: Annotated[int, Field(ge=1, le=2**31 - 1)],
+        variant: Annotated[str, Field(pattern="^(preview|full)$")] = "preview",
+    ):
+        service.source(str(asset_id))
+        if variant == "full":
+            # The download variant returns the published file byte for byte, so a
+            # download never silently substitutes the downscaled preview.
+            payload, relative = service.published_output(str(asset_id), generation)
+            name = Path(relative).name
+            safe = "".join(ch if (ch.isascii() and (ch.isalnum() or ch in "._-")) else "_" for ch in name)
+            safe = safe or "imprint.jpg"
+            media = "image/png" if relative.lower().endswith(".png") else "image/jpeg"
+            return Response(
+                payload,
+                media_type=media,
+                headers={"Content-Disposition": f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(name)}"},
+            )
+        return Response(service.output_preview(str(asset_id), generation), media_type="image/jpeg")
+
+    @app.put("/api/assets/{asset_id}/config")
+    def save(asset_id: UUID, body: SaveConfig):
+        return service.save(str(asset_id), body.config, body.expectedRevision)
+
+    @app.post("/api/assets/{asset_id}/render", status_code=202)
+    def render(asset_id: UUID, body: Render):
+        return public_job(
+            service.enqueue(str(asset_id), body.revision, str(body.sourceAlbumId) if body.sourceAlbumId else None)
+        )
+
+    @app.get("/api/jobs/{job_id}")
+    def job(job_id: UUID):
+        return public_job(service.store.job(job_id.hex))
+
+    @app.post("/api/jobs/{job_id}/sync")
+    def sync(job_id: UUID):
+        return public_job(service.sync(job_id.hex))
+
+    @app.post("/api/resources")
+    def upload(file: UploadFile = File()):
+        service.maintenance.require_space(10 * 1024 * 1024)
+        raw = file.file.read(10 * 1024 * 1024 + 1)
+        if len(raw) > 10 * 1024 * 1024:
+            raise HTTPException(413)
+        with Image.open(BytesIO(raw)) as image:
+            if image.format not in {"JPEG", "PNG", "WEBP"} or image.width * image.height > 4_000_000:
+                raise ValueError("invalid_resource")
+            image.load()
+            normalized = BytesIO()
+            image.convert("RGBA").save(normalized, format="PNG")
+        name = uuid4().hex + ".png"
+        with service.store.lock, (service.resources / name).open("xb") as output:
+            output.write(normalized.getvalue())
+        return {"resourceId": name}
+
+    @app.post("/api/upload-resource")
+    def editor_upload(file: UploadFile = File(), kind: Literal["logo", "signature"] = Form()):
+        result = upload(file)
+        return {"ok": True, "filename": result["resourceId"], "kind": kind, "resource_id": result["resourceId"]}
+
+    @app.get("/api/resources/logo/{resource_id}")
+    @app.get("/api/resources/signature/{resource_id}")
+    @app.get("/api/resources/{resource_id}")
+    def resource(resource_id: str):
+        if len(resource_id) != 36 or not resource_id.endswith(".png"):
+            raise ValueError("invalid_resource")
+        UUID(resource_id[:-4])
+        return FileResponse(service.resources / resource_id, media_type="image/png")
+
+    @app.get("/api/logos")
+    def logos():
+        from immich_ki.logos import catalog
+
+        return {"ok": True, "logos": catalog()}
+
+    @app.get("/api/builtin-logos/{name}")
+    def builtin_logo(name: str, variant: Annotated[str, Field(max_length=16)] = "", dark: bool = False):
+        from immich_ki.logos import resolve
+
+        return FileResponse(resolve(name, variant, dark))
+
+    from kari_core.core.config_loader import FONTS_DIR
+
+    if FONTS_DIR.is_dir():
+        app.mount("/fonts", StaticFiles(directory=FONTS_DIR), name="fonts")
+
+    web = Path(os.environ.get("KI_WEB_ROOT", str(Path(__file__).resolve().parents[3] / "web" / "dist")))
+    if web.is_dir():
+        app.mount("/", StaticFiles(directory=web, html=True), name="web")
+    return app

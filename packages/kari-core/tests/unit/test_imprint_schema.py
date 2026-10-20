@@ -126,8 +126,8 @@ class TestDictConversionCarriesNewFields:
 class TestRendererLogoContain:
     """renderer logo contain mode (no stretch)."""
 
-    def test_logo_smaller_than_rect_not_upscaled(self):
-        """If logo is smaller than target rect, don't upscale."""
+    def test_small_logo_is_upscaled_to_fill_slot(self):
+        """Small builtin logos are scaled up (contain) to the slot box."""
         logo_img = Image.new("RGBA", (50, 50), (255, 0, 0, 255))
         # We'll test the render function via a mock approach
         # Save and reload to test
@@ -147,8 +147,8 @@ class TestRendererLogoContain:
             )
             result = _render_logo_element(el, {})
             assert result is not None
-            # Should not upscale — logo stays at 50x50 since it fits within 200x100
-            assert result.size == (50, 50)
+            # Upscaled to contain within 200x100 — the visible box matches large logos.
+            assert result.size == (100, 100)
             Path(f.name).unlink()
 
     def test_logo_larger_than_rect_scaled_down_contain(self):

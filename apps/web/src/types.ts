@@ -139,11 +139,27 @@ export interface BorderConfig {
   color: string;
 }
 
+/**
+ * Optional canvas effect (TS ↔ Python `EffectConfig` ↔ API `CanvasEffectPayload`).
+ * A missing / null effect is identical to `DEFAULT_CANVAS_EFFECT`.
+ */
+export interface CanvasEffect {
+  background: 'solid' | 'blur';
+  /** Rounded photo corners as a ratio of the photo short edge, 0..0.08. */
+  photo_radius: number;
+  shadow: boolean;
+}
+
+export const DEFAULT_CANVAS_EFFECT: Readonly<CanvasEffect> = { background: 'solid', photo_radius: 0, shadow: false };
+export const MAX_PHOTO_RADIUS = 0.08;
+
 export interface CanvasConfig {
   margins: MarginsConfig;
   background: string;
+  /** Deprecated: no longer applied by preview or output (JPEG cannot hold transparent corners); use effect.photo_radius. */
   border_radius: number;
   border: BorderConfig;
+  effect?: CanvasEffect | null;
 }
 
 export interface ImprintConfig {
@@ -386,7 +402,10 @@ export const presetSoftCardBase: ImprintConfig = {
   canvas: {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
     background: '#FFFFFF',
-    border_radius: 24,
+    // 圆润 = 照片本身圆角（canvas.effect.photo_radius）。画布外角圆角需要透明，
+    // JPEG 成品无法表达，因此 border_radius 已停用，预览与成品都不再应用。
+    border_radius: 0,
+    effect: { background: 'solid', photo_radius: 0.02, shadow: false },
     // 拍立得的白纸边由 border 实现；controlSurface.border.enabled 打开时由 controls.border_enabled 权威覆盖。
     border: { enabled: true, width_level: 'medium', color: '#FFFFFF' },
   },
@@ -437,7 +456,7 @@ export interface RootOverrides {
   defaults?: Partial<StyleConfig>;
 }
 
-function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): StyleConfig {
+export function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): StyleConfig {
   const next = { ...base, ...patch };
   if (patch.font_size !== undefined && patch.font_size !== null) {
     next.font_size_level = null;
@@ -452,7 +471,7 @@ function normalizeStylePatch(base: StyleConfig, patch: Partial<StyleConfig>): St
   return next;
 }
 
-function mergeSlotOverride(slot: SlotConfig, override: SlotOverride): SlotConfig {
+export function mergeSlotOverride(slot: SlotConfig, override: SlotOverride): SlotConfig {
   const next = structuredClone(slot);
   if (override.enabled !== undefined) next.enabled = override.enabled;
   if (override.style) next.style = normalizeStylePatch(next.style ?? defaultStyle, override.style);

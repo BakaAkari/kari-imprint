@@ -11,24 +11,62 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 from kari_core.core.auto_logo import match_brand_stem
 from kari_core.core.config_loader import FONTS_DIR, LOGOS_DIR
 from kari_core.core.image_io import load_logo
 from kari_core.core.logger import logger
+from kari_core.processor.effects import (
+    compose_background,
+    effect_is_active,
+    needs_composed_background,
+    photo_radius_px,
+    round_photo_corners,
+    save_corner_backgrounds,
+)
 from kari_core.shared.layout.layout_engine import (
+    DIVIDER_OPACITY,
     ComputedElement,
     ImprintConfig,
     LayoutResult,
     LogoContent,
     SignatureContent,
     TextContent,
+    divider_color,
+    resolve_ink_scheme,
 )
+from kari_core.shared.layout.text_fit import FittedText, fit_layout_texts, fit_single
 
 _LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+
+# Runtime cache keyed by (absolute path, mtime_ns, size) → (w, h). Aspect ratio
+# is a rendering-time fact derived from the file, not a user-facing config
+# value, so it never crosses the API boundary; caching by mtime+size is enough
+# to keep repeated renders cheap without going stale on edits.
+_LOGO_DIMS_CACHE: dict[tuple[str, int, int], tuple[int, int]] = {}
+
+
+def _read_image_dimensions(path: str) -> tuple[int, int] | None:
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    cached = _LOGO_DIMS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    try:
+        with Image.open(path) as img:
+            dims = img.size
+    except (FileNotFoundError, OSError, Image.UnidentifiedImageError):
+        return None
+    _LOGO_DIMS_CACHE[key] = dims
+    return dims
 
 # ── 颜色解析 ──────────────────────────────────────────────────────────
 
@@ -85,17 +123,30 @@ def _resolve_field_value(
 def _build_text(
     content: TextContent, field_values: dict[str, str], custom_text: str
 ) -> str:
-    """将 TextContent 的 chips 拼接为实际文本字符串。"""
+    """将 TextContent 的 chips 拼接为实际文本字符串。
+
+    Mirrors ``buildText`` in ``apps/web/src/KariImprintCanvas.tsx``: empty values
+    contribute no separator, and the make is dropped when the camera model on
+    the same line already starts with it ("Canon" + "Canon EOS R5").
+    """
+    field_ids = {chip.field_id for chip in content.chips}
+    make = (field_values.get("make") or "").strip()
+    model = (field_values.get("camera_model") or "").strip()
+    redundant_make = bool(
+        make and "camera_model" in field_ids and (model.lower() == make.lower() or model.lower().startswith(make.lower() + " "))
+    )
     texts: list[str] = []
     for chip in content.chips:
-        if chip.field_id == "empty":
+        if chip.field_id == "empty" or (chip.field_id == "make" and redundant_make):
             continue
         # 优先使用 chip 级别的 custom_text（前端 v3Types 支持）
         chip_custom = getattr(chip, "custom_text", "") or ""
         if chip.field_id == "custom_text" and chip_custom:
-            texts.append(chip_custom)
+            value = chip_custom
         else:
-            texts.append(_resolve_field_value(chip.field_id, field_values, custom_text))
+            value = _resolve_field_value(chip.field_id, field_values, custom_text)
+        if value:
+            texts.append(value)
     return content.separator.join(texts)
 
 
@@ -103,7 +154,7 @@ def _build_text(
 
 
 def _load_font(font_path: str, size: int) -> ImageFont.FreeTypeFont:
-    """加载指定字体；失败时回退到系统默认字体。"""
+    """加载指定字体；仅回退到支持中文且保持字号的内置字体。"""
     path = Path(font_path)
     if not path.is_absolute():
         path = FONTS_DIR / font_path
@@ -112,16 +163,16 @@ def _load_font(font_path: str, size: int) -> ImageFont.FreeTypeFont:
         return ImageFont.truetype(str(path), size)
     except OSError:
         for fallback in (
+            FONTS_DIR / "NotoSansCJKsc-Regular.otf",
             FONTS_DIR / "AlibabaPuHuiTi-2-45-Light.otf",
-            "arial.ttf",
-            "Arial.ttf",
-            "DejaVuSans.ttf",
         ):
             try:
                 return ImageFont.truetype(str(fallback), size)
             except OSError:
                 continue
-        return ImageFont.load_default()
+        # A tiny Latin-only default can make a successful export appear blank.
+        # Fail the render instead of publishing a silently degraded watermark.
+        raise OSError("watermark_font_unavailable") from None
 
 
 # ── Anchor → PIL paste 左上角坐标 ─────────────────────────────────────
@@ -154,26 +205,78 @@ def _anchor_to_paste_offset(
 # ── 元素渲染 ──────────────────────────────────────────────────────────
 
 
+_NOTO_WEIGHTS = {"NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf"}
+
+
+def effective_font_family(style) -> str:
+    """The font file to measure and draw with.
+
+    The browser preview selects weight from ``style.bold`` (400/700 of the
+    same Noto family), so for the two bundled Noto weights the ``bold`` flag
+    decides the file here too; otherwise fitting would truncate the output at
+    a different point than the preview the user approved.
+    """
+    family = style.font_family
+    if family in _NOTO_WEIGHTS:
+        return "NotoSansCJKsc-Bold.otf" if style.bold else "NotoSansCJKsc-Regular.otf"
+    return family
+
+
+class _FontCache:
+    """Per-render font cache so text fitting can probe many sizes cheaply."""
+
+    def __init__(self) -> None:
+        self._fonts: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
+
+    def get(self, family: str, size: int) -> ImageFont.FreeTypeFont:
+        key = (family, max(1, int(size)))
+        font = self._fonts.get(key)
+        if font is None:
+            font = _load_font(family, key[1])
+            self._fonts[key] = font
+        return font
+
+    def measure(self, el: ComputedElement, text: str, size: int) -> float:
+        return float(self.get(effective_font_family(el.style), size).getlength(text))
+
+
+def _slot_length(el: ComputedElement) -> int:
+    direction = el.style.text_direction or "horizontal"
+    return el.rect.h if direction in {"rotate-cw", "rotate-ccw"} else el.rect.w
+
+
 def _render_text_element(
     el: ComputedElement,
     field_values: dict[str, str],
     custom_text: str,
+    fitted: FittedText | None = None,
+    fonts: _FontCache | None = None,
 ) -> Image.Image:
-    """将文本元素渲染为透明背景的 PIL Image。"""
+    """将文本元素渲染为透明背景的 PIL Image。
+
+    ``fitted`` carries the size/text chosen by ``fit_layout_texts``; when it is
+    omitted the element is fitted to its own slot length.
+    """
     content = el.content
     if not isinstance(content, TextContent):
         return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
+    fonts = fonts or _FontCache()
+    style = el.style
+    direction = getattr(style, "text_direction", None) or "horizontal"
     text = _build_text(content, field_values, custom_text)
+    font_size = style.font_size or 16
+    if fitted is not None:
+        text, font_size = fitted.text, fitted.font_size
+    elif text and direction != "vertical-glyphs":
+        single = fit_single(text, font_size, _slot_length(el), lambda t, s: fonts.measure(el, t, s))
+        text, font_size = single.text, single.font_size
     if not text:
         return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
-    style = el.style
-    font_size = style.font_size or 16
-    font = _load_font(style.font_family, font_size)
+    font = fonts.get(effective_font_family(style), font_size)
     color = _parse_color(style.color)
 
-    direction = getattr(style, "text_direction", "horizontal")
     if direction == "vertical-glyphs":
         glyphs = list(text)
         advance = max(1, round(font_size * style.line_height))
@@ -186,45 +289,31 @@ def _render_text_element(
             draw.text(((width - glyph_w) // 2 - box[0], index * advance - box[1]), glyph, font=font, fill=color)
         return img
 
-    # Side-bar uses the same endpoint semantics as footer Flow after a 90°
-    # rotation. Fit rotated text to the slot length before rendering so it
-    # cannot spill past the top/bottom endpoint.
-    if direction in {"rotate-cw", "rotate-ccw"}:
-        max_length = max(1, el.rect.h)
-        initial_bbox = font.getbbox(text)
-        initial_width = max(1, int(initial_bbox[2] - initial_bbox[0])) if initial_bbox else max(1, font_size * len(text))
-        if initial_width > max_length:
-            font_size = max(1, int(font_size * max_length / initial_width))
-            font = _load_font(style.font_family, font_size)
-
     # 测量文本尺寸（getbbox 返回 (left, top, right, bottom)）
     bbox = font.getbbox(text)
     if bbox:
         text_w = max(1, int(bbox[2] - bbox[0]))
         text_h = max(1, int(bbox[3] - bbox[1]))
-        ascent_offset = int(bbox[1])  # 通常为负值，表示基线以上高度
+        offset_x = int(bbox[0])
+        ascent_offset = int(bbox[1])
     else:
         text_w = max(1, font_size * len(text))
         text_h = font_size
+        offset_x = 0
         ascent_offset = 0
 
     img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    # draw.text 的坐标是文本左上角；getbbox 的 top 可能为负（ascent），
-    # 因此需要向上偏移以正确对齐基线
-    draw.text((0, -ascent_offset), text, font=font, fill=color)
+    draw.text((-offset_x, -ascent_offset), text, font=font, fill=color)
 
     if direction in {"rotate-cw", "rotate-ccw"}:
+        # Side-bar Flow is the footer rotated by 90°. The text is flush with
+        # the slot's anchor endpoint (top or bottom), exactly like the Canvas
+        # preview; the slot bitmap is at least as long as the slot.
         rotated = img.rotate(-90 if direction == "rotate-cw" else 90, expand=True)
-        slot = Image.new("RGBA", (max(1, el.rect.w), max(1, el.rect.h)), (0, 0, 0, 0))
-        is_top = "top" in el.anchor
-        # Mirror footer endpoint alignment after rotation. Depending on edge
-        # direction, the rotated bitmap's visual start may be its top or bottom.
-        start_at_top = (
-            (direction == "rotate-cw" and is_top)
-            or (direction == "rotate-ccw" and not is_top)
-        )
-        paste_y = 0 if start_at_top else slot.height - rotated.height
+        length = max(el.rect.h, rotated.height)
+        slot = Image.new("RGBA", (max(1, el.rect.w, rotated.width), max(1, length)), (0, 0, 0, 0))
+        paste_y = 0 if "top" in el.anchor else slot.height - rotated.height
         slot.paste(rotated, ((slot.width - rotated.width) // 2, paste_y), rotated)
         return slot
 
@@ -306,8 +395,8 @@ def _resolve_auto_logo_path(
 ) -> str | None:
     """Resolve auto-Logo path with dark/light and variant support.
 
-    scheme == 'dark'  → white background   → use bright logo (no _dark suffix)
-    scheme == 'light' → dark background    → use _dark variant
+    scheme == 'dark'  → light background → regular logo (no _dark suffix)
+    scheme == 'light' → dark background  → prefer the _dark / white variant
 
     Falls back through variant/dark/plain in that order.
     """
@@ -321,24 +410,131 @@ def _resolve_auto_logo_path(
         return content.path
 
     make = field_values.get("make", "")
-    if not make:
+    model = field_values.get("camera_model", "")
+    if not make and not model:
         return None
     builtins = _iter_builtin_logo_files()
     if not builtins:
         return None
-    matched_stem = match_brand_stem(make, (f.stem for f in builtins))
+    matched_stem = match_brand_stem(
+        make,
+        (f.stem for f in builtins if not f.stem.endswith("_dark")),
+        model,
+        on_dark=dark,
+    )
     if matched_stem is None:
         return None
     f = _find_logo_file(matched_stem, variant=logo_variant, dark=dark)
     return str(f.absolute()) if f else None
 
 
+# ── Logo 可见范围 / 深色背景适配 ───────────────────────────────────────
+
+# (path, mtime_ns, size) → (visible bbox, opaque-with-white-box)
+_LOGO_BOUNDS_CACHE: dict[tuple[str, int, int], tuple[tuple[int, int, int, int] | None, bool]] = {}
+_ALPHA_VISIBLE = 8
+_WHITE_DISTANCE = 16
+
+
+def _is_opaque_white_box(logo: Image.Image) -> bool:
+    alpha_min = logo.getchannel("A").getextrema()[0]
+    if alpha_min < 250:
+        return False
+    w, h = logo.size
+    corners = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]
+    rgb = logo.convert("RGB")
+    return all(min(rgb.getpixel(point)) >= 240 for point in corners)  # type: ignore[arg-type]
+
+
+def _visible_bbox(logo: Image.Image, white_box: bool) -> tuple[int, int, int, int] | None:
+    """Bounding box of the logo's visible ink (alpha, or non-white for boxed logos)."""
+    if white_box:
+        rgb = logo.convert("RGB")
+        diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, (255, 255, 255))).convert("L")
+        return diff.point(lambda v: 255 if v > _WHITE_DISTANCE else 0).getbbox()
+    return logo.getchannel("A").point(lambda a: 255 if a > _ALPHA_VISIBLE else 0).getbbox()
+
+
+def _logo_bounds(path: str, logo: Image.Image | None = None) -> tuple[tuple[int, int, int, int] | None, bool]:
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None, False
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    cached = _LOGO_BOUNDS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    if logo is None:
+        try:
+            logo = load_logo(path)
+        except (FileNotFoundError, OSError, Image.UnidentifiedImageError):
+            return None, False
+    logo = logo.convert("RGBA")
+    white_box = _is_opaque_white_box(logo)
+    result = (_visible_bbox(logo, white_box), white_box)
+    if len(_LOGO_BOUNDS_CACHE) > 256:
+        _LOGO_BOUNDS_CACHE.clear()
+    _LOGO_BOUNDS_CACHE[key] = result
+    return result
+
+
+def logo_visible_aspect_ratio(path: str) -> float | None:
+    """Width / height of the logo's visible content (transparent / white margins trimmed)."""
+    dims = _read_image_dimensions(path)
+    if dims is None or dims[0] <= 0 or dims[1] <= 0:
+        return None
+    bbox, _white = _logo_bounds(path)
+    if bbox is None:
+        return dims[0] / dims[1]
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    return w / h if w > 0 and h > 0 else None
+
+
+def _white_to_alpha(logo: Image.Image) -> Image.Image:
+    """Turn a white box into transparency (GIMP "color to alpha" for white)."""
+    arr = np.asarray(logo.convert("RGBA"), dtype=np.float32)
+    rgb = arr[..., :3]
+    alpha = arr[..., 3] / 255.0
+    coverage = (255.0 - rgb.min(axis=2)) / 255.0
+    safe = np.where(coverage > 0, coverage, 1.0)[..., None]
+    unmixed = 255.0 - (255.0 - rgb) / safe
+    out = np.empty_like(arr)
+    out[..., :3] = np.clip(np.where(coverage[..., None] > 0, unmixed, 0.0), 0, 255)
+    out[..., 3] = np.clip(alpha * coverage * 255.0, 0, 255)
+    return Image.fromarray(np.rint(out).astype(np.uint8), "RGBA")
+
+
+def _is_dark_mono(logo: Image.Image) -> bool:
+    """A logo drawn in near-neutral dark ink (black wordmark) — invert on dark backgrounds."""
+    arr = np.asarray(logo.convert("RGBA"), dtype=np.float32)
+    visible = arr[..., 3] > 127
+    if not visible.any():
+        return False
+    rgb = arr[..., :3][visible]
+    chroma = float((rgb.max(axis=1) - rgb.min(axis=1)).mean())
+    luminance = float((rgb @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)).mean())
+    return chroma < 24 and luminance < 110
+
+
+def _invert_rgb(logo: Image.Image) -> Image.Image:
+    r, g, b, a = logo.convert("RGBA").split()
+    inverted = ImageChops.invert(Image.merge("RGB", (r, g, b)))
+    return Image.merge("RGBA", (*inverted.split(), a))
+
+
 def _render_logo_element(
     el: ComputedElement,
     field_values: dict[str, str],
     scheme: str = "dark",
+    *,
+    matte_white: bool = False,
 ) -> Image.Image | None:
-    """加载并缩放 Logo 元素（contain 模式：保持比例，不拉伸）。"""
+    """加载 Logo，裁掉透明/白色留白，等比缩放（允许放大）到槽位盒子内。
+
+    On dark backgrounds (``scheme == 'light'``) a boxed RGB logo loses its
+    white box and a dark monochrome logo is inverted, unless a dedicated
+    ``_dark`` / white variant was resolved.
+    """
     content = el.content
     if not isinstance(content, LogoContent):
         return None
@@ -351,20 +547,32 @@ def _render_logo_element(
     try:
         logo = load_logo(logo_path)
     except (FileNotFoundError, OSError) as exc:
-        logger.warning("[renderer] Logo 加载失败: %s (%s)", logo_path, exc)
+        logger.warning("[renderer] Logo 加载失败: %s (%s)", Path(logo_path).name, exc)
         return None
 
-    # Contain: fit within max_width × max_height preserving aspect ratio.
-    # Small uploaded logos are not upscaled; oversized logos are scaled down.
+    logo = logo.convert("RGBA")
+    bbox, white_box = _logo_bounds(logo_path, logo)
+    if bbox is not None and bbox != (0, 0, logo.width, logo.height):
+        logo = logo.crop(bbox)
+
+    # Contain within the slot box, preserving aspect ratio. Small builtin
+    # logos are scaled up so they fill the same visible box as large ones.
     max_w = max(1, el.rect.w)
     max_h = max(1, el.rect.h)
-    logo = logo.convert("RGBA")
+    if content.orientation in {"rotate-cw", "rotate-ccw"}:
+        max_w, max_h = max_h, max_w
     lw, lh = logo.size
     scale = min(max_w / lw, max_h / lh)
-    if scale < 1.0:
-        new_w = max(1, round(lw * scale))
-        new_h = max(1, round(lh * scale))
-        logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    new_size = (max(1, round(lw * scale)), max(1, round(lh * scale)))
+    if new_size != logo.size:
+        logo = logo.resize(new_size, Image.Resampling.LANCZOS)
+
+    on_dark = scheme == "light"
+    dedicated_variant = Path(logo_path).stem.endswith("_dark") or "white" in Path(logo_path).stem.lower()
+    if white_box and (on_dark or matte_white):
+        logo = _white_to_alpha(logo)
+    if on_dark and not dedicated_variant and _is_dark_mono(logo):
+        logo = _invert_rgb(logo)
 
     if content.orientation == "rotate-cw":
         logo = logo.rotate(-90, expand=True)
@@ -386,7 +594,7 @@ def _render_signature_element(el: ComputedElement) -> Image.Image | None:
     try:
         sig = load_logo(content.path)
     except (FileNotFoundError, OSError) as exc:
-        logger.warning("[renderer] 签名加载失败: %s (%s)", content.path, exc)
+        logger.warning("[renderer] 签名加载失败: %s (%s)", Path(content.path).name, exc)
         return None
 
     target_size = (max(1, el.rect.w), max(1, el.rect.h))
@@ -404,6 +612,71 @@ def _render_signature_element(el: ComputedElement) -> Image.Image | None:
     return sig
 
 
+# ── Logo 槽位解析（compute_layout 之前）───────────────────────────────
+
+
+def _first_logo_slot(config: ImprintConfig):
+    for region in config.regions:
+        if not region.enabled:
+            continue
+        asset = region.slots.get("asset") if region.slots else None
+        if asset is None or not asset.enabled or not isinstance(asset.content, LogoContent):
+            continue
+        yield region, asset
+
+
+def _resolved_logo_aspect(
+    content: LogoContent, field_values: dict[str, str], scheme: str, logo_variant: str,
+) -> float | None:
+    logo_path = _resolve_auto_logo_path(content, field_values, scheme=scheme, logo_variant=logo_variant)
+    if not logo_path:
+        return None
+    return logo_visible_aspect_ratio(logo_path)
+
+
+def resolve_logo_slots(
+    config: ImprintConfig,
+    field_values: dict[str, str],
+    logo_variant: str = "",
+) -> float | None:
+    """Resolve every enabled Logo slot before ``compute_layout`` (mutates ``config``).
+
+    A slot whose logo cannot be resolved (unknown brand, no EXIF Make, missing
+    file) is disabled, so the layout reserves no space and draws no orphan
+    divider — matching the Canvas preview's ``resolveLogoConfig``. Returns the
+    visible aspect ratio of the first rendered logo, or ``None``.
+    """
+    scheme = resolve_ink_scheme(config.canvas.background, config.canvas.effect)
+    first: float | None = None
+    for region, asset in list(_first_logo_slot(config)):
+        assert isinstance(asset.content, LogoContent)
+        aspect = _resolved_logo_aspect(asset.content, field_values, scheme, logo_variant)
+        if aspect is None:
+            region.slots["asset"] = replace(asset, enabled=False)
+            continue
+        if first is None:
+            first = aspect
+    return first
+
+
+def resolve_logo_asset_aspect_ratio(
+    config: ImprintConfig,
+    field_values: dict[str, str],
+    bg_color: str = "#FFFFFF",
+    logo_variant: str = "",
+) -> float | None:
+    """Resolve the visible aspect ratio (w/h) of the Logo that will be rendered.
+
+    Read-only counterpart of :func:`resolve_logo_slots`; ``None`` when no logo
+    is matched or the file cannot be opened.
+    """
+    scheme = resolve_ink_scheme(bg_color, config.canvas.effect)
+    for _region, asset in _first_logo_slot(config):
+        assert isinstance(asset.content, LogoContent)
+        return _resolved_logo_aspect(asset.content, field_values, scheme, logo_variant)
+    return None
+
+
 # ── 主渲染入口 ────────────────────────────────────────────────────────
 
 
@@ -412,14 +685,16 @@ def _draw_divider_element(
     el: ComputedElement,
     scheme: str = "dark",
 ) -> None:
-    """Draw a thin semi-transparent divider line."""
-    draw = ImageDraw.Draw(canvas)
-    rgb = (34, 34, 34) if scheme == "dark" else (245, 245, 245)
-    color = (*rgb, 64)  # ~25% opacity
-    draw.rectangle(
-        [(el.rect.x, el.rect.y), (el.rect.x + el.rect.w, el.rect.y + el.rect.h)],
-        fill=color,
-    )
+    """Composite a thin divider at 25% opacity (same as the Canvas preview)."""
+    w, h = max(1, el.rect.w), max(1, el.rect.h)
+    if el.rect.x >= canvas.width or el.rect.y >= canvas.height or el.rect.x + w <= 0 or el.rect.y + h <= 0:
+        return
+    base = el.style.color if el.style and el.style.color else divider_color(scheme)
+    r, g, b, _a = _parse_color(base)
+    layer = Image.new("RGBA", (w, h), (r, g, b, round(255 * DIVIDER_OPACITY)))
+    x0, y0 = max(0, el.rect.x), max(0, el.rect.y)
+    crop = (x0 - el.rect.x, y0 - el.rect.y, min(w, canvas.width - el.rect.x), min(h, canvas.height - el.rect.y))
+    canvas.alpha_composite(layer.crop(crop), dest=(x0, y0))
 
 
 def render_pil(
@@ -443,16 +718,22 @@ def render_pil(
     Returns:
         合成后的 PIL Image（RGBA 模式）。
     """
-    # 1. 创建画布
-    canvas = Image.new(
-        "RGBA", (layout.canvas.w, layout.canvas.h), _parse_color(bg_color)
-    )
+    effect = config.canvas.effect if config is not None else None
+    if not effect_is_active(effect):
+        effect = None
+    background = _parse_color(bg_color)
+    ir = layout.image_rect
+
+    # 1. 创建画布（可选：模糊照片背景 / 柔和投影，均在下采样工作画布上计算）
+    if effect is not None and needs_composed_background(effect):
+        canvas = compose_background((layout.canvas.w, layout.canvas.h), image, ir, background, effect)
+    else:
+        canvas = Image.new("RGBA", (layout.canvas.w, layout.canvas.h), background)
 
     # 2. 绘制装饰边框（填充 margin 区域，底部有 footer 时不画底边）。
     if config is not None and config.canvas.border is not None and config.canvas.border.enabled:
         border_cfg = config.canvas.border
         draw = ImageDraw.Draw(canvas)
-        ir = layout.image_rect
         color = _parse_color(border_cfg.color)
         if ir.y > 0:
             draw.rectangle([(0, 0), (layout.canvas.w, ir.y)], fill=color)
@@ -474,25 +755,38 @@ def render_pil(
         if bottom_gap > 0 and not has_footer:
             draw.rectangle([(0, ir.y + ir.h), (layout.canvas.w, layout.canvas.h)], fill=color)
 
-    # 3. 粘贴照片主体
-    img = image.convert("RGBA") if image.mode != "RGBA" else image.copy()
-    canvas.paste(img, (layout.image_rect.x, layout.image_rect.y))
+    # 3. 粘贴照片主体（RGB 直接粘贴，避免整幅 RGBA 拷贝）
+    radius = photo_radius_px(effect, ir)
+    corner_backgrounds = save_corner_backgrounds(canvas, ir, radius) if radius > 0 else []
+    if image.mode == "RGB":
+        canvas.paste(image, (ir.x, ir.y))
+    else:
+        canvas.paste(image.convert("RGBA") if image.mode != "RGBA" else image, (ir.x, ir.y))
+    if radius > 0:
+        round_photo_corners(canvas, ir, radius, corner_backgrounds)
 
     # 4. 按 LayoutResult 顺序绘制所有元素
     field_values = field_values or {}
-
-    # Infer scheme from background color for dark/light logo selection.
-    _scheme = "light" if bg_color.upper() in ("#1A1A1A", "#111111", "#000000") else "dark"
+    effect_for_scheme = config.canvas.effect if config is not None else None
+    scheme = resolve_ink_scheme(bg_color, effect_for_scheme)
+    matte_white = scheme == "light" or bg_color.strip().upper() not in {"#FFFFFF", "FFFFFF"} or effect is not None
+    fonts = _FontCache()
+    texts = {
+        el.id: _build_text(el.content, field_values, custom_text)
+        for el in layout.elements
+        if el.type == "text" and isinstance(el.content, TextContent)
+    }
+    fitted = fit_layout_texts(layout.elements, texts, fonts.measure)
 
     for el in layout.elements:
         if el.type == "text":
-            element_img = _render_text_element(el, field_values, custom_text)
+            element_img = _render_text_element(el, field_values, custom_text, fitted.get(el.id), fonts)
         elif el.type == "logo":
-            element_img = _render_logo_element(el, field_values, scheme=_scheme)
+            element_img = _render_logo_element(el, field_values, scheme=scheme, matte_white=matte_white)
         elif el.type == "signature":
             element_img = _render_signature_element(el)
         elif el.type == "divider":
-            _draw_divider_element(canvas, el, _scheme)
+            _draw_divider_element(canvas, el, scheme)
             continue
         else:
             continue
@@ -502,8 +796,9 @@ def render_pil(
 
         # anchor 点 → PIL paste 左上角坐标
         dx, dy = _anchor_to_paste_offset(el.anchor, element_img.width, element_img.height)
-        paste_x = el.rect.x + dx
-        paste_y = el.rect.y + dy
+        # Free-region ratio offsets may be fractional; rasterize only here.
+        paste_x = round(el.rect.x + dx)
+        paste_y = round(el.rect.y + dy)
 
         canvas.paste(element_img, (paste_x, paste_y), mask=element_img)
 

@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from kari_core.core.util import get_exif
 from kari_core.shared.render_values import missing_field_ids, resolve_field_values
+from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
 from api import stats
@@ -262,11 +263,27 @@ async def metadata_endpoint(
 
     exif = await run_in_threadpool(get_exif, str(input_path))
     fields = resolve_field_values(exif, str(input_path))
+    size = await run_in_threadpool(_oriented_size, input_path)
     return success_response(
         image_id=input_path.name,
         fields=fields,
         missing=missing_field_ids(fields),
+        # Oriented pixel size of the original, so the browser preview lays
+        # out in the same coordinates as the final render (null if unknown).
+        width=size[0] if size else None,
+        height=size[1] if size else None,
     )
+
+
+def _oriented_size(path: Path) -> tuple[int, int] | None:
+    """Header-only read of the displayed (EXIF-oriented) pixel size."""
+    try:
+        with Image.open(path) as image:
+            width, height = image.size
+            orientation = image.getexif().get(0x0112, 1)
+    except (OSError, ValueError, Image.DecompressionBombError):
+        return None
+    return (height, width) if orientation in (5, 6, 7, 8) else (width, height)
 
 
 @app.post(f"{_api}/process")

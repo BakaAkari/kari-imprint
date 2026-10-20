@@ -74,3 +74,10 @@ packages/kari-core/config/templates/*.json
 
 # ===== 旧路径兜底（历史遗留） =====
 logos/logo_psds
+
+# companion web build artifacts
+apps/immich-wm/web/node_modules/
+apps/immich-ki/web/node_modules/
+
+# Local verification screenshots (scripts/verify_immich_*.py)
+artifacts/

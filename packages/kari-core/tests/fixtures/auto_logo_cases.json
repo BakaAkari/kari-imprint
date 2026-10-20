@@ -1,26 +1,122 @@
 {
-  "description": "Shared preview/process contract for auto-Logo resolution. Both the TS resolver in apps/web/src/autoLogo.ts and the Python resolver in packages/kari-core/src/kari_core/processor/renderer.py::_resolve_auto_logo_path must produce the same stem (or null) for every case here. Policy: builtin-only registry, whole-token match, NO fujifilm fallback.",
+  "description": "Shared preview/process contract for auto-Logo resolution. Both the TS resolver in apps/web/src/autoLogo.ts and the Python resolver in packages/kari-core/src/kari_core/processor/renderer.py::_resolve_auto_logo_path must produce the same stem (or null) for every case here. Policy: builtin-only registry, whole-token match, NO fujifilm fallback. Make is normalized through the shared alias table (BRAND_ALIASES / MODEL_PREFIX_ALIASES); an optional `model` participates, and `on_dark` prefers stems carrying the `white` token.",
   "builtins": [
     "apple",
     "canon",
     "DJI",
     "fujifilm",
+    "hasselblad",
+    "insta360",
+    "kodak",
     "leica_logo",
     "nikon",
     "nothing",
-    "sony",
-    "panasonic"
+    "olympus_blue_gold",
+    "olympus_white_gold",
+    "panasonic",
+    "pentax",
+    "phaseone",
+    "ricoh",
+    "sony"
   ],
   "cases": [
-    {"make": null, "expected": null, "note": "no EXIF Make available"},
-    {"make": "", "expected": null, "note": "empty EXIF Make"},
-    {"make": "NIKON CORPORATION", "expected": "nikon", "note": "multi-token make matches on whole token"},
-    {"make": "FUJIFILM", "expected": "fujifilm"},
-    {"make": "Canon Inc.", "expected": "canon"},
-    {"make": "SONY", "expected": "sony"},
-    {"make": "Nothing Phone", "expected": "nothing", "note": "whole-token match, not substring"},
-    {"make": "PHOTON-9000-NOT-A-BRAND", "expected": null, "note": "unknown brand — V3 does NOT fall back to fujifilm"},
-    {"make": "AB", "expected": null, "note": "tokens shorter than 3 chars are discarded"},
-    {"make": "DJI", "expected": "DJI", "note": "case-preserving stem match (registry order is case-insensitive)"}
+    {
+      "make": null,
+      "expected": null,
+      "note": "no EXIF Make available"
+    },
+    {
+      "make": "",
+      "expected": null,
+      "note": "empty EXIF Make"
+    },
+    {
+      "make": "NIKON CORPORATION",
+      "expected": "nikon",
+      "note": "multi-token make matches on whole token"
+    },
+    {
+      "make": "FUJIFILM",
+      "expected": "fujifilm"
+    },
+    {
+      "make": "Canon Inc.",
+      "expected": "canon"
+    },
+    {
+      "make": "SONY",
+      "expected": "sony"
+    },
+    {
+      "make": "Nothing Phone",
+      "expected": "nothing",
+      "note": "whole-token match, not substring"
+    },
+    {
+      "make": "PHOTON-9000-NOT-A-BRAND",
+      "expected": null,
+      "note": "unknown brand — V3 does NOT fall back to fujifilm"
+    },
+    {
+      "make": "AB",
+      "expected": null,
+      "note": "tokens shorter than 3 chars are discarded"
+    },
+    {
+      "make": "DJI",
+      "expected": "DJI",
+      "note": "case-preserving stem match (registry order is case-insensitive)"
+    },
+    {
+      "make": "Phase One",
+      "expected": "phaseone",
+      "note": "alias: corporate make without shared token"
+    },
+    {
+      "make": "Arashi Vision",
+      "expected": "insta360",
+      "note": "alias: Insta360 bodies report Arashi Vision"
+    },
+    {
+      "make": "RICOH IMAGING COMPANY, LTD.",
+      "model": "PENTAX K-3 Mark III",
+      "expected": "pentax",
+      "note": "model prefix beats the corporate make"
+    },
+    {
+      "make": "RICOH IMAGING COMPANY, LTD.",
+      "model": "RICOH GR III",
+      "expected": "ricoh"
+    },
+    {
+      "make": "OM Digital Solutions",
+      "expected": "olympus_blue_gold",
+      "note": "alias to olympus; light background avoids the white mark"
+    },
+    {
+      "make": "OM Digital Solutions",
+      "expected": "olympus_white_gold",
+      "on_dark": true,
+      "note": "dark background prefers the white mark"
+    },
+    {
+      "make": "LEICA CAMERA AG",
+      "expected": "leica_logo"
+    },
+    {
+      "make": "EASTMAN KODAK COMPANY",
+      "expected": "kodak"
+    },
+    {
+      "make": "samsung",
+      "model": "SM-S9280",
+      "expected": null,
+      "note": "no samsung logo → slot is disabled"
+    },
+    {
+      "make": "Google",
+      "model": "Pixel 8 Pro",
+      "expected": null
+    }
   ]
 }

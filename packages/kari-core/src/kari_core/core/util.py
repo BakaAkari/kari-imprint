@@ -104,10 +104,25 @@ def _parse_exiftool_block(block: str) -> dict:
         key = re.sub(r'\s+', '', key)
         key = re.sub(r'/', '', key)
         exif_dict[key] = value
-    # 过滤非 ASCII 字符（保持原有 cleaning 行为）
+    # Keep Unicode (CJK model names, Greek α, accents); only drop control
+    # characters such as NUL padding and collapse runs of whitespace.
     for key, value in list(exif_dict.items()):
-        exif_dict[key] = ''.join(c for c in value if ord(c) < 128)
+        exif_dict[key] = clean_exif_text(value)
     return exif_dict
+
+
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def clean_exif_text(value: object) -> str:
+    """Normalize a free-form EXIF string without stripping non-ASCII text.
+
+    Control characters (NUL padding, C1 codes) and bidi overrides are removed,
+    whitespace runs collapse to a single space and the result is trimmed.
+    """
+    text = _CONTROL_CHARS_RE.sub("", str(value))
+    return _WHITESPACE_RE.sub(" ", text).strip()
 
 
 def _get_exif_pillow(path: str | Path) -> dict:
@@ -190,8 +205,8 @@ def _get_exif_pillow(path: str | Path) -> dict:
                             value = str(value)
                 elif not isinstance(value, str):
                     value = str(value)
-                # Strip null bytes and whitespace
-                exif[name] = value.strip().strip("\x00")
+                # Strip control characters (NUL padding) and collapse whitespace
+                exif[name] = clean_exif_text(value)
 
             # Read IFD0 tags
             for tag_id, value in pil_exif.items():
@@ -266,7 +281,7 @@ def _get_exif_pillow(path: str | Path) -> dict:
         return {}
 
 
-def get_exif(path) -> dict:
+def get_exif(path, *, timeout: float | None = None) -> dict:
     """
     获取exif信息（Phase 5.2：自动 mtime 失效缓存）。
     当 exiftool 不可用时，自动回退到 Pillow EXIF 读取。
@@ -283,7 +298,7 @@ def get_exif(path) -> dict:
     # Try exiftool first (best quality, most comprehensive)
     try:
         output_bytes = subprocess.check_output(
-            [EXIFTOOL_PATH, "-d", "%Y-%m-%d %H:%M:%S%3f%z", str(path)]
+            [EXIFTOOL_PATH, "-d", "%Y-%m-%d %H:%M:%S%3f%z", str(path)], timeout=timeout
         )
         output = output_bytes.decode("utf-8", errors="ignore")
         parsed = _parse_exiftool_block(output)

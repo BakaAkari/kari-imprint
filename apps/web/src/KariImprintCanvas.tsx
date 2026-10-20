@@ -11,14 +11,25 @@
  *   预览区（白色边框/画布背景）在容器内的显示尺寸保持不变，只改变内部比例。
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ImprintConfig, FieldChip, TextContent, PreviewAspectRatio } from './types';
 import { PREVIEW_ASPECT_RATIOS } from './types';
 import { computeLayout } from './layout/layoutEngine';
 import type { LayoutResult, ComputedElement } from './layout/layoutEngine';
+import { fitLayoutTexts, type FittedText } from './layout/textFit';
+import { buildText } from './layout/textContent';
 import { builtinLogoUrl, fetchLogos, resourceUrl } from './api';
 import type { ExifFieldValues, RuntimeCapabilities } from './api';
 import { resolveAutoLogoWithScheme, type LogoRegistryEntry } from './autoLogo';
+import { DIVIDER_OPACITY, dividerColor, resolveInkScheme } from './colorScheme';
+import { drawEffectBackground, isEffectActive, photoRadiusPx, roundedRectPath } from './canvasEffects';
+import { logoBounds, logoVisibleAspectRatio, prepareLogo } from './logoProcessing';
+
+const FONT_STACK = '"AkaSemiNoto", "Microsoft YaHei", sans-serif';
+
+function fontString(bold: boolean, size: number): string {
+  return `${bold ? '700' : '400'} ${size}px ${FONT_STACK}`;
+}
 
 function resolveAssetSrc(path: string, kind: 'logo' | 'signature', variant: string = '', dark: boolean = false): string {
   if (!path) return '';
@@ -50,7 +61,7 @@ function resolveLogoConfig(
         slots[slotId] = { ...slot, enabled: false, content: null };
         continue;
       }
-      const resolution = resolveAutoLogoWithScheme(fieldValues.make, registry, scheme, logoVariant);
+      const resolution = resolveAutoLogoWithScheme(fieldValues.make, registry, scheme, logoVariant, fieldValues.camera_model);
       if (resolution.stem) {
         slots[slotId] = {
           ...slot,
@@ -62,7 +73,9 @@ function resolveLogoConfig(
     }
     return { ...region, slots };
   });
-  return { ...config, regions };
+  // The layout engine resolves proportional regions into margin pixels.
+  // Keep those derived values out of the editor's persisted configuration.
+  return { ...config, canvas: { ...config.canvas, margins: { ...config.canvas.margins } }, regions };
 }
 
 /**
@@ -75,8 +88,8 @@ function resolveLogoElementPath(
   scheme: string,
   logoVariant: string,
 ): { path: string; variant: string; dark: boolean } {
-  if (content.path) return { path: content.path, variant: '', dark: false };
-  const resolution = resolveAutoLogoWithScheme(fieldValues.make, registry, scheme, logoVariant);
+  if (content.path) return { path: content.path, variant: '', dark: scheme === 'light' };
+  const resolution = resolveAutoLogoWithScheme(fieldValues.make, registry, scheme, logoVariant, fieldValues.camera_model);
   return {
     path: resolution.stem ? `builtin:${resolution.stem}` : '',
     variant: resolution.variant,
@@ -84,20 +97,35 @@ function resolveLogoElementPath(
   };
 }
 
+/**
+ * Find the visible aspect ratio (transparent / white margins trimmed) of the
+ * Logo image that will be rendered for the first enabled asset slot in
+ * `config`. Returns `undefined` when the image is not yet loaded or when no
+ * Logo is matched; the layout engine falls back to its 3.0 constant then.
+ */
+function resolveAssetAspectRatio(
+  config: ImprintConfig,
+  logos: Map<string, HTMLImageElement>,
+  fieldValues: ExifFieldValues,
+  builtins: readonly LogoRegistryEntry[],
+  scheme: string,
+  logoVariant: string,
+): number | undefined {
+  for (const region of config.regions) {
+    if (!region.enabled) continue;
+    const asset = region.slots?.asset;
+    if (!asset?.enabled || !asset.content || !('path' in asset.content) || 'invert_mono' in asset.content) continue;
+    const resolved = resolveLogoElementPath(asset.content as { path: string }, fieldValues, builtins, scheme, logoVariant);
+    if (!resolved.path) return undefined;
+    const src = resolveAssetSrc(resolved.path, 'logo', resolved.variant, resolved.dark);
+    const img = logos.get(src);
+    if (!img || img.naturalWidth <= 0 || img.naturalHeight <= 0) return undefined;
+    return logoVisibleAspectRatio(img);
+  }
+  return undefined;
+}
+
 // ── 文本解析（chips → 实际文本）───────────────────────────────────────
-
-function resolveText(chip: FieldChip, customText: string, fieldValues: ExifFieldValues): string {
-  if (chip.field_id === 'custom_text') return chip.custom_text || customText || '';
-  if (chip.field_id === 'empty') return '';
-  return fieldValues[chip.field_id] ?? '';
-}
-
-function buildText(content: TextContent, customText: string, fieldValues: ExifFieldValues): string {
-  const texts = content.chips
-    .filter(c => c.field_id !== 'empty')
-    .map(c => resolveText(c, customText, fieldValues));
-  return texts.join(content.separator);
-}
 
 // ── Logo 缓存 ─────────────────────────────────────────────────────────
 
@@ -142,10 +170,16 @@ function renderCanvas(
   logoVariant: string,
 ) {
   const { canvas, image_rect, elements } = layout;
+  const effect = _config.canvas.effect;
+  const effectActive = isEffectActive(effect);
 
-  // 1. 绘制画布背景
-  ctx.fillStyle = _config.canvas.background;
-  ctx.fillRect(0, 0, canvas.w, canvas.h);
+  // 1. 绘制画布背景（可选：模糊照片背景 / 柔和投影）
+  if (effectActive && (effect?.background === 'blur' || effect?.shadow)) {
+    drawEffectBackground(ctx, canvas.w, canvas.h, image_rect, image, _config.canvas.background, effect);
+  } else {
+    ctx.fillStyle = _config.canvas.background;
+    ctx.fillRect(0, 0, canvas.w, canvas.h);
+  }
 
   // 1b. 绘制边框（填充 margin 区域，底部有 footer 时不画底边）
   const border = _config.canvas.border;
@@ -166,7 +200,13 @@ function renderCanvas(
     if (bottomGap > 0 && !hasFooter) ctx.fillRect(0, image_rect.y + image_rect.h, canvas.w, bottomGap);
   }
 
-  // 2. 绘制照片主体（或占位）
+  // 2. 绘制照片主体（或占位）；可选抗锯齿圆角
+  const radius = effectActive ? photoRadiusPx(effect, image_rect) : 0;
+  if (radius > 0) {
+    ctx.save();
+    roundedRectPath(ctx, image_rect, radius);
+    ctx.clip();
+  }
   if (image) {
     ctx.drawImage(image, image_rect.x, image_rect.y, image_rect.w, image_rect.h);
   } else {
@@ -199,10 +239,23 @@ function renderCanvas(
     }
     ctx.restore();
   }
+  if (radius > 0) ctx.restore();
 
-  // 3. 绘制边框元素
+  // 3. 文字适配（缩放至 ≥80%，再省略号截断；与 PIL 共用 textFit 算法）
+  const customText = _config.custom_text ?? '';
+  const texts: Record<string, string> = {};
   for (const el of elements) {
-    drawElement(ctx, el, logos, _config.custom_text ?? '', fieldValues, builtins, scheme, logoVariant);
+    if (el.type === 'text' && 'chips' in el.content) texts[el.id] = buildText(el.content as TextContent, customText, fieldValues);
+  }
+  const fitted = fitLayoutTexts(elements, texts, (el, text, size) => {
+    ctx.font = fontString(el.style.bold, size);
+    return ctx.measureText(text).width;
+  });
+  const matteWhite = scheme === 'light' || _config.canvas.background.toUpperCase() !== '#FFFFFF' || effectActive;
+
+  // 4. 绘制边框元素
+  for (const el of elements) {
+    drawElement(ctx, el, logos, fitted[el.id], fieldValues, builtins, scheme, logoVariant, matteWhite);
   }
 
   // 4. 全局效果（圆角裁剪）— 需要在最外层 clip
@@ -213,40 +266,29 @@ function drawElement(
   ctx: CanvasRenderingContext2D,
   el: ComputedElement,
   logos: Map<string, HTMLImageElement>,
-  customText: string,
+  fittedText: FittedText | undefined,
   fieldValues: ExifFieldValues,
   builtins: readonly LogoRegistryEntry[],
   scheme: string,
   logoVariant: string,
+  matteWhite: boolean,
 ) {
   const { type, rect, anchor, content, style } = el;
 
   switch (type) {
     case 'text': {
-      if (!('chips' in content)) return;
-      const text = buildText(content as TextContent, customText, fieldValues);
-      if (!text) return;
-
-      const fontWeight = style.bold ? '700' : '400';
-      const fontSize = style.font_size ?? 16;
+      if (!('chips' in content) || !fittedText?.text) return;
+      const text = fittedText.text;
+      const fontSize = fittedText.font_size;
       ctx.save();
-      ctx.font = `${fontWeight} ${fontSize}px "AkaSemiNoto", "Microsoft YaHei", sans-serif`;
+      ctx.font = fontString(style.bold, fontSize);
       ctx.fillStyle = style.color;
       const direction = style.text_direction ?? 'horizontal';
       if (direction === 'rotate-cw' || direction === 'rotate-ccw') {
-        // Side-bar is the footer Flow rotated by 90°: rect.h is the available
-        // text length, rect.w is its thickness. Respect both exactly so top /
-        // bottom endpoints cannot spill outside their slot.
+        // Side-bar is the footer Flow rotated by 90°: the text is flush with
+        // the slot's anchor endpoint (top or bottom) and has already been
+        // fitted to the available length by fitLayoutTexts.
         const origin = anchorOrigin(rect, anchor);
-        const measuredWidth = Math.max(1, ctx.measureText(text).width);
-        const lengthScale = Math.min(1, rect.h / measuredWidth);
-        const drawFontSize = Math.max(1, fontSize * lengthScale);
-        ctx.beginPath();
-        ctx.rect(origin.x, origin.y, rect.w, rect.h);
-        ctx.clip();
-        ctx.font = `${fontWeight} ${drawFontSize}px "AkaSemiNoto", "Microsoft YaHei", sans-serif`;
-        // Preserve footer endpoint alignment after rotation: top slots grow
-        // downward from the top inset; bottom slots grow upward from the bottom.
         const isTop = anchor.includes('top');
         const endpointY = isTop ? origin.y : origin.y + rect.h;
         ctx.translate(origin.x + rect.w / 2, endpointY);
@@ -281,14 +323,20 @@ function drawElement(
       if (img) {
         const origin = anchorOrigin(rect, anchor);
         const orientation = 'orientation' in content ? content.orientation : 'upright';
+        const stem = resolved.path.startsWith('builtin:') ? resolved.path.slice('builtin:'.length) : resolved.path;
+        const logoOptions = {
+          onDark: scheme === 'light',
+          matteWhite,
+          dedicatedVariant: resolved.dark && (/_dark$/i.test(stem) || /white/i.test(stem)),
+        };
         if (orientation === 'rotate-cw' || orientation === 'rotate-ccw') {
           ctx.save();
-          ctx.translate(rect.x, rect.y);
+          ctx.translate(origin.x + rect.w / 2, origin.y + rect.h / 2);
           ctx.rotate(orientation === 'rotate-cw' ? Math.PI / 2 : -Math.PI / 2);
-          drawImageContain(ctx, img, -rect.h / 2, -rect.w / 2, rect.h, rect.w, 'top-left');
+          drawLogoContain(ctx, img, -rect.h / 2, -rect.w / 2, rect.h, rect.w, 'middle-center', logoOptions);
           ctx.restore();
         } else {
-          drawImageContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor);
+          drawLogoContain(ctx, img, origin.x, origin.y, rect.w, rect.h, anchor, logoOptions);
         }
       } else if (logoPath) {
         // Logo 尚未加载：绘制骨架占位
@@ -314,12 +362,41 @@ function drawElement(
 
     case 'divider': {
       ctx.save();
-      ctx.fillStyle = style.color ?? '#888888';
-      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = style.color || dividerColor(scheme);
+      ctx.globalAlpha = DIVIDER_OPACITY;
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.restore();
       break;
     }
+  }
+}
+
+/** Draw the logo's visible content contained in the box (upscaling allowed). */
+function drawLogoContain(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  anchor: string,
+  options: { onDark: boolean; matteWhite: boolean; dedicatedVariant: boolean },
+) {
+  const bounds = logoBounds(img);
+  if (bounds.sw <= 0 || bounds.sh <= 0 || w <= 0 || h <= 0) return;
+  const scale = Math.min(w / bounds.sw, h / bounds.sh);
+  const drawW = bounds.sw * scale;
+  const drawH = bounds.sh * scale;
+  const drawX = anchor.includes('right') ? x + w - drawW : anchor.includes('center') ? x + (w - drawW) / 2 : x;
+  const drawY = anchor.includes('bottom') ? y + h - drawH : anchor.includes('middle') ? y + (h - drawH) / 2 : y;
+  // Prepare at device resolution so matte/invert does not blur the mark.
+  const transform = ctx.getTransform();
+  const deviceScale = Math.max(1e-6, Math.hypot(transform.a, transform.b));
+  const prepared = prepareLogo(img, drawW * deviceScale, drawH * deviceScale, options);
+  if (prepared) {
+    ctx.drawImage(prepared, drawX, drawY, drawW, drawH);
+  } else {
+    ctx.drawImage(img, bounds.sx, bounds.sy, bounds.sw, bounds.sh, drawX, drawY, drawW, drawH);
   }
 }
 
@@ -416,24 +493,76 @@ function anchorOrigin(rect: ComputedElement['rect'], anchor: string): { x: numbe
 export function KariImprintCanvas({
   config,
   image,
+  originalImageSize,
   placeholderAspectRatio = '3:2',
   runtimeCaps,
   fieldValues = {},
   scheme = 'dark',
   logoVariant = '',
+  onElementClick,
+  selectedElementId,
 }: {
   config: ImprintConfig;
   image: ImageBitmap | null;
+  /** Oriented source dimensions when `image` is an upstream thumbnail. */
+  originalImageSize?: { width: number; height: number } | null;
   placeholderAspectRatio?: PreviewAspectRatio;
   runtimeCaps?: RuntimeCapabilities | null;
   fieldValues?: ExifFieldValues;
+  /** @deprecated Ignored: the ink scheme is derived from `config.canvas.background` / `effect`. */
   scheme?: string;
   logoVariant?: string;
+  /** When provided, the preview becomes interactive and reports clicked element ids. */
+  onElementClick?: (elementId: string) => void;
+  selectedElementId?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [logoImages, setLogoImages] = useState<Map<string, HTMLImageElement>>(new Map());
   const [builtinLogos, setBuiltinLogos] = useState<readonly LogoRegistryEntry[]>([]);
+  const layoutRef = useRef<LayoutResult | null>(null);
+  const displayRef = useRef<{ w: number; h: number } | null>(null);
+
+  const handleClick = (event: MouseEvent<HTMLCanvasElement>) => {
+    if (!onElementClick) return;
+    const layout = layoutRef.current;
+    const display = displayRef.current;
+    if (!layout || !display || display.w <= 0 || display.h <= 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const lx = (x / display.w) * layout.canvas.w;
+    const ly = (y / display.h) * layout.canvas.h;
+    let best: string | null = null;
+    let bestArea = Infinity;
+    for (const el of layout.elements) {
+      if (el.type !== 'text' && el.type !== 'logo' && el.type !== 'signature') continue;
+      // rect.x/y is the anchor point, not the top-left corner.
+      const origin = anchorOrigin(el.rect, el.anchor);
+      if (lx < origin.x || lx > origin.x + el.rect.w || ly < origin.y || ly > origin.y + el.rect.h) continue;
+      const area = el.rect.w * el.rect.h;
+      if (area <= bestArea) {
+        bestArea = area;
+        best = el.id;
+      }
+    }
+    if (best) onElementClick(best);
+  };
+
+  // Text fitting measures with the web font; re-render once it has loaded.
+  const [fontsVersion, setFontsVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    if (!fonts) return;
+    const bump = () => { if (!cancelled) setFontsVersion((v) => v + 1); };
+    void fonts.ready.then(bump);
+    fonts.addEventListener?.('loadingdone', bump);
+    return () => {
+      cancelled = true;
+      fonts.removeEventListener?.('loadingdone', bump);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,9 +583,18 @@ export function KariImprintCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 确定图片尺寸（无图时使用所选预览比例）
+    // 确定图片尺寸（无图或 bitmap 已被 close() 时使用所选预览比例）。
+    // ImageBitmap.close() 后对象仍存在，但 .width/.height 归零；直接用会让
+    // fitPreviewDimensions 抛错并把整棵组件树推下悬崖。
+    const hasValidBitmap = !!image && image.width > 0 && image.height > 0;
+    const hasOriginalSize = hasValidBitmap && !!originalImageSize
+      && Number.isSafeInteger(originalImageSize.width) && originalImageSize.width > 0
+      && Number.isSafeInteger(originalImageSize.height) && originalImageSize.height > 0;
     let sourceW: number, sourceH: number;
-    if (image) {
+    if (hasOriginalSize) {
+      sourceW = originalImageSize.width;
+      sourceH = originalImageSize.height;
+    } else if (hasValidBitmap) {
       sourceW = image.width;
       sourceH = image.height;
     } else {
@@ -470,14 +608,21 @@ export function KariImprintCanvas({
     // the entire canvas (photo and imprint) silently disappear.
     if (!runtimeCaps) return;
     const previewSize = fitPreviewDimensions(sourceW, sourceH, runtimeCaps.preview.max_edge);
-    const imgW = previewSize.width;
-    const imgH = previewSize.height;
+    // Keep pixel-valued margins, offsets and font sizes in source coordinates.
+    // Only the raster backing store is reduced for upstream thumbnails.
+    const previewScale = hasOriginalSize ? Math.min(previewSize.width / sourceW, previewSize.height / sourceH) : 1;
+    const imgW = hasOriginalSize ? sourceW : previewSize.width;
+    const imgH = hasOriginalSize ? sourceH : previewSize.height;
 
     // 在 computeLayout 之前解析 auto-logo：
     // - 匹配到 → 填充 path → layout 预留空间 + 推开文字
     // - 未匹配 → disable slot → layout 不产生 logo 元素 → 无空白
-    const resolvedConfig = resolveLogoConfig(config, fieldValues, builtinLogos, scheme, logoVariant);
-    const layout = computeLayout(resolvedConfig, imgW, imgH);
+    // Ink scheme follows the background luminance / blur effect, exactly like
+    // PIL export. The legacy `scheme` prop no longer overrides it.
+    const inkScheme: string = resolveInkScheme(config.canvas.background, config.canvas.effect);
+    const resolvedConfig = resolveLogoConfig(config, fieldValues, builtinLogos, inkScheme, logoVariant);
+    const assetAspectRatio = resolveAssetAspectRatio(resolvedConfig, logoImages, fieldValues, builtinLogos, inkScheme, logoVariant);
+    const layout = computeLayout(resolvedConfig, imgW, imgH, assetAspectRatio);
 
     // 容器显示尺寸
     const rect = container.getBoundingClientRect();
@@ -502,34 +647,17 @@ export function KariImprintCanvas({
     // 设置 canvas 显示尺寸为 contain 计算结果，居中由外层 flex 保证
     canvas.style.width = `${displayW}px`;
     canvas.style.height = `${displayH}px`;
+    layoutRef.current = layout;
+    displayRef.current = { w: displayW, h: displayH };
 
     // DPR 处理：逻辑分辨率固定为布局尺寸，保证绘制质量
     // A 1600px preview at DPR 2 is already sharp on Retina screens. Capping
     // DPR avoids recreating another oversized backing store on DPR 3+ devices.
     const dpr = Math.min(window.devicePixelRatio || 1, runtimeCaps.preview.device_pixel_ratio_limit);
-    canvas.width = layout.canvas.w * dpr;
-    canvas.height = layout.canvas.h * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = hasOriginalSize ? Math.max(1, Math.round(layout.canvas.w * previewScale * dpr)) : layout.canvas.w * dpr;
+    canvas.height = hasOriginalSize ? Math.max(1, Math.round(layout.canvas.h * previewScale * dpr)) : layout.canvas.h * dpr;
+    ctx.setTransform(dpr * previewScale, 0, 0, dpr * previewScale, 0, 0);
 
-    // 圆角裁剪（如果需要）
-    if (config.canvas.border_radius > 0) {
-      ctx.save();
-      const r = config.canvas.border_radius;
-      const cw = layout.canvas.w;
-      const ch = layout.canvas.h;
-      ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(cw - r, 0);
-      ctx.quadraticCurveTo(cw, 0, cw, r);
-      ctx.lineTo(cw, ch - r);
-      ctx.quadraticCurveTo(cw, ch, cw - r, ch);
-      ctx.lineTo(r, ch);
-      ctx.quadraticCurveTo(0, ch, 0, ch - r);
-      ctx.lineTo(0, r);
-      ctx.quadraticCurveTo(0, 0, r, 0);
-      ctx.closePath();
-      ctx.clip();
-    }
 
     // 收集需要加载的 logo / 签名路径。对 logo 元素做 auto-Logo 解析，
     // 只有解析到具体品牌资源时才发起加载请求；未解析则由骨架占位处理。
@@ -539,29 +667,40 @@ export function KariImprintCanvas({
         const path = resolveAssetSrc(el.content.path, 'signature');
         if (path && !logoImages.has(path)) logoPaths.push(path);
       } else if (el.type === 'logo' && 'path' in el.content) {
-        const resolved = resolveLogoElementPath(el.content, fieldValues, builtinLogos, scheme, logoVariant);
+        const resolved = resolveLogoElementPath(el.content, fieldValues, builtinLogos, inkScheme, logoVariant);
         if (!resolved.path) continue;
         const path = resolveAssetSrc(resolved.path, 'logo', resolved.variant, resolved.dark);
         if (path && !logoImages.has(path)) logoPaths.push(path);
       }
     }
 
-    // 绘制（可能尚未加载 logo，先占位）。Closed ImageBitmap should
-    // never reach this point, but a defensive fallback keeps the workspace
-    // usable if a stale async render races with file removal.
+    // 绘制（可能尚未加载 logo，先占位）。若 bitmap 已 close()（hasValidBitmap
+    // 为 false）则以 null 走占位分支；仍保留 DOMException 兜底以防第三方
+    // ImageSource 在 drawImage 内部抛错，避免整个组件树被卸载。
+    const drawImageSource = hasValidBitmap ? image : null;
     try {
-      renderCanvas(ctx, layout, image, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
+      renderCanvas(ctx, layout, drawImageSource, logoImages, config, fieldValues, builtinLogos, inkScheme, logoVariant);
     } catch (error) {
-      if (image && error instanceof DOMException) {
-        renderCanvas(ctx, layout, null, logoImages, config, fieldValues, builtinLogos, scheme, logoVariant);
+      if (drawImageSource && error instanceof DOMException) {
+        renderCanvas(ctx, layout, null, logoImages, config, fieldValues, builtinLogos, inkScheme, logoVariant);
       } else {
         throw error;
       }
     }
 
-    // 恢复 clip
-    if (config.canvas.border_radius > 0) {
-      ctx.restore();
+
+    // 选中对象高亮（仅编辑态，不进入成品）
+    if (selectedElementId) {
+      const selected = layout.elements.find(el => el.id === selectedElementId);
+      if (selected) {
+        ctx.save();
+        ctx.strokeStyle = '#e0342b';
+        ctx.lineWidth = 2 / (dpr * previewScale);
+        ctx.setLineDash([6 / (dpr * previewScale), 5 / (dpr * previewScale)]);
+        const origin = anchorOrigin(selected.rect, selected.anchor);
+        ctx.strokeRect(origin.x, origin.y, selected.rect.w, selected.rect.h);
+        ctx.restore();
+      }
     }
 
     // 异步加载缺失的 logo 并重新渲染
@@ -580,12 +719,12 @@ export function KariImprintCanvas({
           // 失败时保持占位状态
         });
     }
-  }, [config, image, placeholderAspectRatio, logoImages, runtimeCaps, fieldValues, builtinLogos, scheme, logoVariant]);
+  }, [config, image, originalImageSize, placeholderAspectRatio, logoImages, runtimeCaps, fieldValues, builtinLogos, scheme, logoVariant, selectedElementId, fontsVersion]);
 
   return (
     <div ref={containerRef} className="canvas-scaler">
       {!image && <div className="sample-badge">示例预览 · 上传照片后替换</div>}
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} onClick={handleClick} style={onElementClick ? { cursor: 'pointer' } : undefined} />
     </div>
   );
 }

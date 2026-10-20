@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "immich-ki",
     "kari-core",
     "kari-imprint",
     "kari-imprint-api",
@@ -260,6 +261,35 @@ wheels = [
 ]
 
 [[package]]
+name = "immich-ki"
+version = "0.1.0"
+source = { editable = "apps/immich-ki/worker" }
+dependencies = [
+    { name = "httpx" },
+    { name = "kari-core" },
+    { name = "kari-imprint-api" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "kari-core", editable = "packages/kari-core" },
+    { name = "kari-imprint-api", editable = "apps/api" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3.0" },
+    { name = "ruff", specifier = ">=0.7.0" },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -282,7 +312,7 @@ wheels = [
 
 [[package]]
 name = "kari-core"
-version = "0.2.0"
+version = "0.2.2"
 source = { editable = "packages/kari-core" }
 dependencies = [
     { name = "jinja2" },
