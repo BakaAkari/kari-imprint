@@ -1,21 +1,8 @@
 /* 边框工具设计系统 — 与 baka-akari.zone 主站统一 */
 
-/* ========== 字体 ========== */
-@font-face {
-  font-family: "AkaSemiNoto";
-  src: url("fonts/NotoSansCJKsc-Regular.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "AkaSemiNoto";
-  src: url("fonts/NotoSansCJKsc-Bold.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* ========== 字体 ==========
+ * The Noto weights are registered at runtime from the API's font route
+ * (see fonts.ts); a relative CSS url resolved against /assets/ and 404'd. */
 
 /* ========== 变量 ========== */
 :root {

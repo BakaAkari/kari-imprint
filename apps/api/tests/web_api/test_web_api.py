@@ -401,6 +401,28 @@ def test_metadata_reuses_opaque_image_id(tmp_path: Path, monkeypatch) -> None:
     assert payload["fields"]["camera_model"] == "A7C"
 
 
+def test_metadata_reports_oriented_original_size(tmp_path: Path, monkeypatch) -> None:
+    """The preview lays out in original coordinates, so metadata carries the oriented size."""
+    from PIL import Image
+
+    monkeypatch.setattr(web_main, "get_exif", lambda _path: {})
+    upright = tmp_path / "upright.jpg"
+    Image.new("RGB", (300, 200), (90, 90, 90)).save(upright)
+    rotated = tmp_path / "rotated.jpg"
+    image = Image.new("RGB", (300, 200), (90, 90, 90))
+    exif = image.getexif()
+    exif[0x0112] = 6  # stored landscape, displayed portrait
+    image.save(rotated, exif=exif)
+
+    sizes = []
+    for path in (upright, rotated):
+        with path.open("rb") as file:
+            response = client.post(f"{API_PREFIX}/metadata", files={"file": (path.name, file, "image/jpeg")})
+        assert response.status_code == 200, response.json()
+        sizes.append((response.json()["width"], response.json()["height"]))
+    assert sizes == [(300, 200), (200, 300)]
+
+
 def test_metadata_rejects_missing_image() -> None:
     response = client.post(f"{API_PREFIX}/metadata")
 

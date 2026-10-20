@@ -15,7 +15,11 @@ export type ResourceUploadResponse = {
 };
 
 export type ExifFieldValues = Partial<Record<FieldId, string>>;
-export type MetadataResponse = { ok: true; image_id: string; fields: ExifFieldValues; missing: FieldId[] };
+export type MetadataResponse = {
+  ok: true; image_id: string; fields: ExifFieldValues; missing: FieldId[];
+  /** Oriented original pixel size; absent from older servers or when unreadable. */
+  width?: number | null; height?: number | null;
+};
 
 export type RuntimeCapabilities = {
   upload: {
