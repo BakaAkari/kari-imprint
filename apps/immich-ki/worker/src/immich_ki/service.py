@@ -412,14 +412,19 @@ class Service:
         self.recovery_needed = False
 
     def reconcile_next(self, now=None):
-        """Persist retry deadlines before network IO; resume after restart."""
+        """Persist retry deadlines before network IO; resume after restart.
+
+        Due retries and never-checked jobs are served oldest first (a fresh job
+        counts from when it reached its state), so a stream of new renders can
+        not starve retries that came due earlier.
+        """
         now = time.time() if now is None else now
         with self.store.transaction() as db:
             row = db.execute(
                 """SELECT j.id, COALESCE(s.attempts, 0) AS attempts
               FROM jobs j LEFT JOIN sync_schedule s ON s.job_id=j.id
               WHERE j.state IN ('awaiting_import','refresh_pending') AND COALESCE(s.next_at, 0)<=?
-              ORDER BY COALESCE(s.next_at, 0), j.rowid LIMIT 1""",
+              ORDER BY COALESCE(s.next_at, CAST(strftime('%s', j.updated) AS REAL)), j.rowid LIMIT 1""",
                 (now,),
             ).fetchone()
             if row is None:

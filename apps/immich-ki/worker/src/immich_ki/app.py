@@ -184,7 +184,9 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
                 # Import checks interleave with renders, so a long batch shows
                 # finished photos as they land instead of all at the end.
                 service.render_next()
-                service.reconcile_next()
+                for _ in range(4):
+                    if service.reconcile_next() is None:
+                        break
                 if time.monotonic() >= next_maintenance:
                     service.maintenance.tick()
                     next_maintenance = time.monotonic() + 5

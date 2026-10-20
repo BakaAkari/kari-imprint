@@ -539,3 +539,22 @@ def test_follow_after_render_reports_stale_in_photo_view(api):
     assert view["stale"] is True
     items = {i["id"]: i["status"] for i in client.get("/api/assets", params={"album": album}).json()["items"]}
     assert items[asset]["state"] == "stale"
+
+
+def test_due_retries_are_not_starved_by_fresh_renders(api):
+    """A long batch must keep confirming imports while new renders keep arriving."""
+    import time as clock
+
+    client, fake, service = api
+    put_look(client, fake, LOOK)
+    first, second = list(fake.photos)[:2]
+    for asset_id in (first, second):
+        put_config(client, fake, asset_id, LOOK)
+        service.enqueue(asset_id, service.config(asset_id)["revision"], fake.source_album_id)
+        service.render_next()
+    jobs = {row["asset_id"]: row["id"] for row in service.store.db.execute("SELECT id, asset_id FROM jobs")}
+    now = clock.time()
+    with service.store.transaction() as db:
+        # first: checked once, retry came due 10 s ago; second: fresh, never checked.
+        db.execute("INSERT INTO sync_schedule(job_id,attempts,next_at) VALUES(?,1,?)", (jobs[first], now - 10))
+    assert service.reconcile_next(now=now) == jobs[first]
