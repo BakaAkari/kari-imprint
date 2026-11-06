@@ -16,7 +16,19 @@
 import type { ComputedElement, LogoContent, Rect, Size, StyleConfig, TextContent } from './layoutEngine';
 
 /** Named boxes; the letterbox bars exist only after a `letterbox` layer (otherwise they are empty). */
-export type BoxRef = 'photo' | 'canvas' | 'margin-top' | 'margin-bottom' | 'margin-left' | 'margin-right' | 'letterbox-top' | 'letterbox-bottom';
+export type BoxRef = 'photo' | 'canvas' | 'margin-top' | 'margin-bottom' | 'margin-left' | 'margin-right' | 'letterbox-top' | 'letterbox-bottom' | 'safe';
+
+/** Safe-area insets as fractions of the canvas (top, right, bottom, left). 'ig-story' follows Meta's Story ad specs. */
+export const SAFE_AREAS: Record<string, [number, number, number, number]> = {
+  'ig-story': [0.14, 0.06, 0.35, 0.06],
+  even: [0.06, 0.06, 0.06, 0.06],
+};
+
+export function safeBox(canvas: Size, area: string | null | undefined): Rect {
+  const [t, r, b, l] = SAFE_AREAS[area ?? 'even'] ?? SAFE_AREAS.even;
+  const x = pyRound(canvas.w * l), y = pyRound(canvas.h * t);
+  return { x, y, w: canvas.w - x - pyRound(canvas.w * r), h: canvas.h - y - pyRound(canvas.h * b) };
+}
 export type LayerZ = 'under' | 'over';
 export type Edge = 'top' | 'bottom' | 'left' | 'right';
 
@@ -181,6 +193,19 @@ function hex2(value: number): string {
   return value.toString(16).padStart(2, '0').toUpperCase();
 }
 
+/** `@palette_N` or `@palette_N:tone` resolve against the photo palette fields. */
+const COLOR_REF = /^@(palette_[1-6])(?::(pale|soft|deep))?$/;
+const TONE_SHIFT: Record<string, number> = { pale: 82, soft: 45, deep: -45 };
+export const PALETTE_FALLBACK = '#BFBFBF';
+
+/** Mirror of compose.py `resolve_color`: literal colours pass through; references read the palette fields. */
+export function resolveColor(color: string, fields: Partial<Record<string, string>> = {}): string {
+  const match = COLOR_REF.exec(color);
+  if (!match) return color;
+  const base = fields[match[1]] || PALETTE_FALLBACK;
+  return match[2] ? shiftColor(base, TONE_SHIFT[match[2]]) : base;
+}
+
 /** Integer per-channel mix toward white (percent > 0) or black (percent < 0). */
 export function shiftColor(color: string, percent: number): string {
   const text = color.trim().replace(/^#/, '');
@@ -198,6 +223,7 @@ export function resolveBox(box: BoxRef, photo: Rect, canvas: Size, dynamic: Part
   switch (box) {
     case 'letterbox-top': return { x: photo.x, y: photo.y, w: photo.w, h: 0 };
     case 'letterbox-bottom': return { x: photo.x, y: photo.y + photo.h, w: photo.w, h: 0 };
+    case 'safe': return safeBox(canvas, 'even');
     case 'photo': return { ...photo };
     case 'canvas': return { x: 0, y: 0, w: canvas.w, h: canvas.h };
     case 'margin-top': return { x: 0, y: 0, w: canvas.w, h: photo.y };
@@ -310,10 +336,11 @@ export function composeLayers(
   shortEdge: number,
   defaults: StyleConfig,
   assetAspect = 3,
+  safeArea: string | null = null,
 ): ComposeResult {
   const ops: DrawOp[] = [];
   const elements: ComputedElement[] = [];
-  const dynamic: Partial<Record<BoxRef, Rect>> = {};
+  const dynamic: Partial<Record<BoxRef, Rect>> = { safe: safeBox(canvas, safeArea) };
   const box = (ref: BoxRef) => resolveBox(ref, photo, canvas, dynamic);
   for (const layer of layers ?? []) {
     switch (layer.kind) {

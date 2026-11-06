@@ -1,0 +1,47 @@
+[
+ {
+  "color": "#123456",
+  "fields": {},
+  "expected": "#123456"
+ },
+ {
+  "color": "@palette_1",
+  "fields": {
+   "palette_1": "#2E4A3C"
+  },
+  "expected": "#2E4A3C"
+ },
+ {
+  "color": "@palette_2:pale",
+  "fields": {
+   "palette_2": "#406080"
+  },
+  "expected": "#DCE2E8"
+ },
+ {
+  "color": "@palette_3:soft",
+  "fields": {
+   "palette_3": "#A05030"
+  },
+  "expected": "#CA9E8D"
+ },
+ {
+  "color": "@palette_4:deep",
+  "fields": {
+   "palette_4": "#C0D0E0"
+  },
+  "expected": "#69727B"
+ },
+ {
+  "color": "@palette_6",
+  "fields": {},
+  "expected": "#BFBFBF"
+ },
+ {
+  "color": "@palette_9",
+  "fields": {
+   "palette_9": "#000000"
+  },
+  "expected": "@palette_9"
+ }
+]

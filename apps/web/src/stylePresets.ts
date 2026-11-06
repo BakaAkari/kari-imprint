@@ -35,6 +35,7 @@ import {
 import type { LayoutTemplate, PresetCategory } from './templateModel';
 import { EDITORIAL_STYLES, type EditorialStyleId } from './styles/editorial';
 import { OVERLAY_STYLES, type OverlayStyleId } from './styles/overlay';
+import { SOCIAL_STYLES, type SocialStyleId } from './styles/social';
 import { GALLERY_STYLES, type GalleryStyleId } from './styles/gallery';
 import type { StyleKnob } from './styles/knobs';
 
@@ -71,7 +72,7 @@ export interface FramedStylePreset extends StylePresetBase {
 
 export type StylePreset = ControlledStylePreset | FramedStylePreset;
 
-export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId | OverlayStyleId;
+export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId | OverlayStyleId | SocialStyleId;
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -413,6 +414,10 @@ function editorial(id: EditorialStyleId, name: string, caption: string): FramedS
   return framed({ id, name, caption, category: 'editorial' }, () => EDITORIAL_STYLES[id].build(), EDITORIAL_STYLES[id].knobs);
 }
 
+function social(id: SocialStyleId, name: string, caption: string): FramedStylePreset {
+  return framed({ id, name, caption, category: 'social' }, () => SOCIAL_STYLES[id].build(), SOCIAL_STYLES[id].knobs);
+}
+
 function overlay(id: OverlayStyleId, name: string, caption: string): FramedStylePreset {
   return framed({ id, name, caption, category: 'overlay' }, () => OVERLAY_STYLES[id].build(), OVERLAY_STYLES[id].knobs);
 }
@@ -446,6 +451,10 @@ export const STYLE_PRESETS: readonly StylePreset[] = deepFreeze([
   overlay('viewfinder', '取景框', '四角取景标记、可选中心十字与参数行'),
   overlay('cinema', '电影宽银幕', '上下遮幅黑边，字幕与片头信息'),
   overlay('corner-badge', '角标', '照片角落的半透明圆角徽章：品牌 Logo、机型与参数'),
+  social('no-crop', '不裁切', '固定画布比例（4:5、1:1、3:4、9:16），照片完整保留'),
+  social('story-card', '故事卡片', '9:16 画布，标题放在 Instagram 快拍安全区内'),
+  social('palette-card', '色卡', '照片下方一排取自照片的色块与色值'),
+  social('tonal-mat', '同色卡纸', '卡纸与内衬取自照片自身的颜色'),
 ]);
 
 /** Web editor picker, in display order; the first entry is the initial and reset state. */

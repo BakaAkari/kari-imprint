@@ -10,10 +10,13 @@
 
 from __future__ import annotations
 
+import json
+
 from kari_core.processor.core import PipelineContext, register
 from kari_core.processor.filters import FilterProcessor
 from kari_core.processor.renderer import render_pil, resolve_logo_slots
 from kari_core.shared.layout.layout_engine import TextContent, compute_layout
+from kari_core.shared.palette import palette_fields
 from kari_core.shared.render_values import resolve_field_values
 
 
@@ -33,6 +36,9 @@ class KariImprintFilter(FilterProcessor):
         exif = ctx.get_exif() or {}
         file_path = ctx.get("input_path", "")
         field_values = resolve_field_values(exif, file_path)
+        # Colour references (@palette_N) and palette chips read the photo palette.
+        if "palette_" in json.dumps(config_dict):
+            field_values.update(palette_fields(img))
 
         # Unresolvable logos disable their slot so no space / divider is reserved.
         asset_aspect_ratio = resolve_logo_slots(config, field_values)
@@ -209,6 +215,8 @@ def _dict_to_imprint_config(data: dict):
                 shadow=effect.get("shadow") is True,
             ) if isinstance(effect, dict) else None,
             margin_unit="short_edge_ratio" if canvas.get("margin_unit") == "short_edge_ratio" else "pixel",
+            frame_aspect=canvas.get("frame_aspect") if isinstance(canvas.get("frame_aspect"), dict) else None,
+            safe_area=canvas.get("safe_area") if canvas.get("safe_area") in {"ig-story", "even"} else None,
         ),
         regions=[_region(r) for r in data.get("regions", [])],
         defaults=_style(data.get("defaults")) or StyleConfig(),

@@ -22,8 +22,19 @@ if TYPE_CHECKING:
 
 # The letterbox bars exist only after a ``letterbox`` layer (otherwise they are empty).
 BoxRef = Literal[
-    "photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right", "letterbox-top", "letterbox-bottom",
+    "photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right", "letterbox-top", "letterbox-bottom", "safe",
 ]
+
+# Safe-area insets as fractions of the canvas (top, right, bottom, left); 'ig-story' follows Meta's Story ad specs.
+SAFE_AREAS = {"ig-story": (0.14, 0.06, 0.35, 0.06), "even": (0.06, 0.06, 0.06, 0.06)}
+
+
+def safe_box(canvas: Size, area: str | None) -> Rect:
+    from kari_core.shared.layout.layout_engine import Rect
+
+    t, r, b, left = SAFE_AREAS.get(area or "even", SAFE_AREAS["even"])
+    x, y = round(canvas.w * left), round(canvas.h * t)
+    return Rect(x, y, canvas.w - x - round(canvas.w * r), canvas.h - y - round(canvas.h * b))
 LayerZ = Literal["under", "over"]
 
 # Bevel lighting: the top/left faces catch light, the bottom/right faces fall into shade.
@@ -59,6 +70,20 @@ def _grow(r: Rect, by: int) -> Rect:
     return Rect(x=r.x - by, y=r.y - by, w=r.w + 2 * by, h=r.h + 2 * by)
 
 
+_COLOR_REF = re.compile(r"^@(palette_[1-6])(?::(pale|soft|deep))?$")
+_TONE_SHIFT = {"pale": 82, "soft": 45, "deep": -45}
+PALETTE_FALLBACK = "#BFBFBF"
+
+
+def resolve_color(color: str, fields: dict[str, str] | None = None) -> str:
+    """Literal colours pass through; ``@palette_N[:tone]`` reads the photo palette fields."""
+    match = _COLOR_REF.match(color)
+    if not match:
+        return color
+    base = (fields or {}).get(match[1]) or PALETTE_FALLBACK
+    return shift_color(base, _TONE_SHIFT[match[2]]) if match[2] else base
+
+
 def shift_color(color: str, percent: int) -> str:
     """Integer per-channel mix toward white (percent > 0) or black (percent < 0)."""
     text = color.strip().lstrip("#")
@@ -81,6 +106,8 @@ def resolve_box(box: str, photo: Rect, canvas: Size, dynamic: dict[str, Rect] | 
         return Rect(photo.x, photo.y, photo.w, 0)
     if box == "letterbox-bottom":
         return Rect(photo.x, photo.y + photo.h, photo.w, 0)
+    if box == "safe":
+        return safe_box(canvas, "even")
     if box == "canvas":
         return Rect(0, 0, canvas.w, canvas.h)
     if box == "margin-top":
@@ -238,11 +265,12 @@ def compose_layers(
     short_edge: int,
     defaults: StyleConfig,
     asset_aspect: float = 3.0,
+    safe_area: str | None = None,
 ) -> ComposeResult:
     from kari_core.shared.layout.layout_engine import ComputedElement, LogoContent, Rect
 
     result = ComposeResult()
-    dynamic: dict[str, Rect] = {}
+    dynamic: dict[str, Rect] = {"safe": safe_box(canvas, safe_area)}
 
     def box(ref: str) -> Rect:
         return resolve_box(ref, photo, canvas, dynamic)

@@ -24,7 +24,9 @@ export type FieldId =
   | 'artist'
   | 'gps'
   | 'custom_text'
-  | 'empty';
+  | 'empty'
+  /** Photo palette (hex), most populous first; delivered with the EXIF fields. */
+  | 'palette_1' | 'palette_2' | 'palette_3' | 'palette_4' | 'palette_5' | 'palette_6';
 
 export type FieldChip = {
   field_id: FieldId;
@@ -165,10 +167,22 @@ export interface CanvasEffect {
 export const DEFAULT_CANVAS_EFFECT: Readonly<CanvasEffect> = { background: 'solid', photo_radius: 0, shadow: false };
 export const MAX_PHOTO_RADIUS = 0.08;
 
+export interface FrameAspect {
+  ratio: [number, number];
+  /** Where the photo sits along the grown axis. */
+  align: 'start' | 'center' | 'end';
+}
+
+export type SafeArea = 'ig-story' | 'even';
+
 export interface CanvasConfig {
   margins: MarginsConfig;
   /** 'short_edge_ratio' margins are fractions of the photo short edge (resolution-independent). */
   margin_unit?: 'pixel' | 'short_edge_ratio';
+  /** Grow the canvas around the uncropped photo to a fixed aspect (social posts). */
+  frame_aspect?: FrameAspect | null;
+  /** Platform safe area, exposed to layers as the `safe` box. */
+  safe_area?: SafeArea | null;
   background: string;
   /** Deprecated: no longer applied by preview or output (JPEG cannot hold transparent corners); use effect.photo_radius. */
   border_radius: number;

@@ -16,7 +16,7 @@ import type { ImprintConfig, FieldChip, TextContent, PreviewAspectRatio } from '
 import { PREVIEW_ASPECT_RATIOS } from './types';
 import { computeLayout } from './layout/layoutEngine';
 import type { LayoutResult, ComputedElement, StyleConfig } from './layout/layoutEngine';
-import { segmentOps, type DrawOp } from './layout/compose';
+import { resolveColor, segmentOps, type DrawOp } from './layout/compose';
 import { fitLayoutTexts, type FittedText } from './layout/textFit';
 import { buildText } from './layout/textContent';
 import { builtinLogoUrl, fetchLogos, resourceUrl } from './api';
@@ -225,7 +225,7 @@ function renderCanvas(
   }
 
   // 1c. 照片下方的构造层（卡纸、细线、底色）
-  drawOps(ctx, layout.ops, 'under');
+  drawOps(ctx, layout.ops, 'under', fieldValues);
 
   // 2. 绘制照片主体（或占位）；可选抗锯齿圆角
   const radius = effectActive ? photoRadiusPx(effect, image_rect) : 0;
@@ -269,7 +269,7 @@ function renderCanvas(
   if (radius > 0) ctx.restore();
 
   // 2b. 照片上方的构造层
-  drawOps(ctx, layout.ops, 'over');
+  drawOps(ctx, layout.ops, 'over', fieldValues);
 
   // 3. 文字适配（缩放至 ≥80%，再省略号截断；与 PIL 共用 textFit 算法）
   const customText = _config.custom_text ?? '';
@@ -290,7 +290,7 @@ function renderCanvas(
 }
 
 /** Integer-aligned rect ops; identical pixels to the PIL renderer. */
-function drawOps(ctx: CanvasRenderingContext2D, ops: readonly DrawOp[] | undefined, z: DrawOp['z']) {
+function drawOps(ctx: CanvasRenderingContext2D, ops: readonly DrawOp[] | undefined, z: DrawOp['z'], fields: ExifFieldValues = {}) {
   for (const op of ops ?? []) {
     if (op.z !== z || op.opacity <= 0) continue;
     const { x, y, w, h } = op.rect;
@@ -313,7 +313,7 @@ function drawOps(ctx: CanvasRenderingContext2D, ops: readonly DrawOp[] | undefin
       ctx.restore();
     }
     ctx.globalAlpha = op.opacity;
-    ctx.fillStyle = op.color;
+    ctx.fillStyle = resolveColor(op.color, fields);
     ctx.fillRect(x, y, w, h);
     ctx.restore();
   }

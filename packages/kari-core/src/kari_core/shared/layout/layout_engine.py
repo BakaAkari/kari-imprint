@@ -94,6 +94,9 @@ class CanvasConfig:
     effect: EffectConfig | None = None
     # 'short_edge_ratio' margins are fractions of the photo short edge (resolution-independent).
     margin_unit: Literal["pixel", "short_edge_ratio"] = "pixel"
+    # Grow the canvas around the uncropped photo to a fixed aspect: {"ratio": [w, h], "align": ...}.
+    frame_aspect: dict | None = None
+    safe_area: str | None = None  # platform safe area, exposed to layers as the "safe" box
 
 
 @dataclass(slots=True)
@@ -365,6 +368,7 @@ def compute_layout(
         if not has_footer and margins.bottom == 0:
             margins.bottom = bw
 
+    _grow_to_aspect(margins, image_w, image_h, config.canvas.frame_aspect)
     canvas_w = image_w + margins.left + margins.right
     canvas_h = image_h + margins.top + margins.bottom
 
@@ -406,10 +410,33 @@ def compute_layout(
         elif region.type == "free":
             elements.extend(_compute_free(region, image_rect, config.defaults, short_edge, long_edge))
 
-    composed = compose_layers(config.layers, image_rect, canvas, short_edge, config.defaults, aspect)
+    composed = compose_layers(config.layers, image_rect, canvas, short_edge, config.defaults, aspect, config.canvas.safe_area)
     elements.extend(composed.elements)
 
     return LayoutResult(canvas=canvas, image_rect=image_rect, elements=elements, ops=composed.ops)
+
+
+def _grow_to_aspect(margins: MarginsConfig, image_w: int, image_h: int, frame: dict | None) -> None:
+    """Grow the margins so the canvas reaches ``frame["ratio"]`` without cropping the photo."""
+    if not frame:
+        return
+    rw, rh = frame.get("ratio", (0, 0))
+    if not (rw > 0 and rh > 0):
+        return
+    w = image_w + margins.left + margins.right
+    h = image_h + margins.top + margins.bottom
+    align = frame.get("align", "center")
+    share = 0.0 if align == "start" else 1.0 if align == "end" else 0.5
+    if w * rh < h * rw:
+        extra = round(h * rw / rh) - w
+        before = math.floor(extra * share)
+        margins.left += before
+        margins.right += extra - before
+    elif w * rh > h * rw:
+        extra = round(w * rh / rw) - h
+        before = math.floor(extra * share)
+        margins.top += before
+        margins.bottom += extra - before
 
 
 def compute_layout_with_diagnostics(

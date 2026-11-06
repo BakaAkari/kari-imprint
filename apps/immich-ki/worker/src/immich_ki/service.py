@@ -17,6 +17,7 @@ import kari_core.processor  # noqa: F401 - register processors
 from api.schemas import ImprintPayload
 from kari_core.core.output_metadata import load_photograph
 from kari_core.core.util import get_exif
+from kari_core.shared.palette import palette_fields
 from kari_core.shared.render_values import resolve_field_values
 from loguru import logger
 from PIL import Image
@@ -639,6 +640,12 @@ class Service:
             target = directory / ("source" + Path(path).suffix)
             snapshot(self.settings.imports, path, target, self.settings.max_bytes)
             fields = resolve_field_values(get_exif(target, timeout=15), str(target))
+            # Same pixels the render loads, so preview and output share the palette.
+            pixels, _ = load_photograph(str(target), max_pixels=self.settings.max_pixels)
+            try:
+                fields.update(palette_fields(pixels))
+            finally:
+                pixels.close()
             result = {"width": size[0], "height": size[1], "fields": fields}
             with open_source(self.settings.imports, path) as file:
                 current = os.fstat(file.fileno())

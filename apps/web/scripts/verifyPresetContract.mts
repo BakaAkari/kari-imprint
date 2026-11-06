@@ -34,6 +34,7 @@ import { resolveAutoLogo, resolveAutoLogoWithScheme } from '../src/autoLogo';
 import { MAX_KNOBS_PER_STYLE } from '../src/styles/knobs';
 import { catalogFixture } from './styleCatalogFixture';
 import { formatDate } from '../src/layout/textContent';
+import { resolveColor } from '../src/layout/compose';
 
 let failures = 0;
 function pass(label: string) {
@@ -455,6 +456,7 @@ section('16. Style catalog — one identity space for every app');
     'museum-mat', 'double-reveal', 'black-core', 'float-mount', 'signed-proof',
     'masthead', 'plate', 'swiss-grid', 'colophon',
     'date-stamp', 'glass-caption', 'viewfinder', 'cinema', 'corner-badge',
+    'no-crop', 'story-card', 'palette-card', 'tonal-mat',
   ]);
   for (const preset of STYLE_PRESETS) {
     if (preset.name.trim() && preset.caption.trim() && preset.category) pass(`${preset.id} · has name, caption and category`);
@@ -565,6 +567,13 @@ section('20. Date formats — shared fixture with kari-core test_field_formats.p
 {
   const cases = JSON.parse(readFileSync(resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/field_format_cases.json'), 'utf8')) as { raw: string; format: string; expected: string }[];
   for (const c of cases) assertEqual(`${c.format}(${JSON.stringify(c.raw)})`, formatDate(c.raw, c.format), c.expected);
+}
+
+// ──────────────────────────────────────────────────────────
+section('21. Palette colour references — shared fixture with kari-core test_palette.py');
+{
+  const cases = JSON.parse(readFileSync(resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/color_ref_cases.json'), 'utf8')) as { color: string; fields: Record<string, string>; expected: string }[];
+  for (const c of cases) assertEqual(`resolveColor(${c.color})`, resolveColor(c.color, c.fields), c.expected);
 }
 
 console.log('');

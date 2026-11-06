@@ -29,7 +29,7 @@ from kari_core.processor.effects import (
     round_photo_corners,
     save_corner_backgrounds,
 )
-from kari_core.shared.layout.compose import segment_ops
+from kari_core.shared.layout.compose import resolve_color, segment_ops
 from kari_core.shared.layout.layout_engine import (
     DIVIDER_OPACITY,
     ComputedElement,
@@ -742,7 +742,7 @@ def _draw_divider_element(
     canvas.alpha_composite(layer.crop(crop), dest=(x0, y0))
 
 
-def _draw_ops(canvas: Image.Image, ops: list, z: str) -> None:
+def _draw_ops(canvas: Image.Image, ops: list, z: str, field_values: dict[str, str] | None = None) -> None:
     """Paint integer-aligned rect ops; identical pixels to the Canvas preview."""
     draw: ImageDraw.ImageDraw | None = None
     for op in ops:
@@ -754,7 +754,7 @@ def _draw_ops(canvas: Image.Image, ops: list, z: str) -> None:
         y1 = min(canvas.height, op.rect.y + op.rect.h)
         if x1 <= x0 or y1 <= y0:
             continue
-        r, g, b, a = _parse_color(op.color)
+        r, g, b, a = _parse_color(resolve_color(op.color, field_values))
         alpha = round(a * op.opacity)
         radius = getattr(op, "radius", 0)
         blur = getattr(op, "blur", 0)
@@ -807,6 +807,7 @@ def render_pil(
     Returns:
         合成后的 PIL Image（RGBA 模式）。
     """
+    field_values = field_values or {}
     effect = config.canvas.effect if config is not None else None
     if not effect_is_active(effect):
         effect = None
@@ -845,7 +846,7 @@ def render_pil(
             draw.rectangle([(0, ir.y + ir.h), (layout.canvas.w, layout.canvas.h)], fill=color)
 
     # 2b. 照片下方的构造层（卡纸、细线、底色）
-    _draw_ops(canvas, layout.ops, "under")
+    _draw_ops(canvas, layout.ops, "under", field_values)
 
     # 3. 粘贴照片主体（RGB 直接粘贴，避免整幅 RGBA 拷贝）
     radius = photo_radius_px(effect, ir)
@@ -858,10 +859,9 @@ def render_pil(
         round_photo_corners(canvas, ir, radius, corner_backgrounds)
 
     # 3b. 照片上方的构造层
-    _draw_ops(canvas, layout.ops, "over")
+    _draw_ops(canvas, layout.ops, "over", field_values)
 
     # 4. 按 LayoutResult 顺序绘制所有元素
-    field_values = field_values or {}
     effect_for_scheme = config.canvas.effect if config is not None else None
     scheme = resolve_ink_scheme(bg_color, effect_for_scheme)
     matte_white = scheme == "light" or bg_color.strip().upper() not in {"#FFFFFF", "FFFFFF"} or effect is not None

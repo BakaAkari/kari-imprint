@@ -67,6 +67,8 @@ export interface CanvasConfig {
   margins: MarginsConfig;
   /** 'short_edge_ratio' margins are fractions of the photo short edge (resolution-independent). */
   margin_unit?: 'pixel' | 'short_edge_ratio';
+  frame_aspect?: { ratio: [number, number]; align: 'start' | 'center' | 'end' } | null;
+  safe_area?: 'ig-story' | 'even' | null;
   background: string;
   border_radius: number;
   border: BorderConfig;
@@ -273,6 +275,7 @@ export function computeLayout(
     if (!hasFooter && margins.bottom === 0) margins.bottom = bw;
   }
 
+  growToAspect(margins, imageW, imageH, config.canvas.frame_aspect);
   const canvasW = imageW + margins.left + margins.right;
   const canvasH = imageH + margins.top + margins.bottom;
 
@@ -308,10 +311,34 @@ export function computeLayout(
     }
   }
 
-  const composed = composeLayers(config.layers, imageRect, canvas, shortEdge, config.defaults, aspect);
+  const composed = composeLayers(config.layers, imageRect, canvas, shortEdge, config.defaults, aspect, config.canvas.safe_area);
   elements.push(...composed.elements);
 
   return { canvas, image_rect: imageRect, elements, ops: composed.ops };
+}
+
+/**
+ * Grow the margins so the canvas reaches `frame.ratio` without cropping or
+ * scaling the photo; `align` places the photo along the grown axis.
+ * Mirror of layout_engine.py `_grow_to_aspect`.
+ */
+function growToAspect(margins: MarginsConfig, imageW: number, imageH: number, frame: CanvasConfig['frame_aspect']) {
+  if (!frame || !(frame.ratio[0] > 0) || !(frame.ratio[1] > 0)) return;
+  const w = imageW + margins.left + margins.right;
+  const h = imageH + margins.top + margins.bottom;
+  const share = frame.align === 'start' ? 0 : frame.align === 'end' ? 1 : 0.5;
+  // Integer cross-multiplication: grow whichever axis is short of the target.
+  if (w * frame.ratio[1] < h * frame.ratio[0]) {
+    const extra = pyRound((h * frame.ratio[0]) / frame.ratio[1]) - w;
+    const before = Math.floor(extra * share);
+    margins.left += before;
+    margins.right += extra - before;
+  } else if (w * frame.ratio[1] > h * frame.ratio[0]) {
+    const extra = pyRound((w * frame.ratio[1]) / frame.ratio[0]) - h;
+    const before = Math.floor(extra * share);
+    margins.top += before;
+    margins.bottom += extra - before;
+  }
 }
 
 export function computeLayoutWithDiagnostics(

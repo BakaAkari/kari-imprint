@@ -544,6 +544,9 @@ The user authorised end-to-end implementation on 2026-11-07, with the recommende
 | M4 | `rect` gains radius and backdrop `blur`: a glass panel blurs the canvas under it (PIL on a reduced copy, Canvas through a device-pixel filter), then tints it. Blur sigma is capped at 0.05 se in the API. | Glass panels without a full-canvas blur; parity is geometry-exact, pixels tolerance-only |
 | M4 | `letterbox` layer exposes `letterbox-top` and `letterbox-bottom` as named boxes for later layers; `logo` layer places a brand mark anywhere | Cinema and badge styles reference geometry that depends on the photo's aspect |
 | M4 | Overlay ink is set per style (knob), not sampled from local photo luminance | Sampling would need image analysis inside layout; deferred to the palette service (M5) |
+| M5 | **D4**: the palette (`palette_1`…`palette_6`, median-cut, most populous first) is computed in Python and travels with the EXIF fields. Ops reference it as `@palette_N[:pale/soft/deep]`, resolved at paint time in both renderers; the browser never extracts colours. | One set of hex values for preview and output; the renderer stays a pure function of config and fields |
+| M5 | `frame_aspect` grows the canvas around the **uncropped, unscaled** photo using integer cross-multiplication; `safe_area` (`ig-story` per Meta's Story ad specs, or `even`) exposes a `safe` box | "No-crop" posts without resampling the photo; platform guidance stays data |
+| M5 | Palette swatches are `rect` layers with colour references; hex labels are `palette_N` text chips | No new primitive needed |
 
 ## Sources and verification notes
 

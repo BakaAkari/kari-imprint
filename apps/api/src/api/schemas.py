@@ -53,6 +53,7 @@ class FieldChipPayload(StrictModel):
     field_id: Literal[
         "camera_model", "lens_model", "focal_length", "aperture", "shutter",
         "iso", "datetime", "make", "artist", "gps", "custom_text", "empty",
+        "palette_1", "palette_2", "palette_3", "palette_4", "palette_5", "palette_6",
     ] = "empty"
     custom_text: str = Field(default="", max_length=160)
     # datetime only; mirrors kari_core.shared.render_values.DATE_FORMATS.
@@ -313,6 +314,18 @@ class CanvasEffectPayload(StrictModel):
         return value
 
 
+class FrameAspectPayload(StrictModel):
+    ratio: list[int] = Field(min_length=2, max_length=2)
+    align: Literal["start", "center", "end"] = "center"
+
+    @field_validator("ratio")
+    @classmethod
+    def valid_ratio(cls, value: list[int]) -> list[int]:
+        if any(v < 1 or v > 32 for v in value) or not (0.25 <= value[0] / value[1] <= 4):
+            raise ValueError("画布比例必须在 1:4 到 4:1 之间")
+        return value
+
+
 class CanvasConfigPayload(StrictModel):
     margins: MarginsConfigPayload = Field(default_factory=MarginsConfigPayload)
     background: Color = "#FFFFFF"
@@ -320,6 +333,8 @@ class CanvasConfigPayload(StrictModel):
     border: BorderConfigPayload | None = None
     effect: CanvasEffectPayload | None = None
     margin_unit: Literal["pixel", "short_edge_ratio"] = "pixel"
+    frame_aspect: FrameAspectPayload | None = None
+    safe_area: Literal["ig-story", "even"] | None = None
 
     @model_validator(mode="after")
     def _margins_match_unit(self) -> CanvasConfigPayload:
@@ -341,6 +356,9 @@ class CanvasConfigPayload(StrictModel):
                 data.pop("effect", None)
             if data.get("margin_unit") == "pixel":
                 data.pop("margin_unit", None)
+            for key in ("frame_aspect", "safe_area"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
     @field_validator("background")
@@ -353,8 +371,16 @@ class CanvasConfigPayload(StrictModel):
 
 _LAYER_ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 BoxRef = Literal[
-    "photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right", "letterbox-top", "letterbox-bottom",
+    "photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right", "letterbox-top", "letterbox-bottom", "safe",
 ]
+_COLOR_REF = re.compile(r"^@palette_[1-6](?::(?:pale|soft|deep))?$", re.ASCII)
+
+
+def _validate_layer_color(value: str) -> str:
+    """Layer colours: a literal colour or a photo palette reference (@palette_N[:pale|soft|deep])."""
+    if isinstance(value, str) and _COLOR_REF.fullmatch(value):
+        return value
+    return _validate_color(value)
 FontFamily = Literal[
     "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
     "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf",
@@ -387,7 +413,7 @@ class FillLayerPayload(_LayerBase):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class KeylineLayerPayload(_LayerBase):
@@ -401,7 +427,7 @@ class KeylineLayerPayload(_LayerBase):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class RuleLayerPayload(_LayerBase):
@@ -417,7 +443,7 @@ class RuleLayerPayload(_LayerBase):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class RectLayerPayload(_LayerBase):
@@ -438,7 +464,7 @@ class RectLayerPayload(_LayerBase):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class LetterboxLayerPayload(_LayerBase):
@@ -450,7 +476,7 @@ class LetterboxLayerPayload(_LayerBase):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class LogoLayerPayload(_LayerBase):
@@ -485,7 +511,7 @@ class SegmentsLayerPayload(_LayerBase):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class MatBandPayload(StrictModel):
@@ -495,7 +521,7 @@ class MatBandPayload(StrictModel):
     @field_validator("color")
     @classmethod
     def valid_color(cls, value: str) -> str:
-        return _validate_color(value)
+        return _validate_layer_color(value)
 
 
 class MatCorePayload(MatBandPayload):

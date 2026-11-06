@@ -87,3 +87,28 @@ def test_overlay_layers_validate():
     dumped = ImprintPayload.model_validate(_payload(layers=layers)).model_dump()
     assert [layer["kind"] for layer in dumped["layers"]] == ["letterbox", "rect", "logo", "segments", "text"]
     assert dumped["layers"][3]["content"]["chips"][0]["format"] == "stamp"
+
+
+def test_frame_aspect_safe_area_and_palette_references():
+    canvas = {"margins": {"top": 0.03, "right": 0.03, "bottom": 0.03, "left": 0.03}, "margin_unit": "short_edge_ratio",
+              "frame_aspect": {"ratio": [4, 5], "align": "center"}, "safe_area": "ig-story"}
+    layers = [
+        {"id": "ground", "kind": "fill", "box": "canvas", "color": "@palette_1:pale"},
+        {"id": "chip", "kind": "rect", "box": "safe", "anchor": "top-left", "w": 0.05, "h": 0.05, "color": "@palette_3"},
+        {"id": "hex", "kind": "text", "box": "margin-bottom", "size": 0.01, "content": {"chips": [{"field_id": "palette_3"}]}},
+    ]
+    dumped = ImprintPayload.model_validate(_payload(canvas=canvas, layers=layers)).model_dump()
+    assert dumped["canvas"]["frame_aspect"] == {"ratio": [4, 5], "align": "center"}
+    assert dumped["layers"][0]["color"] == "@palette_1:pale"
+
+
+@pytest.mark.parametrize("bad", [
+    {"canvas": {"frame_aspect": {"ratio": [1, 9]}}},
+    {"canvas": {"frame_aspect": {"ratio": [0, 5]}}},
+    {"canvas": {"safe_area": "tiktok"}},
+    {"layers": [{"id": "g", "kind": "fill", "box": "canvas", "color": "@palette_7"}]},
+    {"layers": [{"id": "g", "kind": "fill", "box": "canvas", "color": "@exif_make"}]},
+])
+def test_invalid_canvas_and_colour_references(bad):
+    with pytest.raises(ValidationError):
+        ImprintPayload.model_validate(_payload(**bad))

@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from kari_core.core.util import get_exif
+from kari_core.shared.palette import PALETTE_FIELDS, palette_fields_for_path
 from kari_core.shared.render_values import missing_field_ids, resolve_field_values
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
@@ -263,11 +264,13 @@ async def metadata_endpoint(
 
     exif = await run_in_threadpool(get_exif, str(input_path))
     fields = resolve_field_values(exif, str(input_path))
+    # The photo palette travels with the fields so preview and output share colour references.
+    fields.update(await run_in_threadpool(palette_fields_for_path, input_path))
     size = await run_in_threadpool(_oriented_size, input_path)
     return success_response(
         image_id=input_path.name,
         fields=fields,
-        missing=missing_field_ids(fields),
+        missing=missing_field_ids({k: v for k, v in fields.items() if k not in PALETTE_FIELDS}),
         # Oriented pixel size of the original, so the browser preview lays
         # out in the same coordinates as the final render (null if unknown).
         width=size[0] if size else None,
