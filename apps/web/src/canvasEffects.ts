@@ -64,13 +64,39 @@ function sourceSize(image: CanvasImageSource): { w: number; h: number } {
   };
 }
 
-/** Draw `image` scaled to cover the `w × h` box at (x, y). */
-function drawCover(ctx: CanvasRenderingContext2D, image: CanvasImageSource, x: number, y: number, w: number, h: number) {
+/**
+ * The photo covering a `w × h` canvas, then its edge pixels replicated into a
+ * `pad` border on every side. Mirrors effects.py `_cover` (integer cover size,
+ * centred integer crop) followed by PIL's edge-extending Gaussian blur.
+ */
+function coverWithExtendedEdges(image: CanvasImageSource, w: number, h: number, pad: number): HTMLCanvasElement | null {
   const src = sourceSize(image);
   const scale = Math.max(w / src.w, h / src.h);
-  const dw = src.w * scale;
-  const dh = src.h * scale;
-  ctx.drawImage(image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  const dw = Math.max(w, Math.ceil(src.w * scale));
+  const dh = Math.max(h, Math.ceil(src.h * scale));
+  const core = document.createElement('canvas');
+  core.width = w;
+  core.height = h;
+  const cctx = core.getContext('2d');
+  const out = document.createElement('canvas');
+  out.width = w + pad * 2;
+  out.height = h + pad * 2;
+  const octx = out.getContext('2d');
+  if (!cctx || !octx) return null;
+  cctx.imageSmoothingQuality = 'high';
+  cctx.drawImage(image, -Math.floor((dw - w) / 2), -Math.floor((dh - h) / 2), dw, dh);
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(core, pad, pad);
+  // Edges: stretch the outermost row / column; corners: the corner pixel.
+  octx.drawImage(core, 0, 0, w, 1, pad, 0, w, pad);
+  octx.drawImage(core, 0, h - 1, w, 1, pad, pad + h, w, pad);
+  octx.drawImage(core, 0, 0, 1, h, 0, pad, pad, h);
+  octx.drawImage(core, w - 1, 0, 1, h, pad + w, pad, pad, h);
+  octx.drawImage(core, 0, 0, 1, 1, 0, 0, pad, pad);
+  octx.drawImage(core, w - 1, 0, 1, 1, pad + w, 0, pad, pad);
+  octx.drawImage(core, 0, h - 1, 1, 1, 0, pad + h, pad, pad);
+  octx.drawImage(core, w - 1, h - 1, 1, 1, pad + w, pad + h, pad, pad);
+  return out;
 }
 
 /** Software fallback for engines without `ctx.filter` (older Safari): box-downscale blur. */
@@ -117,16 +143,11 @@ export function drawEffectBackground(
   if (!wctx) return;
   if (effect.background === 'blur' && image) {
     const sigma = Math.max(1, BLUR_SIGMA_RATIO * Math.min(workW, workH));
-    // Pad by 3σ with the same cover image so the blur does not pull in
-    // transparent edges (PIL extends edge pixels).
+    // Pad by 3σ with replicated edge pixels so the blur sees what PIL's
+    // edge-extending blur sees, never transparent or re-scaled content.
     const pad = Math.ceil(sigma * 3);
-    const padded = document.createElement('canvas');
-    padded.width = workW + pad * 2;
-    padded.height = workH + pad * 2;
-    const pctx = padded.getContext('2d');
-    if (pctx) {
-      pctx.imageSmoothingQuality = 'high';
-      drawCover(pctx, image, 0, 0, padded.width, padded.height);
+    const padded = coverWithExtendedEdges(image, workW, workH, pad);
+    if (padded) {
       if (supportsFilter(wctx)) {
         wctx.filter = `blur(${sigma}px)`;
         wctx.drawImage(padded, -pad, -pad);
