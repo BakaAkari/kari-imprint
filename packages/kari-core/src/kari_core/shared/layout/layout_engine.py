@@ -140,6 +140,9 @@ class StyleConfig:
     bold: bool = True
     line_height: float = 1.2
     text_direction: Literal["horizontal", "rotate-cw", "rotate-ccw", "vertical-glyphs"] | None = None
+    tracking: float = 0.0  # letter spacing in 1/1000 em (horizontal text)
+    text_case: Literal["none", "upper", "lower"] = "none"
+    opacity: float = 1.0  # multiplies the text colour's alpha
 
 
 @dataclass(slots=True)
@@ -1014,6 +1017,9 @@ def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleCo
             bold=defaults.bold,
             line_height=defaults.line_height,
             text_direction=defaults.text_direction,
+            tracking=defaults.tracking,
+            text_case=defaults.text_case,
+            opacity=defaults.opacity,
         )
     return StyleConfig(
         font_size=override.font_size if override.font_size is not None else defaults.font_size,
@@ -1025,6 +1031,9 @@ def _merge_style(defaults: StyleConfig, override: StyleConfig | None) -> StyleCo
         bold=override.bold,
         line_height=override.line_height or defaults.line_height,
         text_direction=override.text_direction or defaults.text_direction,
+        tracking=override.tracking,
+        text_case=override.text_case,
+        opacity=override.opacity,
     )
 
 
@@ -1044,6 +1053,9 @@ def _with_font_size(style: StyleConfig, font_size: int) -> StyleConfig:
         bold=style.bold,
         line_height=style.line_height,
         text_direction=style.text_direction,
+        tracking=style.tracking,
+        text_case=style.text_case,
+        opacity=style.opacity,
     )
 
 

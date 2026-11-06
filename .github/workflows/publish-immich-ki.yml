@@ -29,17 +29,8 @@ jobs:
 
       # assets/fonts is gitignored; pin official Noto CJK files by SHA-256
       # (same pinned files the deployment images verify at build time).
-      - name: Fetch Noto CJK SC fonts
-        run: |
-          mkdir -p assets/fonts
-          base=https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese
-          for f in NotoSansCJKsc-Regular.otf NotoSansCJKsc-Bold.otf; do
-            [ -f "assets/fonts/$f" ] || curl -fsSL --retry 3 -o "assets/fonts/$f" "$base/$f"
-          done
-          sha256sum -c - <<'SUMS'
-          2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b  assets/fonts/NotoSansCJKsc-Regular.otf
-          b5f0d1a190a7f9b43c310a8850630af12553df32c4c050543f9059732d9b4c0a  assets/fonts/NotoSansCJKsc-Bold.otf
-          SUMS
+      - name: Fetch pinned render fonts
+        run: bash scripts/fetch_fonts.sh
 
       - uses: docker/setup-buildx-action@v3
 

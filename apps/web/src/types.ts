@@ -77,7 +77,9 @@ export interface PaddingConfig {
   bottom: number;
   left: number;
 }
-export type FontFamily = 'NotoSansCJKsc-Regular.otf' | 'NotoSansCJKsc-Bold.otf';
+export type FontFamily =
+  | 'NotoSansCJKsc-Regular.otf' | 'NotoSansCJKsc-Bold.otf'
+  | 'NotoSerifCJKsc-Regular.otf' | 'NotoSerifCJKsc-Bold.otf';
 
 export interface StyleConfig {
   font_size: number | null;
@@ -89,6 +91,11 @@ export interface StyleConfig {
   bold: boolean;
   line_height: number;
   text_direction: TextDirection | null;
+  /** Letter spacing in 1/1000 em (horizontal text). */
+  tracking?: number;
+  text_case?: 'none' | 'upper' | 'lower';
+  /** 0..1, multiplies the text colour's alpha. */
+  opacity?: number;
 }
 
 export interface SlotConfig {
@@ -169,6 +176,8 @@ export interface CanvasConfig {
 
 export interface ImprintConfig {
   schema_version: 3;
+  /** Catalog style this config was built from (engine-built families); absent for older styles. */
+  style_id?: string;
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;

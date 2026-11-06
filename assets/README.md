@@ -13,6 +13,10 @@
 - GitHub 仓库体积过大
 - 团队协作时每次拉取都要下载字体
 
+## 获取字体
+
+运行 `bash scripts/fetch_fonts.sh`：从 Noto CJK 官方仓库下载 Sans 与 Serif（SC，SIL OFL 1.1）并逐个校验 SHA-256；CI 与镜像构建使用同一脚本。
+
 ## 本地开发
 
 代码默认会在仓库根目录的 `assets/` 下查找字体和 logo。

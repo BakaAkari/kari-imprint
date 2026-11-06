@@ -530,6 +530,12 @@ The user authorised end-to-end implementation on 2026-11-07, with the recommende
 | M1 | **Geometric layers lower to axis-aligned integer `rect` ops only.** Keylines, rules, mat reveals and bevel cores are rect rings, and the bevel is lit/shaded faces as flat colours. | Canvas `fillRect` and PIL `rectangle` on integer boxes produce identical pixels, so these primitives get exact pixel parity, not just tolerance parity. |
 | M1 | **Text layers become ordinary text elements** and reuse the existing fit-and-draw path. A metrics pack is deferred. | Same measurement behaviour as today's bar text. A metrics pack is only needed once wrapping and justified layout arrive. |
 | M1 | Draw-op opacity uses region-local compositing in PIL | Keeps translucent ops cheap at 400+ MP |
+| M2 | **D2**: added Noto Serif CJK SC (Regular, Bold) as the `serif-text` role. Fonts are pinned by SHA-256 in `scripts/fetch_fonts.sh`, the single source for CI and image builds. Latin display fonts are deferred until a family needs them. | Noto Serif covers Latin and CJK in one file and is OFL 1.1 (LICENSE re-read). Fewer files means fewer parity risks. |
+| M2 | Serif faces register lazily in both apps (`fonts.ts`, immich-ki `@font-face`); the canvas redraws on `loadingdone` | About 25 MB each; never downloaded unless a style uses them |
+| M2 | Tracking, case and opacity live on `StyleConfig`. Tracked text is laid out glyph by glyph (advances + tracking) identically in PIL and Canvas; untracked text keeps the native kerned path. Small caps are excluded. | Pillow and Canvas only agree on per-glyph advances once letter spacing applies |
+| M2 | **D6**: the gallery family (`museum-mat`, `double-reveal`, `black-core`, `float-mount`, `signed-proof`) ships in immich-ki first | That is where the print/album workflow lives; the web editor's control model is bar-specific |
+| M2 | Engine-built styles carry `style_id` and declare ≤5 **knobs** that rebuild the style from its parameters. The editor shows knobs instead of the bar controls. | Simple main UI, and album-look exceptions stay small config patches |
+| M2 | `style_catalog.json` (exported from TS) feeds Python validation, render smoke tests and the TS/Python parity run for every catalog style. The contract test fails when it is stale. | One fixture freezes what the apps actually build |
 
 ## Sources and verification notes
 

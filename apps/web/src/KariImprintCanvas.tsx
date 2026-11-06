@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ImprintConfig, FieldChip, TextContent, PreviewAspectRatio } from './types';
 import { PREVIEW_ASPECT_RATIOS } from './types';
 import { computeLayout } from './layout/layoutEngine';
-import type { LayoutResult, ComputedElement } from './layout/layoutEngine';
+import type { LayoutResult, ComputedElement, StyleConfig } from './layout/layoutEngine';
 import type { DrawOp } from './layout/compose';
 import { fitLayoutTexts, type FittedText } from './layout/textFit';
 import { buildText } from './layout/textContent';
@@ -27,9 +27,32 @@ import { drawEffectBackground, isEffectActive, photoRadiusPx, roundedRectPath } 
 import { logoBounds, logoVisibleAspectRatio, prepareLogo } from './logoProcessing';
 
 const FONT_STACK = '"AkaSemiNoto", "Microsoft YaHei", sans-serif';
+const SERIF_STACK = '"KariSerif", "Songti SC", "SimSun", serif';
 
-function fontString(bold: boolean, size: number): string {
-  return `${bold ? '700' : '400'} ${size}px ${FONT_STACK}`;
+/** Weight follows `bold` (as in PIL's effective_font_family); the family follows the font file. */
+function fontString(style: Pick<StyleConfig, 'bold' | 'font_family'>, size: number): string {
+  const stack = style.font_family?.startsWith('NotoSerif') ? SERIF_STACK : FONT_STACK;
+  return `${style.bold ? '700' : '400'} ${size}px ${stack}`;
+}
+
+/** Letter spacing in px for `size`; 0 keeps the native (kerned) text path. */
+function trackingPx(style: Pick<StyleConfig, 'tracking'>, size: number): number {
+  return style.tracking ? (style.tracking / 1000) * size : 0;
+}
+
+/** Mirror of renderer.py `_measure_text`: per-glyph advances plus tracking when tracked. */
+function measureStyled(ctx: CanvasRenderingContext2D, style: StyleConfig, text: string, size: number): number {
+  ctx.font = fontString(style, size);
+  const track = trackingPx(style, size);
+  if (!track) return ctx.measureText(text).width;
+  const glyphs = Array.from(text);
+  return glyphs.reduce((sum, glyph) => sum + ctx.measureText(glyph).width, 0) + track * Math.max(0, glyphs.length - 1);
+}
+
+export function applyTextCase(text: string, style: Pick<StyleConfig, 'text_case'>): string {
+  if (style.text_case === 'upper') return text.toUpperCase();
+  if (style.text_case === 'lower') return text.toLowerCase();
+  return text;
 }
 
 function resolveAssetSrc(path: string, kind: 'logo' | 'signature', variant: string = '', dark: boolean = false): string {
@@ -252,12 +275,9 @@ function renderCanvas(
   const customText = _config.custom_text ?? '';
   const texts: Record<string, string> = {};
   for (const el of elements) {
-    if (el.type === 'text' && 'chips' in el.content) texts[el.id] = buildText(el.content as TextContent, customText, fieldValues);
+    if (el.type === 'text' && 'chips' in el.content) texts[el.id] = applyTextCase(buildText(el.content as TextContent, customText, fieldValues), el.style);
   }
-  const fitted = fitLayoutTexts(elements, texts, (el, text, size) => {
-    ctx.font = fontString(el.style.bold, size);
-    return ctx.measureText(text).width;
-  });
+  const fitted = fitLayoutTexts(elements, texts, (el, text, size) => measureStyled(ctx, el.style, text, size));
   const matteWhite = scheme === 'light' || _config.canvas.background.toUpperCase() !== '#FFFFFF' || effectActive;
 
   // 4. 绘制边框元素
@@ -300,9 +320,11 @@ function drawElement(
       const text = fittedText.text;
       const fontSize = fittedText.font_size;
       ctx.save();
-      ctx.font = fontString(style.bold, fontSize);
+      ctx.font = fontString(style, fontSize);
       ctx.fillStyle = style.color;
+      if (style.opacity !== undefined && style.opacity < 1) ctx.globalAlpha = Math.max(0, style.opacity);
       const direction = style.text_direction ?? 'horizontal';
+      const track = trackingPx(style, fontSize);
       if (direction === 'rotate-cw' || direction === 'rotate-ccw') {
         // Side-bar is the footer Flow rotated by 90°: the text is flush with
         // the slot's anchor endpoint (top or bottom) and has already been
@@ -326,9 +348,20 @@ function drawElement(
         ctx.textBaseline = 'middle';
         glyphs.forEach((glyph, index) => ctx.fillText(glyph, rect.x, startY + index * advance));
       } else {
-        ctx.textAlign = anchor.includes('right') ? 'right' : anchor.includes('center') ? 'center' : 'left';
         ctx.textBaseline = anchor.includes('bottom') ? 'bottom' : anchor.includes('middle') ? 'middle' : 'top';
-        ctx.fillText(text, rect.x, rect.y);
+        if (track) {
+          // Tracked text is laid out glyph by glyph, exactly like renderer.py.
+          const width = measureStyled(ctx, style, text, fontSize);
+          let x = anchor.includes('right') ? rect.x - width : anchor.includes('center') ? rect.x - width / 2 : rect.x;
+          ctx.textAlign = 'left';
+          for (const glyph of Array.from(text)) {
+            ctx.fillText(glyph, x, rect.y);
+            x += ctx.measureText(glyph).width + track;
+          }
+        } else {
+          ctx.textAlign = anchor.includes('right') ? 'right' : anchor.includes('center') ? 'center' : 'left';
+          ctx.fillText(text, rect.x, rect.y);
+        }
       }
       ctx.restore();
       break;

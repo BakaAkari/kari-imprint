@@ -11,7 +11,8 @@
     "postbuild": "rm -rf public/fonts",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "test:flow-fixtures": "tsx scripts/runFlowFixtures.ts",
-    "test:presets": "tsx scripts/verifyPresetContract.mts"
+    "test:presets": "tsx scripts/verifyPresetContract.mts",
+    "export:styles": "tsx scripts/exportStyleCatalog.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.0.3",

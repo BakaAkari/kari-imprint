@@ -217,8 +217,10 @@ def compose_layers(
                     rect=Rect(
                         x + _px(layer.get("offset_x"), short_edge),
                         y + _px(layer.get("offset_y"), short_edge),
+                        # Text layers are horizontal; text_fit reads a top/bottom-anchored slot's
+                        # length from ``h`` (side-bar convention), so both extents carry the width.
                         width,
-                        max(font_size, b.h),
+                        width,
                     ),
                     anchor=anchor,
                     content=content,

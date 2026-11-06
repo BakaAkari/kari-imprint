@@ -77,4 +77,16 @@ for (const entry of JSON.parse(readFileSync(composePath, 'utf8')) as Array<any>)
     })),
   });
 }
+// Every catalog style, exactly as the apps build it.
+const catalogPath = resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/style_catalog.json');
+for (const entry of JSON.parse(readFileSync(catalogPath, 'utf8')) as Array<any>) {
+  const layout = computeLayout(structuredClone(entry.config) as ImprintConfig, entry.image[0], entry.image[1]);
+  output.push({
+    id: `catalog:${entry.id}`,
+    canvas: layout.canvas,
+    image_rect: layout.image_rect,
+    ops: layout.ops.map(op => ({ id: op.id, rect: op.rect, color: op.color, opacity: op.opacity, z: op.z })),
+    elements: layout.elements.map(el => ({ id: el.id, type: el.type, rect: el.rect, anchor: el.anchor, font_size: el.style.font_size, color: el.style.color })),
+  });
+}
 process.stdout.write(JSON.stringify(output));

@@ -210,6 +210,7 @@ def _anchor_to_paste_offset(
 
 
 _NOTO_WEIGHTS = {"NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf"}
+_NOTO_SERIF_WEIGHTS = {"NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf"}
 
 
 def effective_font_family(style) -> str:
@@ -223,7 +224,24 @@ def effective_font_family(style) -> str:
     family = style.font_family
     if family in _NOTO_WEIGHTS:
         return "NotoSansCJKsc-Bold.otf" if style.bold else "NotoSansCJKsc-Regular.otf"
+    if family in _NOTO_SERIF_WEIGHTS:
+        return "NotoSerifCJKsc-Bold.otf" if style.bold else "NotoSerifCJKsc-Regular.otf"
     return family
+
+
+def apply_text_case(text: str, style) -> str:
+    """Mirror of KariImprintCanvas ``applyTextCase``."""
+    case = getattr(style, "text_case", "none")
+    if case == "upper":
+        return text.upper()
+    if case == "lower":
+        return text.lower()
+    return text
+
+
+def _tracking_px(style, size: int) -> float:
+    tracking = getattr(style, "tracking", 0.0) or 0.0
+    return tracking / 1000 * size
 
 
 class _FontCache:
@@ -241,7 +259,12 @@ class _FontCache:
         return font
 
     def measure(self, el: ComputedElement, text: str, size: int) -> float:
-        return float(self.get(effective_font_family(el.style), size).getlength(text))
+        font = self.get(effective_font_family(el.style), size)
+        track = _tracking_px(el.style, size)
+        if not track:
+            return float(font.getlength(text))
+        # Tracked text: per-glyph advances plus tracking, like the Canvas preview.
+        return float(sum(font.getlength(glyph) for glyph in text) + track * max(0, len(text) - 1))
 
 
 def _slot_length(el: ComputedElement) -> int:
@@ -268,7 +291,7 @@ def _render_text_element(
     fonts = fonts or _FontCache()
     style = el.style
     direction = getattr(style, "text_direction", None) or "horizontal"
-    text = _build_text(content, field_values, custom_text)
+    text = apply_text_case(_build_text(content, field_values, custom_text), style)
     font_size = style.font_size or 16
     if fitted is not None:
         text, font_size = fitted.text, fitted.font_size
@@ -306,9 +329,23 @@ def _render_text_element(
         offset_x = 0
         ascent_offset = 0
 
-    img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.text((-offset_x, -ascent_offset), text, font=font, fill=color)
+    track = _tracking_px(style, font_size)
+    if track:
+        text_w = max(1, round(fonts.measure(el, text, font_size)))
+        img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        x = 0.0
+        for glyph in text:
+            draw.text((x, -ascent_offset), glyph, font=font, fill=color)
+            x += font.getlength(glyph) + track
+    else:
+        img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.text((-offset_x, -ascent_offset), text, font=font, fill=color)
+    opacity = getattr(style, "opacity", 1.0)
+    if opacity < 1:
+        alpha = img.getchannel("A").point(lambda value: round(value * max(0.0, opacity)))
+        img.putalpha(alpha)
 
     if direction in {"rotate-cw", "rotate-ccw"}:
         # Side-bar Flow is the footer rotated by 90°. The text is flush with
@@ -806,7 +843,7 @@ def render_pil(
     matte_white = scheme == "light" or bg_color.strip().upper() not in {"#FFFFFF", "FFFFFF"} or effect is not None
     fonts = _FontCache()
     texts = {
-        el.id: _build_text(el.content, field_values, custom_text)
+        el.id: apply_text_case(_build_text(el.content, field_values, custom_text), el.style)
         for el in layout.elements
         if el.type == "text" and isinstance(el.content, TextContent)
     }

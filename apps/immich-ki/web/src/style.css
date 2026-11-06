@@ -1,5 +1,7 @@
 @font-face{font-family:AkaSemiNoto;font-display:swap;font-weight:700;src:url('/fonts/NotoSansCJKsc-Bold.otf')}
 @font-face{font-family:AkaSemiNoto;font-display:swap;font-weight:400;src:url('/fonts/NotoSansCJKsc-Regular.otf')}
+@font-face{font-family:KariSerif;font-display:swap;font-weight:700;src:url('/fonts/NotoSerifCJKsc-Bold.otf')}
+@font-face{font-family:KariSerif;font-display:swap;font-weight:400;src:url('/fonts/NotoSerifCJKsc-Regular.otf')}
 
 /* Quiet dark workspace: the photo is the only colourful thing on screen.
    Hairline structure, one neutral surface step, colour reserved for state. */
@@ -355,3 +357,6 @@ body:has(.login){overflow:auto}
   .tray.inline .tray-head{max-width:58vw;overflow:hidden}
   .tray.inline .tray-head span:not(.spinner):not(.section-caret){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
+
+.knob-text{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.knob-text input{font:inherit;padding:7px 9px;border:1px solid var(--line,#d6d6d6);border-radius:6px;background:transparent;color:inherit}

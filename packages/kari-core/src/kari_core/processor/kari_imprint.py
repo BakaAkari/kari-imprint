@@ -99,6 +99,9 @@ def _dict_to_imprint_config(data: dict):
             bold=d.get("bold", True),
             line_height=d.get("line_height", 1.2),
             text_direction=d.get("text_direction"),
+            tracking=float(d.get("tracking") or 0.0),
+            text_case=d.get("text_case") if d.get("text_case") in {"upper", "lower"} else "none",
+            opacity=float(d["opacity"]) if isinstance(d.get("opacity"), (int, float)) else 1.0,
         )
 
     def _content(d: dict | None):

@@ -149,10 +149,27 @@ class StyleConfigPayload(StrictModel):
     color: Color = "#222222"
     font_family: Literal[
         "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
+        "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf",
     ] = "NotoSansCJKsc-Bold.otf"
     bold: bool = True
     line_height: float = Field(default=1.2, ge=0.5, le=3.0)
     text_direction: Literal["horizontal", "rotate-cw", "rotate-ccw", "vertical-glyphs"] | None = None
+    tracking: float = Field(default=0.0, ge=-100.0, le=600.0)
+    text_case: Literal["none", "upper", "lower"] = "none"
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+
+    @model_serializer(mode="wrap")
+    def _omit_default_typography(self, handler: Any) -> Any:
+        # Keep dumps of pre-typography styles byte-identical.
+        data = handler(self)
+        if isinstance(data, dict):
+            if data.get("tracking") == 0:
+                data.pop("tracking", None)
+            if data.get("text_case") == "none":
+                data.pop("text_case", None)
+            if data.get("opacity") == 1:
+                data.pop("opacity", None)
+        return data
 
     @field_validator("color")
     @classmethod
@@ -327,7 +344,10 @@ class CanvasConfigPayload(StrictModel):
 
 _LAYER_ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 BoxRef = Literal["photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right"]
-FontFamily = Literal["NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf"]
+FontFamily = Literal[
+    "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
+    "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf",
+]
 
 
 def _drop_none(data: Any) -> Any:
@@ -415,6 +435,9 @@ class LayerTextStylePayload(StrictModel):
     bold: bool | None = None
     line_height: float | None = Field(default=None, ge=0.5, le=3.0)
     text_direction: Literal["horizontal", "rotate-cw", "rotate-ccw", "vertical-glyphs"] | None = None
+    tracking: float | None = Field(default=None, ge=-100.0, le=600.0)
+    text_case: Literal["none", "upper", "lower"] | None = None
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @field_validator("color")
     @classmethod
@@ -455,6 +478,8 @@ class ImprintPayload(StrictModel):
     custom_text: str = Field(default="", max_length=160)
     logo_position: Literal["left", "center", "right"] = "right"
     layers: list[LayerPayload] = Field(default_factory=list, max_length=24)
+    # Catalog style id (engine-built families); informational, never resolved to a path.
+    style_id: str | None = Field(default=None, min_length=1, max_length=40, pattern=r"^[a-z0-9][a-z0-9-]{0,39}$")
 
     @field_validator("layers")
     @classmethod
@@ -468,8 +493,11 @@ class ImprintPayload(StrictModel):
     def _omit_empty_layers(self, handler: Any) -> Any:
         # Keep dumps of configs without layers byte-identical (no "layers": []).
         data = handler(self)
-        if isinstance(data, dict) and not data.get("layers"):
-            data.pop("layers", None)
+        if isinstance(data, dict):
+            if not data.get("layers"):
+                data.pop("layers", None)
+            if data.get("style_id") is None:
+                data.pop("style_id", None)
         return data
 
     @model_validator(mode="before")

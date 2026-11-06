@@ -118,6 +118,11 @@ export interface StyleConfig {
   bold: boolean;
   line_height: number;
   text_direction: 'horizontal' | 'rotate-cw' | 'rotate-ccw' | 'vertical-glyphs' | null;
+  /** Letter spacing in 1/1000 em (horizontal text). */
+  tracking?: number;
+  text_case?: 'none' | 'upper' | 'lower';
+  /** 0..1, multiplies the text colour's alpha. */
+  opacity?: number;
 }
 
 export interface SlotConfig {
@@ -815,6 +820,9 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
       bold: defaults.bold,
       line_height: defaults.line_height,
       text_direction: defaults.text_direction,
+      tracking: defaults.tracking,
+      text_case: defaults.text_case,
+      opacity: defaults.opacity,
     };
   }
   return {
@@ -827,6 +835,9 @@ function mergeStyle(defaults: StyleConfig, override: StyleConfig | null): StyleC
     bold: override.bold,
     line_height: override.line_height || defaults.line_height,
     text_direction: override.text_direction || defaults.text_direction,
+    tracking: override.tracking ?? defaults.tracking,
+    text_case: override.text_case ?? defaults.text_case,
+    opacity: override.opacity ?? defaults.opacity,
   };
 }
 
@@ -841,6 +852,9 @@ function withFontSize(style: StyleConfig, fontSize: number): StyleConfig {
     bold: style.bold,
     line_height: style.line_height,
     text_direction: style.text_direction,
+    tracking: style.tracking,
+    text_case: style.text_case,
+    opacity: style.opacity,
   };
 }
 

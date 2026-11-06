@@ -239,7 +239,9 @@ export function composeLayers(
         elements.push({
           id: layer.id,
           type: 'text',
-          rect: { x: point.x + px(layer.offset_x, shortEdge), y: point.y + px(layer.offset_y, shortEdge), w: width, h: Math.max(fontSize, b.h) },
+          // Text layers are horizontal; textFit reads a top/bottom-anchored slot's length from
+          // `h` (side-bar convention), so both extents carry the available width.
+          rect: { x: point.x + px(layer.offset_x, shortEdge), y: point.y + px(layer.offset_y, shortEdge), w: width, h: width },
           anchor: layer.anchor,
           content: layer.content,
           style,

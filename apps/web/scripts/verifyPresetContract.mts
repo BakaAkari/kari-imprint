@@ -31,6 +31,8 @@ import {
   getProductPreset,
 } from '../src/presetSession';
 import { resolveAutoLogo, resolveAutoLogoWithScheme } from '../src/autoLogo';
+import { MAX_KNOBS_PER_STYLE } from '../src/styles/knobs';
+import { catalogFixture } from './styleCatalogFixture';
 
 let failures = 0;
 function pass(label: string) {
@@ -447,7 +449,10 @@ section('16. Style catalog — one identity space for every app');
   assertEqual('every style belongs to exactly one app picker',
     [...WEB_STYLE_PRESETS, ...IMMICH_STYLE_PRESETS].map((p) => p.id).sort(), [...ids].sort());
   assertEqual('web picker order', WEB_STYLE_PRESETS.map((p) => p.id), ['default', 'minimal', 'soft-card']);
-  assertEqual('immich-ki picker order', IMMICH_STYLE_PRESETS.map((p) => p.id), ['classic', 'minimal-line', 'dark', 'blur', 'plain']);
+  assertEqual('immich-ki picker order', IMMICH_STYLE_PRESETS.map((p) => p.id), [
+    'classic', 'minimal-line', 'dark', 'blur', 'plain',
+    'museum-mat', 'double-reveal', 'black-core', 'float-mount', 'signed-proof',
+  ]);
   for (const preset of STYLE_PRESETS) {
     if (preset.name.trim() && preset.caption.trim() && preset.category) pass(`${preset.id} · has name, caption and category`);
     else fail(`${preset.id} · identity incomplete`, JSON.stringify({ name: preset.name, caption: preset.caption, category: preset.category }));
@@ -506,13 +511,50 @@ section('18. immich-ki styles — product intent per style');
   assertEqual('blur · white space never below 60px', getStylePreset('blur').build({ shortEdge: 500 }).canvas.margins.top, 60);
   assertEqual('blur · white space without a photo size', getStylePreset('blur').build().canvas.margins.top, 180);
   assertEqual('plain · no frame, 60px on all sides', [getStylePreset('plain').build().regions.length, getStylePreset('plain').build().canvas.margins], [0, { top: 60, right: 60, bottom: 60, left: 60 }]);
-  for (const preset of IMMICH_STYLE_PRESETS) {
+  for (const preset of IMMICH_STYLE_PRESETS.filter((p) => !p.knobs)) {
     const layout = computeLayout(preset.build({ shortEdge: 4000 }) as unknown as Parameters<typeof computeLayout>[0], 6000, 4000);
     const logo = layout.elements.find((el) => el.type === 'logo');
     const expectsLogo = preset.id === 'classic' || preset.id === 'dark' || preset.id === 'blur';
     if (Boolean(logo) === expectsLogo) pass(`${preset.id} · logo element ${expectsLogo ? 'present' : 'absent'}`);
     else fail(`${preset.id} · logo element ${logo ? 'present' : 'absent'}, expected ${expectsLogo ? 'present' : 'absent'}`);
   }
+}
+
+// ──────────────────────────────────────────────────────────
+section('19. Engine-built styles — knobs, construction and catalog fixture');
+{
+  for (const preset of STYLE_PRESETS) {
+    if (preset.kind !== 'framed' || !preset.knobs) continue;
+    const knobs = preset.knobs;
+    if (knobs.length > 0 && knobs.length <= MAX_KNOBS_PER_STYLE) pass(`${preset.id} · ${knobs.length} knobs (≤ ${MAX_KNOBS_PER_STYLE})`);
+    else fail(`${preset.id} · knob count ${knobs.length}`);
+    const built = preset.build();
+    assertEqual(`${preset.id} · build declares its style id`, built.style_id, preset.id);
+    assertEqual(`${preset.id} · ratio margins`, built.canvas.margin_unit, 'short_edge_ratio');
+    if (built.canvas.margins.bottom > built.canvas.margins.top) pass(`${preset.id} · weighted (drop) bottom margin`);
+    else fail(`${preset.id} · bottom margin not weighted`);
+    // Every knob round-trips: set(get()) is a no-op, and a changed value reads back.
+    for (const knob of knobs) {
+      const same = (knob.set as (c: typeof built, v: unknown) => typeof built)(built, knob.get(built));
+      assertEqual(`${preset.id} · knob ${knob.id} set(get()) is stable`, same, built);
+      let probe: unknown;
+      if (knob.kind === 'range') probe = Math.round((knob.min + knob.max) / 2 * 1000) / 1000;
+      else if (knob.kind === 'toggle') probe = !knob.get(built);
+      else if (knob.kind === 'text') probe = 'Probe 01';
+      else probe = knob.options.find((o) => o.value !== knob.get(built))?.value;
+      const changed = (knob.set as (c: typeof built, v: unknown) => typeof built)(built, probe);
+      assertEqual(`${preset.id} · knob ${knob.id} reads back`, (knob.get as (c: typeof built) => unknown)(changed), probe);
+      assertEqual(`${preset.id} · knob ${knob.id} keeps the style`, changed.style_id, preset.id);
+    }
+  }
+  const signed = getStylePreset('museum-mat').build();
+  const withSig = { ...signed, regions: [{ id: 'signature', type: 'free' as const, enabled: true, anchor: 'bottom-right' as const, slots: {} }] };
+  const knob = (getStylePreset('museum-mat') as { knobs: readonly { id: string; set: (c: typeof signed, v: unknown) => typeof signed }[] }).knobs.find((k) => k.id === 'width')!;
+  assertEqual('knobs keep the signature region', knob.set(withSig, 0.2).regions.map((r) => r.id), ['signature']);
+
+  const fixture = JSON.parse(readFileSync(resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/style_catalog.json'), 'utf8'));
+  if (deepEqual(fixture, catalogFixture())) pass('style_catalog.json matches every build() (run npm run export:styles after style changes)');
+  else fail('style_catalog.json is stale', 'run: npm run export:styles');
 }
 
 console.log('');

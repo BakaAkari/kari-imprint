@@ -1,6 +1,6 @@
 import { defaultFlowLayout, normalizeStylePatch, type FieldId, type FlowLayoutConfig, type ImprintConfig, type RegionConfig, type SizeLevel, type SlotConfig, type StyleConfig } from '../../../web/src/types';
 import { isDarkBackground } from '../../../web/src/colorScheme';
-import { buildFramedStyle, canvasEffect, DEFAULT_FRAME_MARGIN, marginsForFrame, withCanvasEffect, type FramedStyleId, type FrameSide } from '../../../web/src/stylePresets';
+import { buildFramedStyle, canvasEffect, DEFAULT_FRAME_MARGIN, IMMICH_STYLE_PRESETS, marginsForFrame, withCanvasEffect, type FramedStyleId, type FrameSide, type StyleKnob } from '../../../web/src/stylePresets';
 
 // The draft is the persisted model. Rendering controls never materialize defaults.
 export const editableConfig = (value: ImprintConfig): ImprintConfig => structuredClone(value);
@@ -116,6 +116,8 @@ export function patchFrameLayout(config: ImprintConfig, patch: Partial<FlowLayou
 
 /** Infer the product style from the configuration structure. */
 export function detectStyle(config: ImprintConfig): FramedStyleId {
+    const declared = config.style_id ? IMMICH_STYLE_PRESETS.find(p => p.id === config.style_id) : undefined;
+    if (declared) return declared.id;
     const region = frameRegion(config);
     if (canvasEffect(config).background === 'blur') return 'blur';
     if (!region) return 'plain';
@@ -125,6 +127,13 @@ export function detectStyle(config: ImprintConfig): FramedStyleId {
 
 /** Dark backgrounds take light ink; same threshold as the renderer. */
 export const isDark = isDarkBackground;
+
+/** The few controls an engine-built style declares; empty for the information-bar styles. */
+export function styleKnobs(config: ImprintConfig): readonly StyleKnob[] {
+    return IMMICH_STYLE_PRESETS.find(p => p.id === detectStyle(config))?.knobs ?? [];
+}
+
+const ratioMargins = (config: ImprintConfig) => config.canvas.margin_unit === 'short_edge_ratio';
 
 /**
  * Switch style while keeping choices that are orthogonal to it: frame
@@ -142,7 +151,10 @@ export function applyStylePreset(config: ImprintConfig, id: FramedStyleId, short
         const brand = brandMode(config);
         if (brandMode(next) !== 'off' && brand !== 'off') next = setBrandMode(next, brand, logoSize(config));
     }
-    if (currentStyle !== 'blur' && id !== 'blur') next = setMarginValue(next, marginValue(config));
+    // Pixel white space carries over between pixel styles; ratio (mat) styles own their margins.
+    if (currentStyle !== 'blur' && id !== 'blur' && !ratioMargins(config) && !ratioMargins(next)) next = setMarginValue(next, marginValue(config));
+    // A caption title typed for one mat style survives switching to another.
+    if (styleKnobs(config).length && styleKnobs(next).length && config.custom_text) next = { ...next, custom_text: config.custom_text };
     const signature = signatureRegion(config);
     if (signature) next = { ...next, regions: [...next.regions.filter(r => r.type !== 'free'), structuredClone(signature)] };
     return next;
@@ -358,7 +370,10 @@ function textSlots(region: RegionConfig | null) {
 function sectionPart(config: ImprintConfig, section: LookSection): unknown {
   const frame = frameRegion(config);
   switch (section) {
-    case 'layout': return { margins: config.canvas.margins, frame: frameShape(frame) };
+    case 'layout': return {
+        margins: config.canvas.margins, margin_unit: config.canvas.margin_unit ?? 'pixel', frame: frameShape(frame),
+        style_id: config.style_id ?? null, layers: config.layers ?? [], custom_text: config.custom_text ?? '',
+    };
     case 'text': return textSlots(frame);
     case 'brand': return frame?.slots?.asset ?? null;
     case 'appearance': return { background: config.canvas.background.toUpperCase(), effect: canvasEffect(config), border: config.canvas.border };
@@ -376,6 +391,15 @@ export function differingSections(config: ImprintConfig, look: ImprintConfig | n
   return LOOK_SECTIONS.map(s => s.id).filter(id => sectionDiffers(config, look, id));
 }
 
+/** Engine-built styles: the construction (style, layers, caption title) comes back with the layout. */
+function withLookConstruction(config: ImprintConfig, look: ImprintConfig): ImprintConfig {
+    if (!look.style_id && !config.style_id && !look.layers?.length && !config.layers?.length) return config;
+    const next: ImprintConfig = { ...config, custom_text: look.custom_text ?? '', layers: structuredClone(look.layers ?? []) };
+    if (look.style_id) next.style_id = look.style_id; else delete next.style_id;
+    if (!next.layers?.length) delete next.layers;
+    return next;
+}
+
 /** Copy one section from the album look into `config`, leaving every other section alone. */
 export function restoreSection(config: ImprintConfig, look: ImprintConfig, section: LookSection): ImprintConfig {
   const lookFrame = frameRegion(look);
@@ -386,7 +410,9 @@ export function restoreSection(config: ImprintConfig, look: ImprintConfig, secti
   };
   switch (section) {
     case 'layout': {
+      config = withLookConstruction(config, look);
       const canvas = { ...config.canvas, margins: structuredClone(look.canvas.margins) };
+      if (look.canvas.margin_unit) canvas.margin_unit = look.canvas.margin_unit; else delete canvas.margin_unit;
       if (!lookFrame) return { ...withFrame(null), canvas };
       if (!frame) return { ...withFrame(structuredClone(lookFrame)), canvas };
       const shaped: RegionConfig = { ...frame, type: lookFrame.type };

@@ -4,10 +4,10 @@ import { resolveAutoLogoWithScheme, type LogoRegistryEntry } from '../../../web/
 import { fetchLogos, uploadResource, type ExifFieldValues, type RuntimeCapabilities } from '../../../web/src/api';
 import { fieldOptions, type FieldId, type ImprintConfig, type SizeLevel } from '../../../web/src/types';
 import { BACKGROUND_SWATCHES, QUICK_FIELD_OPTIONS } from './defaults';
-import { IMMICH_STYLE_PRESETS, type FramedStyleId } from '../../../web/src/stylePresets';
+import { IMMICH_STYLE_PRESETS, type FramedStyleId, type StyleKnob } from '../../../web/src/stylePresets';
 import {
   applyStylePreset, availableLines, brandMode, canvasEffect, detectStyle, framePosition, frameRegion, frameLayout, frameThickness,
-  isDark, lineFields, lineLabel, lineStyle, logoSize, marginValue, moveLineField, patchFrameLayout, patchLineStyle, setBackground,
+  isDark, lineFields, lineLabel, styleKnobs, lineStyle, logoSize, marginValue, moveLineField, patchFrameLayout, patchLineStyle, setBackground,
   setBrandMode, setCustomLogo, setFramePosition, setFrameThickness, setLogoSize, setMarginValue, setSignature, signatureState,
   toggleLineField, withCanvasEffect, restoreSection, sectionDiffers, type FramePosition, type LookSection, type Selection,
 } from './editor-state';
@@ -158,6 +158,38 @@ function SignatureControls({ config, commit }: { config: ImprintConfig; commit: 
   </div>;
 }
 
+/** The controls an engine-built style declares (at most five), rendered generically. */
+function StyleKnobControls({ config, commit, knobs }: { config: ImprintConfig; commit: Commit; knobs: readonly StyleKnob[] }) {
+  return <div className="stack">
+    {knobs.map(knob => {
+      switch (knob.kind) {
+        case 'range': {
+          const value = knob.get(config);
+          return <Slider key={knob.id} label={knob.label} value={value * 100} min={knob.min * 100} max={knob.max * 100} step={knob.step * 100}
+            format={v => `短边 ${v.toFixed(1)}%`} onChange={v => commit(c => knob.set(c, Math.round(v * 10) / 1000), `knob-${knob.id}`)} />;
+        }
+        case 'swatch': {
+          const value = (knob.get(config) ?? '').toUpperCase();
+          return <div key={knob.id} className="row"><span className="row-label">{knob.label}</span>
+            <div className="swatches" role="radiogroup" aria-label={knob.label}>
+              {knob.options.map(o => <button key={o.value} type="button" role="radio" aria-checked={value === o.value} aria-label={o.label} title={o.label}
+                className={`swatch ${value === o.value ? 'active' : ''}`} style={{ background: o.value }} onClick={() => commit(c => knob.set(c, o.value))} />)}
+            </div></div>;
+        }
+        case 'choice':
+          return <div key={knob.id} className="row"><span className="row-label">{knob.label}</span>
+            <Segmented label={knob.label} value={knob.get(config)} options={knob.options.map(o => ({ value: o.value, label: o.label }))} onChange={v => commit(c => knob.set(c, v))} /></div>;
+        case 'toggle':
+          return <label key={knob.id} className="check"><input type="checkbox" checked={knob.get(config)} onChange={e => commit(c => knob.set(c, e.target.checked))} />{knob.label}</label>;
+        case 'text':
+          return <label key={knob.id} className="knob-text"><span>{knob.label}</span>
+            <input type="text" value={knob.get(config)} maxLength={knob.maxLength} placeholder={knob.placeholder}
+              onChange={e => commit(c => knob.set(c, e.target.value), `knob-${knob.id}`)} /></label>;
+      }
+    })}
+  </div>;
+}
+
 function BackgroundControls({ config, commit }: { config: ImprintConfig; commit: Commit }) {
   const effect = canvasEffect(config);
   const bg = config.canvas.background.toUpperCase();
@@ -220,11 +252,13 @@ export function Editor({ config, commit, fields, selection, onSelect, image, siz
   const lines = availableLines(config);
   const brand = brandMode(config);
   const sig = signatureState(config);
+  // Engine-built styles (mats, editorial, …) replace the bar controls with their declared knobs.
+  const knobs = styleKnobs(config);
   const restoreFor = (section: LookSection) => look && sectionDiffers(config, look, section) ? () => commit(c => restoreSection(c, look, section)) : null;
   const layoutRestore = restoreFor('layout');
 
   const styleCards = (strip: boolean) => <StyleCards strip={strip} config={config} current={style} onPick={id => { commit(c => applyStylePreset(c, id, shortEdge ?? undefined)); onSelect(null); }} image={image} size={size} caps={caps} fields={fields} />;
-  const layoutControls = <>
+  const layoutControls = knobs.length ? <StyleKnobControls config={config} commit={commit} knobs={knobs} /> : <>
     {region && <div className="row">
       <span className="row-label">信息条</span>
       <Segmented label="信息条位置" value={framePosition(config)} options={POSITIONS.map(p => ({ value: p.value, label: p.label, title: `快捷键 ${p.key}` }))} onChange={v => commit(c => setFramePosition(c, v))} />
@@ -252,7 +286,7 @@ export function Editor({ config, commit, fields, selection, onSelect, image, siz
           {region && <><div className="block-title">品牌 Logo</div>{restoreRow('brand')}<BrandControls config={config} commit={commit} fields={fields} /></>}
           <div className="block-title">署名</div>{restoreRow('signature')}<SignatureControls config={config} commit={commit} />
         </div>}
-        {tab === 'appearance' && <div className="stack">{restoreRow('appearance')}<BackgroundControls config={config} commit={commit} /></div>}
+        {tab === 'appearance' && <div className="stack">{restoreRow('appearance')}{knobs.length ? <p className="hint">此样式的颜色在“版式”中调整。</p> : <BackgroundControls config={config} commit={commit} />}</div>}
       </div>
       <div className="tabbar" role="tablist" aria-label="设置分类">
         {MOBILE_TABS.map(t => {
@@ -280,9 +314,9 @@ export function Editor({ config, commit, fields, selection, onSelect, image, siz
     {region && <Section id="brand" title="品牌 Logo" summary={brandSummary} open={open.has('brand')} onToggle={toggle} highlighted={focus === 'brand'} restore={restoreFor('brand')}>
       <BrandControls config={config} commit={commit} fields={fields} />
     </Section>}
-    <Section id="background" title="背景与效果" summary={appearanceSummary} open={open.has('background')} onToggle={toggle} restore={restoreFor('appearance')}>
+    {!knobs.length && <Section id="background" title="背景与效果" summary={appearanceSummary} open={open.has('background')} onToggle={toggle} restore={restoreFor('appearance')}>
       <BackgroundControls config={config} commit={commit} />
-    </Section>
+    </Section>}
     <Section id="signature" title="署名" summary={sig.enabled ? '已开启' : '未开启'} open={open.has('signature')} onToggle={toggle} highlighted={focus === 'signature'} restore={restoreFor('signature')}>
       <SignatureControls config={config} commit={commit} />
     </Section>

@@ -33,6 +33,10 @@ import {
   type StyleConfig,
 } from './types';
 import type { LayoutTemplate, PresetCategory } from './templateModel';
+import { buildGallery, galleryKnobs, type GalleryStyleId } from './styles/gallery';
+import type { StyleKnob } from './styles/knobs';
+
+export type { StyleKnob } from './styles/knobs';
 
 export type StyleApp = 'web' | 'immich-ki';
 
@@ -59,11 +63,13 @@ export interface ControlledStylePreset extends StylePresetBase {
 export interface FramedStylePreset extends StylePresetBase {
   kind: 'framed';
   id: FramedStyleId;
+  /** Engine-built styles declare their few user-facing controls (at most five). */
+  knobs?: readonly StyleKnob[];
 }
 
 export type StylePreset = ControlledStylePreset | FramedStylePreset;
 
-export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain';
+export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId;
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -392,8 +398,13 @@ function controlled(
 function framed(
   meta: Pick<FramedStylePreset, 'id' | 'name' | 'caption' | 'category'>,
   builder: (shortEdge?: number) => ImprintConfig,
+  knobs?: readonly StyleKnob[],
 ): FramedStylePreset {
-  return { ...meta, app: 'immich-ki', kind: 'framed', build: (options) => builder(options?.shortEdge) };
+  return { ...meta, app: 'immich-ki', kind: 'framed', build: (options) => builder(options?.shortEdge), ...(knobs ? { knobs } : {}) };
+}
+
+function gallery(id: GalleryStyleId, name: string, caption: string): FramedStylePreset {
+  return framed({ id, name, caption, category: 'gallery' }, () => buildGallery(id), galleryKnobs(id));
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────
@@ -411,6 +422,11 @@ export const STYLE_PRESETS: readonly StylePreset[] = deepFreeze([
   framed({ id: 'dark', name: '深色', caption: '深底浅字，Logo 自动反白', category: 'brand' }, buildDark),
   framed({ id: 'blur', name: '模糊背景', caption: '照片悬浮于自身模糊背景', category: 'social' }, buildBlur),
   framed({ id: 'plain', name: '纯留白', caption: '只加留白，不加文字', category: 'minimal' }, buildPlain),
+  gallery('museum-mat', '美术馆卡纸', '暖白卡纸、下沉底边与白色斜切芯线，标题居中'),
+  gallery('double-reveal', '双层卡纸', '内层卡纸露出一圈色边，增加纵深'),
+  gallery('black-core', '黑芯', '亮白卡纸配黑色芯线，干净利落'),
+  gallery('float-mount', '浮裱', '照片浮在底板上，柔和投影，标题与参数左右对齐'),
+  gallery('signed-proof', '签名样张', '版画式留白：左侧版次、居中标题、右侧参数'),
 ]);
 
 /** Web editor picker, in display order; the first entry is the initial and reset state. */
