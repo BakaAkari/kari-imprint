@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ImprintConfig, FieldChip, TextContent, PreviewAspectRatio } from './types';
 import { PREVIEW_ASPECT_RATIOS } from './types';
-import { computeLayout } from './layout/layoutEngine';
+import { computeLayout, pyRound } from './layout/layoutEngine';
 import type { LayoutResult, ComputedElement, StyleConfig } from './layout/layoutEngine';
 import { resolveColor, segmentOps, type DrawOp } from './layout/compose';
 import { fitLayoutTexts, type FittedText } from './layout/textFit';
@@ -25,13 +25,18 @@ import { resolveAutoLogoWithScheme, type LogoRegistryEntry } from './autoLogo';
 import { DIVIDER_OPACITY, dividerColor, resolveInkScheme } from './colorScheme';
 import { drawEffectBackground, isEffectActive, photoRadiusPx, roundedRectPath } from './canvasEffects';
 import { logoBounds, logoVisibleAspectRatio, prepareLogo } from './logoProcessing';
+import { API_BASE } from './env';
 
 const FONT_STACK = '"AkaSemiNoto", "Microsoft YaHei", sans-serif';
 const SERIF_STACK = '"KariSerif", "Songti SC", "SimSun", serif';
+const KAI_STACK = '"KariKai", "Kaiti SC", "KaiTi", serif';
 
 /** Weight follows `bold` (as in PIL's effective_font_family); the family follows the font file. */
 function fontString(style: Pick<StyleConfig, 'bold' | 'font_family'>, size: number): string {
-  const stack = style.font_family?.startsWith('NotoSerif') ? SERIF_STACK : FONT_STACK;
+  const family = style.font_family ?? '';
+  // The kai face has a single weight; PIL draws it as-is, so never synthesize bold here.
+  if (family.startsWith('LXGW')) return `400 ${size}px ${KAI_STACK}`;
+  const stack = family.startsWith('NotoSerif') ? SERIF_STACK : FONT_STACK;
   return `${style.bold ? '700' : '400'} ${size}px ${stack}`;
 }
 
@@ -290,10 +295,58 @@ function renderCanvas(
 }
 
 /** Integer-aligned rect ops; identical pixels to the PIL renderer. */
+/** Where material textures are served; immich-ki serves them at /textures/. */
+let textureBase = `${API_BASE}/api/textures/`;
+export function setTextureBase(url: string) { textureBase = url; }
+
+const textureImages = new Map<string, HTMLImageElement>();
+const textureListeners = new Set<() => void>();
+
+/** Load a texture once; listeners redraw when it arrives. Returns it when ready. */
+function textureImage(name: string): HTMLImageElement | null {
+  let img = textureImages.get(name);
+  if (!img) {
+    img = new Image();
+    img.decoding = 'async';
+    img.onload = () => textureListeners.forEach(listener => listener());
+    img.src = `${textureBase}${name}.png`;
+    textureImages.set(name, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 function drawOps(ctx: CanvasRenderingContext2D, ops: readonly DrawOp[] | undefined, z: DrawOp['z'], fields: ExifFieldValues = {}) {
   for (const op of ops ?? []) {
     if (op.z !== z || op.opacity <= 0) continue;
     const { x, y, w, h } = op.rect;
+    if (op.op === 'polygon') {
+      const points = op.points ?? [];
+      if (points.length < 3) continue;
+      ctx.save();
+      ctx.fillStyle = resolveColor(op.color, fields);
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (const [px, py] of points.slice(1)) ctx.lineTo(px, py);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      continue;
+    }
+    if (op.op === 'texture') {
+      const img = op.texture ? textureImage(op.texture) : null;
+      const pattern = img ? ctx.createPattern(img, 'repeat') : null;
+      if (!img || !pattern) continue;
+      // Tiles start at the op rect origin and are `tile` px square, like renderer.py.
+      const tile = op.tile ?? img.naturalWidth;
+      pattern.setTransform(new DOMMatrix().translate(x, y).scale(tile / img.naturalWidth, tile / img.naturalHeight));
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = op.opacity;
+      ctx.fillStyle = pattern;
+      ctx.fillRect(x, y, w, h);
+      ctx.restore();
+      continue;
+    }
     ctx.save();
     if (op.radius || op.blur) {
       ctx.beginPath();
@@ -365,12 +418,14 @@ function drawElement(
         ctx.textBaseline = 'middle';
         ctx.fillText(text, 0, 0);
       } else if (direction === 'vertical-glyphs') {
+        // Anchor the stack like renderer.py: the glyph column is glyphs × advance tall.
         const glyphs = Array.from(text);
-        const advance = Math.round(fontSize * style.line_height);
-        const startY = rect.y - ((glyphs.length - 1) * advance) / 2;
+        const advance = Math.max(1, pyRound(fontSize * style.line_height));
+        const total = glyphs.length * advance;
+        const top = anchor.includes('bottom') ? rect.y - total : anchor.includes('top') ? rect.y : rect.y - total / 2;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        glyphs.forEach((glyph, index) => ctx.fillText(glyph, rect.x, startY + index * advance));
+        glyphs.forEach((glyph, index) => ctx.fillText(glyph, rect.x, top + advance * (index + 0.5)));
       } else {
         ctx.textBaseline = anchor.includes('bottom') ? 'bottom' : anchor.includes('middle') ? 'middle' : 'top';
         if (track) {
@@ -627,6 +682,12 @@ export function KariImprintCanvas({
 
   // Text fitting measures with the web font; re-render once it has loaded.
   const [fontsVersion, setFontsVersion] = useState(0);
+  // Material textures load on first use; redraw when one arrives.
+  useEffect(() => {
+    const bump = () => setFontsVersion((v) => v + 1);
+    textureListeners.add(bump);
+    return () => { textureListeners.delete(bump); };
+  }, []);
   useEffect(() => {
     let cancelled = false;
     const fonts = typeof document !== 'undefined' ? document.fonts : undefined;

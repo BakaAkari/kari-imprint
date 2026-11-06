@@ -94,3 +94,35 @@ def test_overlay_primitives_paint_letterbox_glass_and_stamp():
     from kari_core.shared.layout.compose import segment_rects
     first = segment_rects("'26 11 07", stamp.rect.x, stamp.rect.y, stamp.rect.h, stamp.anchor)[1]
     assert out.getpixel((first.x + first.w // 2, first.y + first.h // 2))[:3] == (0xFF, 0x8A, 0x1F)
+
+
+def test_deckle_bands_are_deterministic_and_bounded():
+    from kari_core.shared.layout.compose import deckle_bands
+    from kari_core.shared.layout.layout_engine import Rect
+
+    r = Rect(10, 10, 400, 300)
+    first = deckle_bands(r, 12, 7)
+    assert first == deckle_bands(r, 12, 7)
+    assert first != deckle_bands(r, 12, 8)
+    assert len(first) == 4
+    # Every jagged point stays within the band: between the edge and depth inside it.
+    for x, y in first[0][2:]:
+        assert 10 <= x <= 410 and 10 <= y <= 22
+
+
+def test_texture_multiplies_and_pattern_repeats():
+    config = _dict_to_imprint_config({
+        "canvas": {"margins": {"top": 0.2, "right": 0.05, "bottom": 0.2, "left": 0.05}, "margin_unit": "short_edge_ratio", "background": "#FFFFFF"},
+        "regions": [],
+        "layers": [
+            {"id": "paper", "kind": "texture", "box": "canvas", "texture": "paper", "scale": 0.5, "opacity": 1.0},
+            {"id": "holes", "kind": "pattern", "box": "margin-top", "axis": "x", "cross": 0.03, "w": 0.1, "h": 0.08, "pitch": 0.2, "radius": 0.01, "color": "#000000"},
+        ],
+    })
+    layout = compute_layout(config, 1200, 800)
+    holes = [op for op in layout.ops if op.id.startswith("holes-")]
+    assert len(holes) > 3 and len({op.rect.y for op in holes}) == 1
+    out = render_pil(layout, Image.new("RGB", (1200, 800), (100, 100, 100)), bg_color="#FFFFFF", config=config)
+    # The paper texture darkens the white margin a little but never to grey.
+    margin = [out.getpixel((x, 5))[0] for x in range(0, 60, 3)]
+    assert min(margin) < 255 and min(margin) > 180

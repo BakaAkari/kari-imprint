@@ -748,6 +748,14 @@ def _draw_ops(canvas: Image.Image, ops: list, z: str, field_values: dict[str, st
     for op in ops:
         if op.z != z or op.opacity <= 0:
             continue
+        if op.op == "polygon":
+            draw = draw or ImageDraw.Draw(canvas)
+            r, g, b, _a = _parse_color(resolve_color(op.color, field_values))
+            draw.polygon(op.points or [], fill=(r, g, b, 255))
+            continue
+        if op.op == "texture":
+            _multiply_texture(canvas, op)
+            continue
         x0 = max(0, op.rect.x)
         y0 = max(0, op.rect.y)
         x1 = min(canvas.width, op.rect.x + op.rect.w)
@@ -776,6 +784,59 @@ def _draw_ops(canvas: Image.Image, ops: list, z: str, field_values: dict[str, st
             canvas.paste(region, (x0, y0), mask)
         else:
             canvas.paste(region, (x0, y0))
+
+
+_TEXTURE_CACHE: dict[tuple[str, int], Image.Image] = {}
+_TEXTURE_BAND = 1024
+
+
+def _texture_tile(name: str, tile: int) -> Image.Image | None:
+    """The named texture scaled to a ``tile`` px square (RGB), or None when the asset is missing."""
+    from kari_core.core.config_loader import TEXTURES_DIR
+
+    if name not in {"paper", "silk", "grain"}:
+        return None
+    key = (name, tile)
+    if key not in _TEXTURE_CACHE:
+        try:
+            with Image.open(TEXTURES_DIR / f"{name}.png") as source:
+                _TEXTURE_CACHE[key] = source.convert("RGB").resize((tile, tile), Image.BILINEAR)
+        except OSError:
+            return None
+    return _TEXTURE_CACHE[key]
+
+
+def _multiply_texture(canvas: Image.Image, op) -> None:
+    """Multiply a tiled texture over ``op.rect`` at ``op.opacity``; tiles start at the rect origin.
+
+    Works in horizontal bands so memory stays bounded on 400+ MP outputs.
+    """
+    tile = _texture_tile(op.texture, op.tile)
+    if tile is None:
+        return
+    x0, y0 = max(0, op.rect.x), max(0, op.rect.y)
+    x1 = min(canvas.width, op.rect.x + op.rect.w)
+    y1 = min(canvas.height, op.rect.y + op.rect.h)
+    if x1 <= x0 or y1 <= y0:
+        return
+    size = tile.width
+    for band_top in range(y0, y1, _TEXTURE_BAND):
+        band_bottom = min(y1, band_top + _TEXTURE_BAND)
+        region = canvas.crop((x0, band_top, x1, band_bottom))
+        alpha = region.getchannel("A") if region.mode == "RGBA" else None
+        rgb = region.convert("RGB")
+        pattern = Image.new("RGB", rgb.size)
+        # Phase of the first tile so the pattern stays anchored to the op rect across bands.
+        start_x = x0 - ((x0 - op.rect.x) % size)
+        start_y = band_top - ((band_top - op.rect.y) % size)
+        for ty in range(start_y, band_bottom, size):
+            for tx in range(start_x, x1, size):
+                pattern.paste(tile, (tx - x0, ty - band_top))
+        multiplied = ImageChops.multiply(rgb, pattern)
+        blended = Image.blend(rgb, multiplied, max(0.0, min(1.0, op.opacity)))
+        if alpha is not None:
+            blended.putalpha(alpha)
+        canvas.paste(blended, (x0, band_top))
 
 
 def _blur_region(region: Image.Image, sigma: int) -> Image.Image:

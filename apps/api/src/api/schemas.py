@@ -159,7 +159,7 @@ class StyleConfigPayload(StrictModel):
     color: Color = "#222222"
     font_family: Literal[
         "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
-        "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf",
+        "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf", "LXGWWenKai-Regular.ttf",
     ] = "NotoSansCJKsc-Bold.otf"
     bold: bool = True
     line_height: float = Field(default=1.2, ge=0.5, le=3.0)
@@ -383,7 +383,7 @@ def _validate_layer_color(value: str) -> str:
     return _validate_color(value)
 FontFamily = Literal[
     "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
-    "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf",
+    "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf", "LXGWWenKai-Regular.ttf",
 ]
 
 
@@ -514,6 +514,48 @@ class SegmentsLayerPayload(_LayerBase):
         return _validate_layer_color(value)
 
 
+class PatternLayerPayload(_LayerBase):
+    kind: Literal["pattern"]
+    box: BoxRef
+    axis: Literal["x", "y"]
+    cross: float = Field(ge=-1.0, le=1.0)
+    w: float = Field(gt=0.0, le=0.5)
+    h: float = Field(gt=0.0, le=0.5)
+    # Bounded below so a strip never expands into an unbounded number of ops.
+    pitch: float = Field(ge=0.01, le=1.0)
+    radius: float | None = Field(default=None, ge=0.0, le=0.1)
+    color: Color
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_layer_color(value)
+
+
+class DeckleLayerPayload(_LayerBase):
+    kind: Literal["deckle"]
+    box: BoxRef
+    inset: float | None = Field(default=None, ge=0.0, le=0.3)
+    depth: float = Field(ge=0.002, le=0.05)
+    seed: int = Field(ge=0, le=2**32 - 1)
+    color: Color
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_layer_color(value)
+
+
+class TextureLayerPayload(_LayerBase):
+    kind: Literal["texture"]
+    box: BoxRef
+    # Built-in material tiles only; never a path.
+    texture: Literal["paper", "silk", "grain"]
+    scale: float = Field(ge=0.02, le=1.0)
+    opacity: float = Field(ge=0.0, le=1.0)
+
+
 class MatBandPayload(StrictModel):
     width: float = Field(gt=0.0, le=0.2)
     color: Color
@@ -570,7 +612,8 @@ StyleParamValue = bool | int | float | Annotated[str, Field(max_length=160)]
 
 LayerPayload = Annotated[
     FillLayerPayload | KeylineLayerPayload | RuleLayerPayload | MatLayerPayload | TextLayerPayload | RectLayerPayload
-    | LetterboxLayerPayload | LogoLayerPayload | SegmentsLayerPayload,
+    | LetterboxLayerPayload | LogoLayerPayload | SegmentsLayerPayload
+    | PatternLayerPayload | DeckleLayerPayload | TextureLayerPayload,
     Field(discriminator="kind"),
 ]
 

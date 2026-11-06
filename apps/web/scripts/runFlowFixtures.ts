@@ -71,7 +71,7 @@ for (const entry of JSON.parse(readFileSync(composePath, 'utf8')) as Array<any>)
     id: `compose:${entry.id}`,
     canvas: layout.canvas,
     image_rect: layout.image_rect,
-    ops: layout.ops.map(op => ({ id: op.id, op: op.op, rect: op.rect, color: op.color, opacity: op.opacity, z: op.z, radius: op.radius ?? 0, blur: op.blur ?? 0 })),
+    ops: layout.ops.map(op => ({ id: op.id, op: op.op, rect: op.rect, color: op.color, opacity: op.opacity, z: op.z, radius: op.radius ?? 0, blur: op.blur ?? 0, points: op.points ?? null, texture: op.texture ?? '', tile: op.tile ?? 0 })),
     elements: layout.elements.filter(el => el.type !== 'divider').map(el => ({
       id: el.id, type: el.type, rect: el.rect, anchor: el.anchor,
       font_size: el.style.font_size, color: el.style.color, font_family: el.style.font_family,
@@ -87,7 +87,7 @@ for (const entry of JSON.parse(readFileSync(catalogPath, 'utf8')) as Array<any>)
     id: `catalog:${entry.id}`,
     canvas: layout.canvas,
     image_rect: layout.image_rect,
-    ops: layout.ops.map(op => ({ id: op.id, rect: op.rect, color: op.color, opacity: op.opacity, z: op.z, radius: op.radius ?? 0, blur: op.blur ?? 0 })),
+    ops: layout.ops.map(op => ({ id: op.id, rect: op.rect, color: op.color, opacity: op.opacity, z: op.z, radius: op.radius ?? 0, blur: op.blur ?? 0, points: op.points ?? null, texture: op.texture ?? '', tile: op.tile ?? 0 })),
     elements: layout.elements.map(el => ({ id: el.id, type: el.type, rect: el.rect, anchor: el.anchor, font_size: el.style.font_size, color: el.style.color,
       ...(el.type === 'segments' ? { segments: segmentRects("'26 11 07", el.rect.x, el.rect.y, el.rect.h, el.anchor) } : {}) })),
   });

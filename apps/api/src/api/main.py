@@ -56,6 +56,10 @@ _fonts_dir = settings.assets_dir / "fonts"
 if _fonts_dir.exists():
     app.mount(f"{_api}/fonts", StaticFiles(directory=str(_fonts_dir)), name="fonts")
 
+_textures_dir = settings.assets_dir / "textures"
+if _textures_dir.exists():
+    app.mount(f"{_api}/textures", StaticFiles(directory=str(_textures_dir)), name="textures")
+
 _logos_dir = settings.assets_dir / "logos"
 if _logos_dir.exists():
     app.mount(f"{_api}/logos", StaticFiles(directory=str(_logos_dir)), name="logos")

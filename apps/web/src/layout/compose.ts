@@ -148,11 +148,47 @@ export interface SegmentsLayer extends LayerBase {
   glow?: boolean;
 }
 
-export type LayerConfig = FillLayer | KeylineLayer | RuleLayer | MatLayer | TextLayer | RectLayer | LetterboxLayer | LogoLayer | SegmentsLayer;
+/** A row of identical rounded rects along a box (film sprocket holes); `cross` is the row's offset into the box. */
+export interface PatternLayer extends LayerBase {
+  kind: 'pattern';
+  box: BoxRef;
+  axis: 'x' | 'y';
+  cross: number;
+  w: number;
+  h: number;
+  pitch: number;
+  radius?: number;
+  color: string;
+  opacity?: number;
+}
+
+/** Torn / deckled edge: `color` fills the band between the box edge and a seeded jagged line `inset` inside it. */
+export interface DeckleLayer extends LayerBase {
+  kind: 'deckle';
+  box: BoxRef;
+  inset?: number;
+  depth: number;
+  seed: number;
+  color: string;
+}
+
+/** A tileable material texture (paper, silk, grain) multiplied over a box. */
+export interface TextureLayer extends LayerBase {
+  kind: 'texture';
+  box: BoxRef;
+  texture: 'paper' | 'silk' | 'grain';
+  /** Tile size as a short-edge ratio. */
+  scale: number;
+  opacity: number;
+}
+
+export type LayerConfig = FillLayer | KeylineLayer | RuleLayer | MatLayer | TextLayer | RectLayer | LetterboxLayer | LogoLayer | SegmentsLayer
+  | PatternLayer | DeckleLayer | TextureLayer;
 
 export interface DrawOp {
   id: string;
-  op: 'rect';
+  /** 'polygon' fills `points`; 'texture' multiplies tile `texture` of `tile` px over `rect`. */
+  op: 'rect' | 'polygon' | 'texture';
   rect: Rect;
   color: string;
   opacity: number;
@@ -161,6 +197,9 @@ export interface DrawOp {
   radius?: number;
   /** Backdrop blur sigma in px (glass panels). */
   blur?: number;
+  points?: [number, number][];
+  texture?: string;
+  tile?: number;
 }
 
 export interface ComposeResult {
@@ -259,6 +298,53 @@ function anchorPoint(bounds: Rect, anchor: string): { x: number; y: number } {
   if (anchor.includes('middle')) y = bounds.y + Math.floor(bounds.h / 2);
   else if (anchor.includes('bottom')) y = bounds.y + bounds.h;
   return { x, y };
+}
+
+// ── Seeded noise (deckled edges) ────────────────────────────────────
+//
+// xorshift32 on unsigned 32-bit integers; mirror of compose.py `_xorshift`.
+
+function xorshift(state: number): number {
+  let x = state >>> 0;
+  x ^= x << 13; x >>>= 0;
+  x ^= x >>> 17;
+  x ^= x << 5; x >>>= 0;
+  return x;
+}
+
+/** Jagged depths (px) for `count` points: a two-sample average keeps the edge fibrous, not spiky. */
+export function deckleDepths(seed: number, count: number, depth: number): number[] {
+  let state = (seed >>> 0) || 0x9e3779b9;
+  const values: number[] = [];
+  let previous = 0;
+  for (let i = 0; i <= count; i += 1) {
+    state = xorshift(state);
+    const current = state / 4294967296;
+    values.push(pyRound(depth * (0.3 + 0.7 * (current + previous) / 2)));
+    previous = current;
+  }
+  return values;
+}
+
+/** Four band polygons between `r` and a jagged line inside it; integer points shared by both renderers. */
+export function deckleBands(r: Rect, depth: number, seed: number): [number, number][][] {
+  const step = Math.max(2, pyRound(depth * 0.8));
+  const x1 = r.x + r.w, y1 = r.y + r.h;
+  const jag = (length: number, salt: number): [number, number][] => {
+    const n = Math.max(1, Math.ceil(length / step));
+    return deckleDepths((seed + salt) >>> 0, n, depth).map((d, i) => [Math.min(length, i * step), d]);
+  };
+  // Each band: the two outer corners, then the jagged inner line walked back.
+  const top = jag(r.w, 1).map(([a, d]) => [r.x + a, r.y + d] as [number, number]);
+  const bottom = jag(r.w, 2).map(([a, d]) => [r.x + a, y1 - d] as [number, number]);
+  const left = jag(r.h, 3).map(([a, d]) => [r.x + d, r.y + a] as [number, number]);
+  const right = jag(r.h, 4).map(([a, d]) => [x1 - d, r.y + a] as [number, number]);
+  return [
+    [[r.x, r.y], [x1, r.y], ...top.reverse()],
+    [[r.x, y1], [x1, y1], ...bottom.reverse()],
+    [[r.x, r.y], [r.x, y1], ...left.reverse()],
+    [[x1, r.y], [x1, y1], ...right.reverse()],
+  ];
 }
 
 // ── Seven-segment digits ──────────────────────────────────────────────
@@ -399,6 +485,39 @@ export function composeLayers(
         if (radius > 0) op.radius = Math.min(radius, Math.floor(Math.min(w, h) / 2));
         if (blur > 0) op.blur = blur;
         ops.push(op);
+        break;
+      }
+      case 'pattern': {
+        const b = box(layer.box);
+        const w = Math.max(1, px(layer.w, shortEdge));
+        const h = Math.max(1, px(layer.h, shortEdge));
+        const pitch = Math.max(w + 1, px(layer.pitch, shortEdge));
+        const cross = px(layer.cross, shortEdge);
+        const radius = Math.min(px(layer.radius, shortEdge), Math.floor(Math.min(w, h) / 2));
+        const length = layer.axis === 'x' ? b.w : b.h;
+        const count = Math.max(0, Math.floor((length - w) / pitch) + 1);
+        // Centre the row so both ends of the strip look the same.
+        const start = Math.floor((length - ((count - 1) * pitch + (layer.axis === 'x' ? w : h))) / 2);
+        for (let i = 0; i < count; i += 1) {
+          const along = start + i * pitch;
+          const rect = layer.axis === 'x' ? { x: b.x + along, y: b.y + cross, w, h } : { x: b.x + cross, y: b.y + along, w, h };
+          const op: DrawOp = { id: `${layer.id}-${i}`, op: 'rect', rect, color: layer.color, opacity: opacityOf(layer.opacity), z: layer.z ?? 'under' };
+          if (radius > 0) op.radius = radius;
+          ops.push(op);
+        }
+        break;
+      }
+      case 'deckle': {
+        const r = grow(box(layer.box), -px(layer.inset, shortEdge));
+        const depth = Math.max(2, px(layer.depth, shortEdge));
+        deckleBands(r, depth, layer.seed).forEach((points, i) => ops.push({
+          id: `${layer.id}-${i}`, op: 'polygon', rect: r, points, color: layer.color, opacity: 1, z: layer.z ?? 'over',
+        }));
+        break;
+      }
+      case 'texture': {
+        const r = box(layer.box);
+        ops.push({ id: layer.id, op: 'texture', rect: r, texture: layer.texture, tile: Math.max(16, px(layer.scale, shortEdge)), color: '#000000', opacity: opacityOf(layer.opacity), z: layer.z ?? 'under' });
         break;
       }
       case 'letterbox': {

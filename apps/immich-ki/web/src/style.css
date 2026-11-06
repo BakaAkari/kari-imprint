@@ -2,6 +2,7 @@
 @font-face{font-family:AkaSemiNoto;font-display:swap;font-weight:400;src:url('/fonts/NotoSansCJKsc-Regular.otf')}
 @font-face{font-family:KariSerif;font-display:swap;font-weight:700;src:url('/fonts/NotoSerifCJKsc-Bold.otf')}
 @font-face{font-family:KariSerif;font-display:swap;font-weight:400;src:url('/fonts/NotoSerifCJKsc-Regular.otf')}
+@font-face{font-family:KariKai;font-display:swap;font-weight:400;src:url('/fonts/LXGWWenKai-Regular.ttf')}
 
 /* Quiet dark workspace: the photo is the only colourful thing on screen.
    Hairline structure, one neutral surface step, colour reserved for state. */

@@ -7148,5 +7148,1443 @@
     }
    ]
   }
+ },
+ {
+  "id": "film-135@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "film-135",
+   "style_params": {
+    "edge": "KARI 400",
+    "frame": "12",
+    "tone": "black",
+    "grain": false
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.21,
+     "right": 0.045,
+     "bottom": 0.21,
+     "left": 0.045
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#141210",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "holes-top",
+     "kind": "pattern",
+     "box": "margin-top",
+     "axis": "x",
+     "cross": 0.035,
+     "w": 0.116,
+     "h": 0.0825,
+     "pitch": 0.198,
+     "radius": 0.012,
+     "color": "#ECE8E0"
+    },
+    {
+     "id": "holes-bottom",
+     "kind": "pattern",
+     "box": "margin-bottom",
+     "axis": "x",
+     "cross": 0.09249999999999999,
+     "w": 0.116,
+     "h": 0.0825,
+     "pitch": 0.198,
+     "radius": 0.012,
+     "color": "#ECE8E0"
+    },
+    {
+     "id": "edge-print",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "bottom-left",
+     "offset_x": 0.075,
+     "offset_y": -0.014,
+     "size": 0.03,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "KARI 400"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 140
+     }
+    },
+    {
+     "id": "frame-number",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.075,
+     "offset_y": 0.014,
+     "size": 0.03,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "12  ▶  12A"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 140
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "film-135@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "film-135",
+   "style_params": {
+    "edge": "KARI 400",
+    "frame": "12",
+    "tone": "black",
+    "grain": false
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.21,
+     "right": 0.045,
+     "bottom": 0.21,
+     "left": 0.045
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#141210",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "holes-top",
+     "kind": "pattern",
+     "box": "margin-top",
+     "axis": "x",
+     "cross": 0.035,
+     "w": 0.116,
+     "h": 0.0825,
+     "pitch": 0.198,
+     "radius": 0.012,
+     "color": "#ECE8E0"
+    },
+    {
+     "id": "holes-bottom",
+     "kind": "pattern",
+     "box": "margin-bottom",
+     "axis": "x",
+     "cross": 0.09249999999999999,
+     "w": 0.116,
+     "h": 0.0825,
+     "pitch": 0.198,
+     "radius": 0.012,
+     "color": "#ECE8E0"
+    },
+    {
+     "id": "edge-print",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "bottom-left",
+     "offset_x": 0.075,
+     "offset_y": -0.014,
+     "size": 0.03,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "KARI 400"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 140
+     }
+    },
+    {
+     "id": "frame-number",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.075,
+     "offset_y": 0.014,
+     "size": 0.03,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "12  ▶  12A"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 140
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "film-120@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "film-120",
+   "style_params": {
+    "edge": "KARI PAN 100",
+    "frame": "7",
+    "tone": "black",
+    "grain": false
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.085,
+     "right": 0.085,
+     "bottom": 0.085,
+     "left": 0.085
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#141210",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "edge-print",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "middle-left",
+     "offset_x": 0.085,
+     "offset_y": 0,
+     "size": 0.026,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "KARI PAN 100"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 160
+     }
+    },
+    {
+     "id": "frame-number",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "middle-right",
+     "offset_x": -0.085,
+     "offset_y": 0,
+     "size": 0.026,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "7"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 160
+     }
+    },
+    {
+     "id": "notch",
+     "kind": "rect",
+     "box": "margin-right",
+     "anchor": "middle-right",
+     "w": 0.02,
+     "h": 0.06,
+     "color": "#ECE8E0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "film-120@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "film-120",
+   "style_params": {
+    "edge": "KARI PAN 100",
+    "frame": "7",
+    "tone": "black",
+    "grain": false
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.085,
+     "right": 0.085,
+     "bottom": 0.085,
+     "left": 0.085
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#141210",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "edge-print",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "middle-left",
+     "offset_x": 0.085,
+     "offset_y": 0,
+     "size": 0.026,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "KARI PAN 100"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 160
+     }
+    },
+    {
+     "id": "frame-number",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "middle-right",
+     "offset_x": -0.085,
+     "offset_y": 0,
+     "size": 0.026,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "7"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#E3A33F",
+      "tracking": 160
+     }
+    },
+    {
+     "id": "notch",
+     "kind": "rect",
+     "box": "margin-right",
+     "anchor": "middle-right",
+     "w": 0.02,
+     "h": 0.06,
+     "color": "#ECE8E0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "filed-negative@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "filed-negative",
+   "style_params": {
+    "roughness": 0.012,
+    "width": 0.07,
+    "grain": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.07,
+     "right": 0.07,
+     "bottom": 0.07,
+     "left": 0.07
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#0E0E0E",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "filed",
+     "kind": "deckle",
+     "box": "photo",
+     "depth": 0.012,
+     "seed": 135,
+     "color": "#0E0E0E",
+     "z": "over"
+    },
+    {
+     "id": "grain",
+     "kind": "texture",
+     "box": "photo",
+     "texture": "grain",
+     "scale": 0.22,
+     "opacity": 0.32,
+     "z": "over"
+    }
+   ]
+  }
+ },
+ {
+  "id": "filed-negative@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "filed-negative",
+   "style_params": {
+    "roughness": 0.012,
+    "width": 0.07,
+    "grain": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.07,
+     "right": 0.07,
+     "bottom": 0.07,
+     "left": 0.07
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#0E0E0E",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "filed",
+     "kind": "deckle",
+     "box": "photo",
+     "depth": 0.012,
+     "seed": 135,
+     "color": "#0E0E0E",
+     "z": "over"
+    },
+    {
+     "id": "grain",
+     "kind": "texture",
+     "box": "photo",
+     "texture": "grain",
+     "scale": 0.22,
+     "opacity": 0.32,
+     "z": "over"
+    }
+   ]
+  }
+ },
+ {
+  "id": "instant@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "instant",
+   "style_params": {
+    "caption": "",
+    "date": true,
+    "paper": "#F6F3EC",
+    "texture": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.1,
+     "right": 0.085,
+     "bottom": 0.36,
+     "left": 0.085
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F6F3EC",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "paper",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "paper",
+     "scale": 0.5,
+     "opacity": 0.55
+    },
+    {
+     "id": "date",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "middle-right",
+     "offset_x": -0.105,
+     "offset_y": 0.06,
+     "size": 0.026,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "date"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "LXGWWenKai-Regular.ttf",
+      "bold": false,
+      "color": "#6B655C"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "instant@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "instant",
+   "style_params": {
+    "caption": "",
+    "date": true,
+    "paper": "#F6F3EC",
+    "texture": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.1,
+     "right": 0.085,
+     "bottom": 0.36,
+     "left": 0.085
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F6F3EC",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "paper",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "paper",
+     "scale": 0.5,
+     "opacity": 0.55
+    },
+    {
+     "id": "date",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "middle-right",
+     "offset_x": -0.105,
+     "offset_y": 0.06,
+     "size": 0.026,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "date"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "LXGWWenKai-Regular.ttf",
+      "bold": false,
+      "color": "#6B655C"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "deckle-print@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "deckle-print",
+   "style_params": {
+    "title": "",
+    "wall": "#2B2926",
+    "roughness": 0.012,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.16,
+     "right": 0.16,
+     "bottom": 0.21,
+     "left": 0.16
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F3EFE6",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "paper",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "paper",
+     "scale": 0.45,
+     "opacity": 0.7
+    },
+    {
+     "id": "torn",
+     "kind": "deckle",
+     "box": "canvas",
+     "inset": 0.045,
+     "depth": 0.012,
+     "seed": 7,
+     "color": "#2B2926",
+     "z": "under"
+    },
+    {
+     "id": "wall",
+     "kind": "keyline",
+     "box": "canvas",
+     "offset": -0.045,
+     "width": 0.045,
+     "color": "#2B2926"
+    },
+    {
+     "id": "details",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-center",
+     "offset_x": 0,
+     "offset_y": 0.06,
+     "size": 0.0092,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "deckle-print@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "deckle-print",
+   "style_params": {
+    "title": "",
+    "wall": "#2B2926",
+    "roughness": 0.012,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.16,
+     "right": 0.16,
+     "bottom": 0.21,
+     "left": 0.16
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F3EFE6",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "paper",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "paper",
+     "scale": 0.45,
+     "opacity": 0.7
+    },
+    {
+     "id": "torn",
+     "kind": "deckle",
+     "box": "canvas",
+     "inset": 0.045,
+     "depth": 0.012,
+     "seed": 7,
+     "color": "#2B2926",
+     "z": "under"
+    },
+    {
+     "id": "wall",
+     "kind": "keyline",
+     "box": "canvas",
+     "offset": -0.045,
+     "width": 0.045,
+     "color": "#2B2926"
+    },
+    {
+     "id": "details",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-center",
+     "offset_x": 0,
+     "offset_y": 0.06,
+     "size": 0.0092,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "vertical-title@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "vertical-title",
+   "style_params": {
+    "title": "山行",
+    "seal": "影",
+    "show_seal": true,
+    "paper": "#F1ECE1",
+    "side": "right"
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.08,
+     "right": 0.26,
+     "bottom": 0.08,
+     "left": 0.08
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F1ECE1",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "paper",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "paper",
+     "scale": 0.5,
+     "opacity": 0.6
+    },
+    {
+     "id": "title",
+     "kind": "text",
+     "box": "margin-right",
+     "anchor": "middle-center",
+     "offset_x": 0,
+     "offset_y": -0.03,
+     "size": 0.07,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "山行"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "LXGWWenKai-Regular.ttf",
+      "bold": false,
+      "color": "#2A2522",
+      "text_direction": "vertical-glyphs",
+      "line_height": 1.18
+     }
+    },
+    {
+     "id": "seal",
+     "kind": "rect",
+     "box": "margin-right",
+     "anchor": "bottom-center",
+     "offset_y": -0.06,
+     "w": 0.07,
+     "h": 0.07,
+     "radius": 0.006,
+     "color": "#B3261E"
+    },
+    {
+     "id": "seal-text",
+     "kind": "text",
+     "box": "margin-right",
+     "anchor": "bottom-center",
+     "offset_x": 0,
+     "offset_y": -0.0719,
+     "size": 0.044,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "影"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "LXGWWenKai-Regular.ttf",
+      "bold": false,
+      "color": "#FBEFE6",
+      "text_direction": "vertical-glyphs",
+      "line_height": 1.05
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "vertical-title@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "vertical-title",
+   "style_params": {
+    "title": "山行",
+    "seal": "影",
+    "show_seal": true,
+    "paper": "#F1ECE1",
+    "side": "right"
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.08,
+     "right": 0.26,
+     "bottom": 0.08,
+     "left": 0.08
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F1ECE1",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "paper",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "paper",
+     "scale": 0.5,
+     "opacity": 0.6
+    },
+    {
+     "id": "title",
+     "kind": "text",
+     "box": "margin-right",
+     "anchor": "middle-center",
+     "offset_x": 0,
+     "offset_y": -0.03,
+     "size": 0.07,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "山行"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "LXGWWenKai-Regular.ttf",
+      "bold": false,
+      "color": "#2A2522",
+      "text_direction": "vertical-glyphs",
+      "line_height": 1.18
+     }
+    },
+    {
+     "id": "seal",
+     "kind": "rect",
+     "box": "margin-right",
+     "anchor": "bottom-center",
+     "offset_y": -0.06,
+     "w": 0.07,
+     "h": 0.07,
+     "radius": 0.006,
+     "color": "#B3261E"
+    },
+    {
+     "id": "seal-text",
+     "kind": "text",
+     "box": "margin-right",
+     "anchor": "bottom-center",
+     "offset_x": 0,
+     "offset_y": -0.0719,
+     "size": 0.044,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "影"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "LXGWWenKai-Regular.ttf",
+      "bold": false,
+      "color": "#FBEFE6",
+      "text_direction": "vertical-glyphs",
+      "line_height": 1.05
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "hanging-scroll@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "hanging-scroll",
+   "style_params": {
+    "mount": "#C9D3C2",
+    "title": "",
+    "flaps": true,
+    "texture": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.5,
+     "right": 0.12,
+     "bottom": 0.3,
+     "left": 0.12
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#C9D3C2",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "silk",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "silk",
+     "scale": 0.35,
+     "opacity": 0.55
+    },
+    {
+     "id": "border",
+     "kind": "mat",
+     "reveal": {
+      "width": 0.022,
+      "color": "#EFE7D6"
+     },
+     "core": null
+    },
+    {
+     "id": "rod-top",
+     "kind": "rect",
+     "box": "canvas",
+     "anchor": "top-left",
+     "h": 0.035,
+     "color": "#3A2A1F"
+    },
+    {
+     "id": "rod-bottom",
+     "kind": "rect",
+     "box": "canvas",
+     "anchor": "bottom-left",
+     "h": 0.05,
+     "color": "#3A2A1F"
+    },
+    {
+     "id": "flap-left",
+     "kind": "rect",
+     "box": "margin-top",
+     "anchor": "top-center",
+     "offset_x": -0.17,
+     "offset_y": 0.035,
+     "w": 0.014,
+     "h": 0.3,
+     "color": "#90978B"
+    },
+    {
+     "id": "flap-right",
+     "kind": "rect",
+     "box": "margin-top",
+     "anchor": "top-center",
+     "offset_x": 0.17,
+     "offset_y": 0.035,
+     "w": 0.014,
+     "h": 0.3,
+     "color": "#90978B"
+    }
+   ]
+  }
+ },
+ {
+  "id": "hanging-scroll@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "hanging-scroll",
+   "style_params": {
+    "mount": "#C9D3C2",
+    "title": "",
+    "flaps": true,
+    "texture": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.5,
+     "right": 0.12,
+     "bottom": 0.3,
+     "left": 0.12
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#C9D3C2",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "silk",
+     "kind": "texture",
+     "box": "canvas",
+     "texture": "silk",
+     "scale": 0.35,
+     "opacity": 0.55
+    },
+    {
+     "id": "border",
+     "kind": "mat",
+     "reveal": {
+      "width": 0.022,
+      "color": "#EFE7D6"
+     },
+     "core": null
+    },
+    {
+     "id": "rod-top",
+     "kind": "rect",
+     "box": "canvas",
+     "anchor": "top-left",
+     "h": 0.035,
+     "color": "#3A2A1F"
+    },
+    {
+     "id": "rod-bottom",
+     "kind": "rect",
+     "box": "canvas",
+     "anchor": "bottom-left",
+     "h": 0.05,
+     "color": "#3A2A1F"
+    },
+    {
+     "id": "flap-left",
+     "kind": "rect",
+     "box": "margin-top",
+     "anchor": "top-center",
+     "offset_x": -0.17,
+     "offset_y": 0.035,
+     "w": 0.014,
+     "h": 0.3,
+     "color": "#90978B"
+    },
+    {
+     "id": "flap-right",
+     "kind": "rect",
+     "box": "margin-top",
+     "anchor": "top-center",
+     "offset_x": 0.17,
+     "offset_y": 0.035,
+     "w": 0.014,
+     "h": 0.3,
+     "color": "#90978B"
+    }
+   ]
+  }
  }
 ]

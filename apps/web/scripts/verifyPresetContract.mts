@@ -457,6 +457,7 @@ section('16. Style catalog — one identity space for every app');
     'masthead', 'plate', 'swiss-grid', 'colophon',
     'date-stamp', 'glass-caption', 'viewfinder', 'cinema', 'corner-badge',
     'no-crop', 'story-card', 'palette-card', 'tonal-mat',
+    'film-135', 'film-120', 'filed-negative', 'instant', 'deckle-print', 'vertical-title', 'hanging-scroll',
   ]);
   for (const preset of STYLE_PRESETS) {
     if (preset.name.trim() && preset.caption.trim() && preset.category) pass(`${preset.id} · has name, caption and category`);

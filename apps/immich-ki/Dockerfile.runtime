@@ -9,6 +9,7 @@ COPY apps/api apps/api
 COPY apps/immich-ki/worker apps/immich-ki/worker
 COPY assets/fonts assets/fonts
 COPY assets/logos assets/logos
+COPY assets/textures assets/textures
 COPY pyproject.toml pyproject.toml
 RUN sed 's|https://files.pythonhosted.org/packages/|https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/|g' \
     apps/immich-ki/worker/requirements-linux-amd64.lock > /tmp/runtime-requirements.lock \
@@ -20,7 +21,7 @@ RUN sed 's|https://files.pythonhosted.org/packages/|https://mirrors.tuna.tsinghu
 COPY apps/immich-ki/web/dist /app/web
 RUN mkdir -p /app/assets/logos /app/packages/kari-core/config/templates
 ENV KARI_IMPRINT_ASSETS_DIR=/app/assets KARI_IMPRINT_ROOT=/app KI_WEB_ROOT=/app/web
-RUN chmod -R a+rX /app/assets/fonts /app/assets/logos
+RUN chmod -R a+rX /app/assets/fonts /app/assets/logos /app/assets/textures
 USER 10001:10001
 RUN python -c "from PIL import ImageFont; from kari_core.core.config_loader import FONTS_DIR; [ImageFont.truetype(str(FONTS_DIR / name), 48) for name in ('NotoSansCJKsc-Bold.otf', 'NotoSansCJKsc-Regular.otf')]"
 EXPOSE 2285

@@ -13,6 +13,7 @@ Every length is a ratio of the photo's short edge, rounded once with Python's
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING, Any, Literal
@@ -45,13 +46,17 @@ BEVEL_SHADE_PERCENT = 18
 @dataclass(slots=True)
 class DrawOp:
     id: str
-    op: Literal["rect"]
+    # "polygon" fills ``points``; "texture" multiplies tile ``texture`` of ``tile`` px over ``rect``.
+    op: Literal["rect", "polygon", "texture"]
     rect: Rect
     color: str
     opacity: float
     z: LayerZ
     radius: int = 0  # corner radius in px (rect panels)
     blur: int = 0  # backdrop blur sigma in px (glass panels)
+    points: list[tuple[int, int]] | None = None
+    texture: str = ""
+    tile: int = 0
 
 
 @dataclass(slots=True)
@@ -184,6 +189,53 @@ def _style_from(defaults: StyleConfig, patch: dict[str, Any] | None, font_size: 
         if key in known and key not in resolved and value is not None
     }
     return replace(defaults, **overrides, font_size=font_size, font_size_level=None, font_size_ratio=None)
+
+
+# ── Seeded noise (deckled edges) ────────────────────────────────────
+#
+# xorshift32 on unsigned 32-bit integers; mirror of compose.ts ``xorshift``.
+
+
+def _xorshift(state: int) -> int:
+    x = state & 0xFFFFFFFF
+    x ^= (x << 13) & 0xFFFFFFFF
+    x ^= x >> 17
+    x ^= (x << 5) & 0xFFFFFFFF
+    return x
+
+
+def deckle_depths(seed: int, count: int, depth: int) -> list[int]:
+    """Jagged depths (px) for ``count`` points; a two-sample average keeps the edge fibrous."""
+    state = (seed & 0xFFFFFFFF) or 0x9E3779B9
+    values: list[int] = []
+    previous = 0.0
+    for _ in range(count + 1):
+        state = _xorshift(state)
+        current = state / 4294967296
+        values.append(round(depth * (0.3 + 0.7 * (current + previous) / 2)))
+        previous = current
+    return values
+
+
+def deckle_bands(r: Rect, depth: int, seed: int) -> list[list[tuple[int, int]]]:
+    """Four band polygons between ``r`` and a jagged line inside it; mirror of compose.ts."""
+    step = max(2, round(depth * 0.8))
+    x1, y1 = r.x + r.w, r.y + r.h
+
+    def jag(length: int, salt: int) -> list[tuple[int, int]]:
+        n = max(1, math.ceil(length / step))
+        return [(min(length, i * step), d) for i, d in enumerate(deckle_depths((seed + salt) & 0xFFFFFFFF, n, depth))]
+
+    top = [(r.x + a, r.y + d) for a, d in jag(r.w, 1)]
+    bottom = [(r.x + a, y1 - d) for a, d in jag(r.w, 2)]
+    left = [(r.x + d, r.y + a) for a, d in jag(r.h, 3)]
+    right = [(x1 - d, r.y + a) for a, d in jag(r.h, 4)]
+    return [
+        [(r.x, r.y), (x1, r.y), *reversed(top)],
+        [(r.x, y1), (x1, y1), *reversed(bottom)],
+        [(r.x, r.y), (r.x, y1), *reversed(left)],
+        [(x1, r.y), (x1, y1), *reversed(right)],
+    ]
 
 
 # ── Seven-segment digits ──────────────────────────────────────────────
@@ -337,6 +389,36 @@ def compose_layers(
                     blur=blur if blur > 0 else 0,
                 )
             )
+        elif kind == "pattern":
+            b = box(layer["box"])
+            w = max(1, _px(layer.get("w"), short_edge))
+            h = max(1, _px(layer.get("h"), short_edge))
+            pitch = max(w + 1, _px(layer.get("pitch"), short_edge))
+            cross = _px(layer.get("cross"), short_edge)
+            radius = min(_px(layer.get("radius"), short_edge), min(w, h) // 2)
+            horizontal = layer.get("axis") == "x"
+            length = b.w if horizontal else b.h
+            count = max(0, (length - w) // pitch + 1)
+            # Centre the row so both ends of the strip look the same.
+            start = (length - ((count - 1) * pitch + (w if horizontal else h))) // 2
+            for i in range(count):
+                along = start + i * pitch
+                rect = Rect(b.x + along, b.y + cross, w, h) if horizontal else Rect(b.x + cross, b.y + along, w, h)
+                result.ops.append(DrawOp(
+                    f"{layer_id}-{i}", "rect", rect, layer["color"], _opacity(layer.get("opacity")), layer.get("z") or "under",
+                    radius=radius if radius > 0 else 0,
+                ))
+        elif kind == "deckle":
+            r = _grow(box(layer["box"]), -_px(layer.get("inset"), short_edge))
+            depth = max(2, _px(layer.get("depth"), short_edge))
+            for i, points in enumerate(deckle_bands(r, depth, int(layer.get("seed") or 0))):
+                result.ops.append(DrawOp(f"{layer_id}-{i}", "polygon", r, layer["color"], 1.0, layer.get("z") or "over", points=points))
+        elif kind == "texture":
+            r = box(layer["box"])
+            result.ops.append(DrawOp(
+                layer_id, "texture", r, "#000000", _opacity(layer.get("opacity")), layer.get("z") or "under",
+                texture=str(layer.get("texture") or ""), tile=max(16, _px(layer.get("scale"), short_edge)),
+            ))
         elif kind == "letterbox":
             aspect = layer.get("aspect") or 0
             if aspect <= 0:

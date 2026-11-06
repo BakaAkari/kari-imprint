@@ -284,7 +284,7 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
         path = request.url.path
         if response.status_code in {200, 304} and path.startswith("/assets/"):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        elif response.status_code in {200, 304} and path.startswith("/fonts/"):
+        elif response.status_code in {200, 304} and path.startswith(("/fonts/", "/textures/")):
             response.headers["Cache-Control"] = "public, max-age=86400"
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
@@ -573,10 +573,12 @@ def create_app(settings: Settings | None = None, client=None, *, background=True
 
         return FileResponse(resolve(name, variant, dark))
 
-    from kari_core.core.config_loader import FONTS_DIR
+    from kari_core.core.config_loader import FONTS_DIR, TEXTURES_DIR
 
     if FONTS_DIR.is_dir():
         app.mount("/fonts", StaticFiles(directory=FONTS_DIR), name="fonts")
+    if TEXTURES_DIR.is_dir():
+        app.mount("/textures", StaticFiles(directory=TEXTURES_DIR), name="textures")
 
     web = Path(os.environ.get("KI_WEB_ROOT", str(Path(__file__).resolve().parents[3] / "web" / "dist")))
     if web.is_dir():

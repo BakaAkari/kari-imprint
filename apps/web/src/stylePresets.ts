@@ -36,6 +36,7 @@ import type { LayoutTemplate, PresetCategory } from './templateModel';
 import { EDITORIAL_STYLES, type EditorialStyleId } from './styles/editorial';
 import { OVERLAY_STYLES, type OverlayStyleId } from './styles/overlay';
 import { SOCIAL_STYLES, type SocialStyleId } from './styles/social';
+import { MATERIAL_STYLES, type MaterialStyleId } from './styles/material';
 import { GALLERY_STYLES, type GalleryStyleId } from './styles/gallery';
 import type { StyleKnob } from './styles/knobs';
 
@@ -72,7 +73,7 @@ export interface FramedStylePreset extends StylePresetBase {
 
 export type StylePreset = ControlledStylePreset | FramedStylePreset;
 
-export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId | OverlayStyleId | SocialStyleId;
+export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId | OverlayStyleId | SocialStyleId | MaterialStyleId;
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -414,6 +415,10 @@ function editorial(id: EditorialStyleId, name: string, caption: string): FramedS
   return framed({ id, name, caption, category: 'editorial' }, () => EDITORIAL_STYLES[id].build(), EDITORIAL_STYLES[id].knobs);
 }
 
+function material(id: MaterialStyleId, name: string, caption: string, category: PresetCategory): FramedStylePreset {
+  return framed({ id, name, caption, category }, () => MATERIAL_STYLES[id].build(), MATERIAL_STYLES[id].knobs);
+}
+
 function social(id: SocialStyleId, name: string, caption: string): FramedStylePreset {
   return framed({ id, name, caption, category: 'social' }, () => SOCIAL_STYLES[id].build(), SOCIAL_STYLES[id].knobs);
 }
@@ -455,6 +460,13 @@ export const STYLE_PRESETS: readonly StylePreset[] = deepFreeze([
   social('story-card', '故事卡片', '9:16 画布，标题放在 Instagram 快拍安全区内'),
   social('palette-card', '色卡', '照片下方一排取自照片的色块与色值'),
   social('tonal-mat', '同色卡纸', '卡纸与内衬取自照片自身的颜色'),
+  material('film-135', '135 胶片', '黑色片基、两排齿孔、片边文字与画格编号', 'film'),
+  material('film-120', '120 胶片', '宽片边、片边文字与画格编号，无齿孔', 'film'),
+  material('filed-negative', '锉边底片', '底片夹锉边留下的不规则黑边', 'film'),
+  material('instant', '即显相纸', '薄边、下缘宽厚的相纸与手写标注', 'print'),
+  material('deckle-print', '毛边版画', '手工纸撕边、纸纹与衬线标题，挂在墙上', 'print'),
+  material('vertical-title', '竖排题签', '宣纸纸纹、楷体竖排题签与朱文印', 'cjk'),
+  material('hanging-scroll', '立轴', '天头地头、绫边、轴杆与惊燕', 'cjk'),
 ]);
 
 /** Web editor picker, in display order; the first entry is the initial and reset state. */

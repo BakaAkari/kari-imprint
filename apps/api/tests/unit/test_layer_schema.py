@@ -112,3 +112,13 @@ def test_frame_aspect_safe_area_and_palette_references():
 def test_invalid_canvas_and_colour_references(bad):
     with pytest.raises(ValidationError):
         ImprintPayload.model_validate(_payload(**bad))
+
+
+@pytest.mark.parametrize("layer", [
+    {"id": "t", "kind": "texture", "box": "canvas", "texture": "../../etc/passwd", "scale": 0.5, "opacity": 0.5},
+    {"id": "p", "kind": "pattern", "box": "photo", "axis": "x", "cross": 0, "w": 0.1, "h": 0.1, "pitch": 0.0001, "color": "#000000"},
+    {"id": "d", "kind": "deckle", "box": "photo", "depth": 0.5, "seed": 1, "color": "#000000"},
+])
+def test_material_layers_are_bounded(layer):
+    with pytest.raises(ValidationError):
+        ImprintPayload.model_validate(_payload(layers=[layer]))

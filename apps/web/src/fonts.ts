@@ -16,9 +16,10 @@ export function registerFonts(): void {
     // style first draws with them (the canvas redraws on `loadingdone`).
     ['KariSerif', '400', 'NotoSerifCJKsc-Regular.otf', false],
     ['KariSerif', '700', 'NotoSerifCJKsc-Bold.otf', false],
+    ['KariKai', '400', 'LXGWWenKai-Regular.ttf', false],
   ];
   for (const [family, weight, file, eager] of faces) {
-    const face = new FontFace(family, `url("${API_BASE}/api/fonts/${file}") format("opentype")`, { weight, style: 'normal', display: 'swap' });
+    const face = new FontFace(family, `url("${API_BASE}/api/fonts/${file}") format("${file.endsWith('.ttf') ? 'truetype' : 'opentype'}")`, { weight, style: 'normal', display: 'swap' });
     document.fonts.add(face);
     if (eager) void face.load().catch(() => { /* fall back to the system stack */ });
   }

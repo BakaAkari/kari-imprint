@@ -10,6 +10,10 @@ import { AlbumHeader, Tray, failureText } from './album';
 import { Editor, editableConfig, serializeEditorConfig, type Commit } from './editor';
 import { applyStylePreset, differingSections, frameRegion, selectionElementId, selectionFromElementId, setFramePosition, type Selection } from './editor-state';
 import { buildFramedStyle, IMMICH_STYLE_PRESETS } from '../../../web/src/stylePresets';
+import { setTextureBase } from '../../../web/src/KariImprintCanvas';
+
+// The companion serves material textures beside its fonts.
+setTextureBase('/textures/');
 import { Gallery, photoStatus, STATUS_LABEL, useGallery, type GalleryFilter } from './gallery';
 import { useEditorDoc } from './history';
 import { Filmstrip, PreviewStage } from './preview';

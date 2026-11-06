@@ -547,6 +547,21 @@ The user authorised end-to-end implementation on 2026-11-07, with the recommende
 | M5 | **D4**: the palette (`palette_1`…`palette_6`, median-cut, most populous first) is computed in Python and travels with the EXIF fields. Ops reference it as `@palette_N[:pale/soft/deep]`, resolved at paint time in both renderers; the browser never extracts colours. | One set of hex values for preview and output; the renderer stays a pure function of config and fields |
 | M5 | `frame_aspect` grows the canvas around the **uncropped, unscaled** photo using integer cross-multiplication; `safe_area` (`ig-story` per Meta's Story ad specs, or `even`) exposes a `safe` box | "No-crop" posts without resampling the photo; platform guidance stays data |
 | M5 | Palette swatches are `rect` layers with colour references; hex labels are `palette_N` text chips | No new primitive needed |
+| M6 | **Torn and filed edges are integer polygons from a shared xorshift32 stream**: four bands per box, frozen by the parity run | Seeded "randomness" with exact geometry in both languages |
+| M6 | `pattern` emits ordinary rounded-rect ops (sprocket rows centred on the strip); 135 proportions are 2.79 × 1.98 mm holes on a 4.75 mm pitch against a 24 mm frame | No new paint op; rebate geometry is data |
+| M6 | **D5**: textures (paper, silk, grain) are **procedurally generated** by `scripts/generate_textures.py` (seeded, seamless, greyscale) and committed to `assets/textures` (about 300 KB). They are multiplied in bands in PIL and as a canvas pattern; served at `/api/textures` (web) and `/textures` (immich-ki). | Licence-clean original assets, bounded memory at 400+ MP |
+| M6 | **D2** extended: LXGW WenKai v1.530 (OFL 1.1; its licence allows renamed web subsets) as the `kai` role for handwritten and CJK inscription text, pinned in `fetch_fonts.sh` | Instant captions, vertical titles and seals need a brush-like CJK face |
+| M6 | Vertical CJK text now honours its anchor in the Canvas preview exactly like PIL (top / middle / bottom of the glyph stack). Punctuation repositioning and rotated Latin runs are **deferred**. | Fixed a preview/output mismatch for non-centred anchors; the refinements need per-glyph tables |
+| M6 | Measured render times at 50 MP (local, render only): 0.13–1.04 s per style; deckle-print (paper texture over the whole canvas) is the slowest | Within the plan's 4 s budget; NAS timing still to be measured |
+
+### Implementation status (2026-11-07)
+
+M1–M6 are implemented: 33 catalog styles (8 original, plus 25 engine-built families) in `apps/web/src/stylePresets.ts`. Every style's TS/Python layout parity is checked by `scripts/verify_flow_layout_parity.py` (86 fixtures). Not done or not verified:
+- the web editor still lists only its three controlled presets, and the new families ship in immich-ki;
+- the browser preview of the new families was not exercised in a real browser;
+- immich-ki worker tests need Linux (`fcntl`);
+- the headless-browser pixel diff (D9) is not built;
+- vertical-CJK punctuation and rotated Latin runs are deferred.
 
 ## Sources and verification notes
 

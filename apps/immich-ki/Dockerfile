@@ -22,6 +22,7 @@ COPY apps/api apps/api
 COPY apps/immich-ki/worker apps/immich-ki/worker
 COPY assets/fonts assets/fonts
 COPY assets/logos assets/logos
+COPY assets/textures assets/textures
 COPY pyproject.toml pyproject.toml
 RUN pip install --no-cache-dir -c apps/immich-ki/worker/requirements.lock -e ./packages/kari-core -e ./apps/api -e ./apps/immich-ki/worker \
     && groupadd --gid 10001 imprint && useradd --uid 10001 --gid imprint --no-create-home imprint \
@@ -29,7 +30,7 @@ RUN pip install --no-cache-dir -c apps/immich-ki/worker/requirements.lock -e ./p
 COPY --from=web /app/apps/immich-ki/web/dist /app/web
 RUN mkdir -p /app/assets/logos /app/packages/kari-core/config/templates
 ENV KARI_IMPRINT_ASSETS_DIR=/app/assets KARI_IMPRINT_ROOT=/app KI_WEB_ROOT=/app/web
-RUN chmod -R a+rX /app/assets/fonts /app/assets/logos
+RUN chmod -R a+rX /app/assets/fonts /app/assets/logos /app/assets/textures
 USER 10001:10001
 RUN python -c "from PIL import ImageFont; from kari_core.core.config_loader import FONTS_DIR; [ImageFont.truetype(str(FONTS_DIR / name), 48) for name in ('NotoSansCJKsc-Bold.otf', 'NotoSansCJKsc-Regular.otf')]"
 EXPOSE 2285

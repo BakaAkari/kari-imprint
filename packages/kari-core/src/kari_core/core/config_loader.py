@@ -35,6 +35,7 @@ ASSETS_DIR = Path(
 ).resolve()
 FONTS_DIR = ASSETS_DIR / "fonts"
 LOGOS_DIR = ASSETS_DIR / "logos"
+TEXTURES_DIR = ASSETS_DIR / "textures"
 TEMPLATES_DIR = CONFIG_DIR / "templates"
 # 这里不能用 PROJECT_ROOT / "pyproject.toml"，因为现在包结构下 pyproject.toml 在上层 workspace 目录。
 # 使用给定根目录环境变量或回退到当前文件的父父父目录（workspace root）。

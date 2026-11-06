@@ -24,9 +24,11 @@ def test_catalog_style_renders(case):
     out = render_pil(layout, Image.new("RGB", (w // scale, h // scale), (120, 130, 140)), bg_color=config.canvas.background,
                      field_values=FIELDS, custom_text="Title", config=config)
     assert out.size == (layout.canvas.w, layout.canvas.h)
-    # The photo pixels survive inside the window.
+    # The photo pixels survive inside the window (unless the style lays film grain over them).
+    grained = any(layer.get("kind") == "texture" and layer.get("z") == "over" for layer in case["config"].get("layers") or [])
     centre = (layout.image_rect.x + layout.image_rect.w // 2, layout.image_rect.y + layout.image_rect.h // 2)
-    assert out.getpixel(centre)[:3] == (120, 130, 140)
+    if not grained:
+        assert out.getpixel(centre)[:3] == (120, 130, 140)
 
 
 def test_gallery_mat_draws_the_bevel_core_against_the_photo():

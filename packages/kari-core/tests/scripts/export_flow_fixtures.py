@@ -112,6 +112,7 @@ def main() -> None:
                 "id": op.id, "op": op.op,
                 "rect": {"x": op.rect.x, "y": op.rect.y, "w": op.rect.w, "h": op.rect.h},
                 "color": op.color, "opacity": op.opacity, "z": op.z, "radius": op.radius, "blur": op.blur,
+                "points": [list(point) for point in op.points] if op.points else None, "texture": op.texture, "tile": op.tile,
             } for op in layout.ops],
             "elements": [{
                 "id": el.id, "type": el.type,
@@ -130,6 +131,7 @@ def main() -> None:
             "ops": [{
                 "id": op.id, "rect": {"x": op.rect.x, "y": op.rect.y, "w": op.rect.w, "h": op.rect.h},
                 "color": op.color, "opacity": op.opacity, "z": op.z, "radius": op.radius, "blur": op.blur,
+                "points": [list(point) for point in op.points] if op.points else None, "texture": op.texture, "tile": op.tile,
             } for op in layout.ops],
             "elements": [{
                 "id": el.id, "type": el.type,

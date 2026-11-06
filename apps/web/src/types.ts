@@ -83,7 +83,8 @@ export interface PaddingConfig {
 }
 export type FontFamily =
   | 'NotoSansCJKsc-Regular.otf' | 'NotoSansCJKsc-Bold.otf'
-  | 'NotoSerifCJKsc-Regular.otf' | 'NotoSerifCJKsc-Bold.otf';
+  | 'NotoSerifCJKsc-Regular.otf' | 'NotoSerifCJKsc-Bold.otf'
+  | 'LXGWWenKai-Regular.ttf';
 
 export interface StyleConfig {
   font_size: number | null;
