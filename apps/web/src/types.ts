@@ -8,6 +8,9 @@
  */
 
 import { FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS, FOOTER_HEIGHT_RATIOS } from './designTokens';
+import type { LayerConfig } from './layout/compose';
+
+export type { LayerConfig } from './layout/compose';
 
 export type FieldId =
   | 'camera_model'
@@ -155,6 +158,8 @@ export const MAX_PHOTO_RADIUS = 0.08;
 
 export interface CanvasConfig {
   margins: MarginsConfig;
+  /** 'short_edge_ratio' margins are fractions of the photo short edge (resolution-independent). */
+  margin_unit?: 'pixel' | 'short_edge_ratio';
   background: string;
   /** Deprecated: no longer applied by preview or output (JPEG cannot hold transparent corners); use effect.photo_radius. */
   border_radius: number;
@@ -172,6 +177,8 @@ export interface ImprintConfig {
   preset_id?: string;
   /** Logo 在底栏的位置：左/中/右。 */
   logo_position?: LogoPosition;
+  /** Construction layers (mats, keylines, rules, fills, text); see layout/compose.ts. */
+  layers?: LayerConfig[] | null;
 }
 
 export const fieldOptions: { id: FieldId; label: string }[] = [

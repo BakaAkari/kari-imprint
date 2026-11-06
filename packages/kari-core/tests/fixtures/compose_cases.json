@@ -1,0 +1,72 @@
+[
+  {
+    "id": "double-mat-bevel-drop",
+    "image": [3000, 2000],
+    "config": {
+      "schema_version": 3,
+      "canvas": {
+        "margins": {"top": 0.12, "right": 0.12, "bottom": 0.155, "left": 0.12},
+        "margin_unit": "short_edge_ratio",
+        "background": "#F3F0E8",
+        "border_radius": 0,
+        "border": {"enabled": false, "width_level": "medium", "color": "#FFFFFF"}
+      },
+      "regions": [],
+      "defaults": {"font_size": null, "font_size_level": "medium", "font_size_ratio": null, "size_reference": "region_height", "color": "#222222", "font_family": "NotoSansCJKsc-Regular.otf", "bold": false, "line_height": 1.2, "text_direction": null},
+      "layers": [
+        {"id": "outer-line", "kind": "keyline", "box": "photo", "offset": 0.06, "width": 0.0007, "color": "#C9C2B3"},
+        {"id": "mat", "kind": "mat", "reveal": {"width": 0.0045, "color": "#6B4E3D"}, "core": {"width": 0.0025, "color": "#FBFAF6", "bevel": true}},
+        {"id": "caption", "kind": "text", "box": "margin-bottom", "anchor": "top-center", "offset_y": 0.035, "size": 0.016, "content": {"chips": [{"field_id": "custom_text", "custom_text": "North Shore, Winter"}], "separator": " "}, "style": {"color": "#55504A"}}
+      ]
+    }
+  },
+  {
+    "id": "footer-with-rule-and-overlay",
+    "image": [1200, 800],
+    "config": {
+      "schema_version": 3,
+      "canvas": {
+        "margins": {"top": 40, "right": 40, "bottom": 0, "left": 40},
+        "background": "#FFFFFF",
+        "border_radius": 0,
+        "border": {"enabled": false, "width_level": "medium", "color": "#FFFFFF"}
+      },
+      "regions": [
+        {
+          "id": "footer", "type": "footer-bar", "enabled": true, "height": 0.12,
+          "layout": {"mode": "single-track", "main_alignment": "space-between", "cross_alignment": "center", "track_order": "photo-outward", "track_gap": {"mode": "short_edge_ratio", "value": 0.012}, "item_gap": {"mode": "short_edge_ratio", "value": 0.012}, "track_ratios": [0.6, 0.4]},
+          "slots": {
+            "primary-start": {"enabled": true, "content": {"chips": [{"field_id": "camera_model"}], "separator": " "}, "style": null}
+          }
+        }
+      ],
+      "defaults": {"font_size": null, "font_size_level": "medium", "font_size_ratio": null, "size_reference": "region_height", "color": "#222222", "font_family": "NotoSansCJKsc-Bold.otf", "bold": true, "line_height": 1.2, "text_direction": null},
+      "layers": [
+        {"id": "hair", "kind": "rule", "box": "margin-bottom", "edge": "top", "offset": -0.012, "width": 0.001, "inset": 0.05, "color": "#222222"},
+        {"id": "veil", "kind": "fill", "box": "photo", "outset": -0.25, "color": "#000000", "opacity": 0.35, "z": "over"},
+        {"id": "inner", "kind": "keyline", "box": "photo", "offset": -0.02, "width": 0.002, "color": "#FFFFFF", "opacity": 0.8, "z": "over"}
+      ]
+    }
+  },
+  {
+    "id": "side-rules-and-anchored-text",
+    "image": [800, 1200],
+    "config": {
+      "schema_version": 3,
+      "canvas": {
+        "margins": {"top": 0.08, "right": 0.2, "bottom": 0.08, "left": 0.08},
+        "margin_unit": "short_edge_ratio",
+        "background": "#111111",
+        "border_radius": 0,
+        "border": {"enabled": false, "width_level": "medium", "color": "#FFFFFF"}
+      },
+      "regions": [],
+      "defaults": {"font_size": null, "font_size_level": "medium", "font_size_ratio": null, "size_reference": "region_height", "color": "#222222", "font_family": "NotoSansCJKsc-Bold.otf", "bold": true, "line_height": 1.2, "text_direction": null},
+      "layers": [
+        {"id": "spine", "kind": "rule", "box": "margin-right", "edge": "left", "offset": -0.04, "width": 0.0015, "color": "#F5F5F5"},
+        {"id": "title", "kind": "text", "box": "margin-right", "anchor": "top-left", "offset_x": 0.06, "offset_y": 0.01, "max_width": 0.7, "size": 0.03, "content": {"chips": [{"field_id": "camera_model"}, {"field_id": "focal_length"}], "separator": " · "}, "style": {"color": "#F5F5F5", "font_family": "NotoSansCJKsc-Regular.otf", "bold": false}},
+        {"id": "fill-left", "kind": "fill", "box": "margin-left", "color": "#2A2A2A"}
+      ]
+    }
+  }
+]

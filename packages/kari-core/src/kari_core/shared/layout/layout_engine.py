@@ -13,6 +13,8 @@ import math
 from dataclasses import dataclass, field, replace
 from typing import Literal
 
+from kari_core.shared.layout.compose import DrawOp, compose_layers
+
 # ── 基础几何 ─────────────────────────────────
 
 
@@ -57,10 +59,10 @@ class Size:
 
 @dataclass(slots=True)
 class MarginsConfig:
-    top: int = 0
-    right: int = 0
-    bottom: int = 0
-    left: int = 0
+    top: int | float = 0
+    right: int | float = 0
+    bottom: int | float = 0
+    left: int | float = 0
 
 
 @dataclass(slots=True)
@@ -90,6 +92,8 @@ class CanvasConfig:
     border_radius: int = 0
     border: BorderConfig | None = None
     effect: EffectConfig | None = None
+    # 'short_edge_ratio' margins are fractions of the photo short edge (resolution-independent).
+    margin_unit: Literal["pixel", "short_edge_ratio"] = "pixel"
 
 
 @dataclass(slots=True)
@@ -187,6 +191,8 @@ class ImprintConfig:
     regions: list[RegionConfig] = field(default_factory=list)
     defaults: StyleConfig = field(default_factory=StyleConfig)
     custom_text: str = ""
+    # Construction layers (mats, keylines, rules, fills, text); see compose.py.
+    layers: list[dict] = field(default_factory=list)
 
 
 # ── 布局结果 ─────────────────────────────────
@@ -207,6 +213,8 @@ class LayoutResult:
     canvas: Size
     image_rect: Rect
     elements: list[ComputedElement] = field(default_factory=list)
+    # Geometric draw ops from ``config.layers``, in paint order.
+    ops: list[DrawOp] = field(default_factory=list)
 
 
 # ── Layout Diagnostics ─────────────────────────────────
@@ -317,6 +325,12 @@ def compute_layout(
     short_edge = min(image_w, image_h)
     long_edge = max(image_w, image_h)
 
+    if config.canvas.margin_unit == "short_edge_ratio":
+        margins.top = round(short_edge * margins.top)
+        margins.right = round(short_edge * margins.right)
+        margins.bottom = round(short_edge * margins.bottom)
+        margins.left = round(short_edge * margins.left)
+
     # footer-bar 的 height 为占短边比例，在此解析为实际像素底部边距
     has_footer = False
     for region in config.regions:
@@ -388,7 +402,10 @@ def compute_layout(
         elif region.type == "free":
             elements.extend(_compute_free(region, image_rect, config.defaults, short_edge, long_edge))
 
-    return LayoutResult(canvas=canvas, image_rect=image_rect, elements=elements)
+    composed = compose_layers(config.layers, image_rect, canvas, short_edge, config.defaults)
+    elements.extend(composed.elements)
+
+    return LayoutResult(canvas=canvas, image_rect=image_rect, elements=elements, ops=composed.ops)
 
 
 def compute_layout_with_diagnostics(

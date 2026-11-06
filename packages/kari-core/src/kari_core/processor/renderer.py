@@ -701,6 +701,30 @@ def _draw_divider_element(
     canvas.alpha_composite(layer.crop(crop), dest=(x0, y0))
 
 
+def _draw_ops(canvas: Image.Image, ops: list, z: str) -> None:
+    """Paint integer-aligned rect ops; identical pixels to the Canvas preview."""
+    draw: ImageDraw.ImageDraw | None = None
+    for op in ops:
+        if op.z != z or op.opacity <= 0:
+            continue
+        x0 = max(0, op.rect.x)
+        y0 = max(0, op.rect.y)
+        x1 = min(canvas.width, op.rect.x + op.rect.w)
+        y1 = min(canvas.height, op.rect.y + op.rect.h)
+        if x1 <= x0 or y1 <= y0:
+            continue
+        r, g, b, a = _parse_color(op.color)
+        alpha = round(a * op.opacity)
+        if alpha >= 255:
+            draw = draw or ImageDraw.Draw(canvas)
+            draw.rectangle([(x0, y0), (x1 - 1, y1 - 1)], fill=(r, g, b, 255))
+            continue
+        # Translucent: composite only the covered region, never the whole canvas.
+        region = canvas.crop((x0, y0, x1, y1))
+        region.alpha_composite(Image.new("RGBA", region.size, (r, g, b, alpha)))
+        canvas.paste(region, (x0, y0))
+
+
 def render_pil(
     layout: LayoutResult,
     image: Image.Image,
@@ -759,6 +783,9 @@ def render_pil(
         if bottom_gap > 0 and not has_footer:
             draw.rectangle([(0, ir.y + ir.h), (layout.canvas.w, layout.canvas.h)], fill=color)
 
+    # 2b. 照片下方的构造层（卡纸、细线、底色）
+    _draw_ops(canvas, layout.ops, "under")
+
     # 3. 粘贴照片主体（RGB 直接粘贴，避免整幅 RGBA 拷贝）
     radius = photo_radius_px(effect, ir)
     corner_backgrounds = save_corner_backgrounds(canvas, ir, radius) if radius > 0 else []
@@ -768,6 +795,9 @@ def render_pil(
         canvas.paste(image.convert("RGBA") if image.mode != "RGBA" else image, (ir.x, ir.y))
     if radius > 0:
         round_photo_corners(canvas, ir, radius, corner_backgrounds)
+
+    # 3b. 照片上方的构造层
+    _draw_ops(canvas, layout.ops, "over")
 
     # 4. 按 LayoutResult 顺序绘制所有元素
     field_values = field_values or {}

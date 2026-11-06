@@ -149,7 +149,7 @@ class TestRendererLogoContain:
             assert result is not None
             # Upscaled to contain within 200x100 — the visible box matches large logos.
             assert result.size == (100, 100)
-            Path(f.name).unlink()
+        Path(f.name).unlink()  # after close: Windows cannot delete an open file
 
     def test_logo_larger_than_rect_scaled_down_contain(self):
         """If logo is larger, scale down preserving aspect ratio (contain)."""
@@ -173,7 +173,7 @@ class TestRendererLogoContain:
             # 300x200 to fit in 100x50: scale = min(100/300, 50/200) = min(0.333, 0.25) = 0.25
             # new_w = 300 * 0.25 = 75, new_h = 200 * 0.25 = 50
             assert result.size == (75, 50)
-            Path(f.name).unlink()
+        Path(f.name).unlink()  # after close: Windows cannot delete an open file
 
     def test_logo_wide_vs_tall_contain(self):
         """Very wide logo is constrained by width."""
@@ -196,7 +196,7 @@ class TestRendererLogoContain:
             # 600x50 to fit in 100x100: scale = min(100/600, 100/50) = min(0.167, 2.0) = 0.167
             # new_w = 600 * 0.167 = 100, new_h = 50 * 0.167 = 8
             assert result.size == (100, 8)
-            Path(f.name).unlink()
+        Path(f.name).unlink()  # after close: Windows cannot delete an open file
 
 
     def test_logo_no_path_returns_placeholder(self):

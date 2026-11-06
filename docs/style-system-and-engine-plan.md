@@ -518,6 +518,19 @@ Dependencies: **M1 is required by everything.** After M1, M2–M6 can be reorder
 | D8 | First milestone scope | M2 gallery as the first visible proof vs M5 social first (more reach, less distinctive) | M2 |
 | D9 | CI cost | Add headless Chromium render-diff to CI (~1–2 min) | Yes; otherwise paint parity is unverified |
 
+## 8. Implementation decision log
+
+The user authorised end-to-end implementation on 2026-11-07, with the recommended options. Decisions taken while building, and why:
+
+| When | Decision | Why |
+|---|---|---|
+| M1 | **D1 = (a)**: layout stays dual (TS + Python), frozen by fixtures | Instant preview in both apps; geometry parity proven by `compose_cases.json` |
+| M1 | **Additive schema instead of a v4 migration.** `layers[]` and `canvas.margin_unit` are optional fields on schema v3. Dumps omit them when unset, so every stored config, album look and render key stays byte-identical. This supersedes D3 for now. | A one-way migration of every stored immich-ki config is risky and buys nothing until a field actually has to change shape. `regions[]` keeps working as the information-bar layer. |
+| M1 | **Layer lengths are always short-edge ratios** (no `Length` unit union yet) | One unit covers every family designed so far. A `unit` field can be added later without breaking stored data. |
+| M1 | **Geometric layers lower to axis-aligned integer `rect` ops only.** Keylines, rules, mat reveals and bevel cores are rect rings, and the bevel is lit/shaded faces as flat colours. | Canvas `fillRect` and PIL `rectangle` on integer boxes produce identical pixels, so these primitives get exact pixel parity, not just tolerance parity. |
+| M1 | **Text layers become ordinary text elements** and reuse the existing fit-and-draw path. A metrics pack is deferred. | Same measurement behaviour as today's bar text. A metrics pack is only needed once wrapping and justified layout arrive. |
+| M1 | Draw-op opacity uses region-local compositing in PIL | Keeps translucent ops cheap at 400+ MP |
+
 ## Sources and verification notes
 
 - Font licences were read from each project's repository on 2026-11-07: LXGW WenKai, Inter, IBM Plex, Fraunces, DSEG, EB Garamond 12, Instrument Serif and Space Grotesk all state SIL OFL 1.1. Fraunces is variable (opsz, wght, SOFT, WONK axes); Inter is variable and also ships static files; LXGW WenKai is static, with variable weights not planned.

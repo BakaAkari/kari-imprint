@@ -15,7 +15,7 @@ const fakeMeasure = (_el: unknown, text: string, size: number) => Array.from(tex
 
 const fixturePath = resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/flow_layout_cases.json');
 const cases = JSON.parse(readFileSync(fixturePath, 'utf8')) as Array<any>;
-const output = cases.map((entry) => {
+const output: Record<string, unknown>[] = cases.map((entry) => {
   const raw = entry.config.regions[0];
   const slots = Object.fromEntries(Object.entries(raw.slots).map(([id, value]: [string, any]) => [id, {
     enabled: value.enabled,
@@ -62,4 +62,19 @@ const output = cases.map((entry) => {
   }
   return result;
 });
+
+const composePath = resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/compose_cases.json');
+for (const entry of JSON.parse(readFileSync(composePath, 'utf8')) as Array<any>) {
+  const layout = computeLayout(structuredClone(entry.config) as ImprintConfig, entry.image[0], entry.image[1]);
+  output.push({
+    id: `compose:${entry.id}`,
+    canvas: layout.canvas,
+    image_rect: layout.image_rect,
+    ops: layout.ops.map(op => ({ id: op.id, op: op.op, rect: op.rect, color: op.color, opacity: op.opacity, z: op.z })),
+    elements: layout.elements.filter(el => el.type === 'text').map(el => ({
+      id: el.id, type: el.type, rect: el.rect, anchor: el.anchor,
+      font_size: el.style.font_size, color: el.style.color, font_family: el.style.font_family,
+    })),
+  });
+}
 process.stdout.write(JSON.stringify(output));

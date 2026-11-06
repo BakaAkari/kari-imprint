@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
+from kari_core.processor.kari_imprint import _dict_to_imprint_config  # noqa: E402
 from kari_core.shared.layout.layout_engine import (  # noqa: E402
     CanvasConfig,
     EffectConfig,
@@ -24,6 +25,7 @@ from kari_core.shared.layout.layout_engine import (  # noqa: E402
 from kari_core.shared.layout.text_fit import fit_layout_texts  # noqa: E402
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "flow_layout_cases.json"
+COMPOSE_FIXTURES = Path(__file__).parents[1] / "fixtures" / "compose_cases.json"
 
 
 def fake_measure(_element, text: str, size: int) -> float:
@@ -66,7 +68,7 @@ def build(case: dict) -> ImprintConfig:
 
 def main() -> None:
     output = []
-    for case in json.loads(FIXTURES.read_text()):
+    for case in json.loads(FIXTURES.read_text(encoding="utf-8")):
         layout = compute_layout(build(case), *case["image"], case.get("asset_aspect_ratio"))
         entry = {
             "id": case["id"],
@@ -90,6 +92,24 @@ def main() -> None:
                 for element_id, value in sorted(fitted.items())
             }
         output.append(entry)
+    for case in json.loads(COMPOSE_FIXTURES.read_text(encoding="utf-8")):
+        layout = compute_layout(_dict_to_imprint_config(case["config"]), *case["image"])
+        output.append({
+            "id": f"compose:{case['id']}",
+            "canvas": {"w": layout.canvas.w, "h": layout.canvas.h},
+            "image_rect": {"x": layout.image_rect.x, "y": layout.image_rect.y, "w": layout.image_rect.w, "h": layout.image_rect.h},
+            "ops": [{
+                "id": op.id, "op": op.op,
+                "rect": {"x": op.rect.x, "y": op.rect.y, "w": op.rect.w, "h": op.rect.h},
+                "color": op.color, "opacity": op.opacity, "z": op.z,
+            } for op in layout.ops],
+            "elements": [{
+                "id": el.id, "type": el.type,
+                "rect": {"x": el.rect.x, "y": el.rect.y, "w": el.rect.w, "h": el.rect.h},
+                "anchor": el.anchor, "font_size": el.style.font_size, "color": el.style.color,
+                "font_family": el.style.font_family,
+            } for el in layout.elements if el.type == "text"],
+        })
     print(json.dumps(output, separators=(",", ":"), ensure_ascii=False))
 
 

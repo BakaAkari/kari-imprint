@@ -204,10 +204,12 @@ def _dict_to_imprint_config(data: dict):
                 photo_radius=_effect_radius(effect.get("photo_radius", 0.0)),
                 shadow=effect.get("shadow") is True,
             ) if isinstance(effect, dict) else None,
+            margin_unit="short_edge_ratio" if canvas.get("margin_unit") == "short_edge_ratio" else "pixel",
         ),
         regions=[_region(r) for r in data.get("regions", [])],
         defaults=_style(data.get("defaults")) or StyleConfig(),
         custom_text=data.get("custom_text", ""),
+        layers=[layer for layer in data.get("layers") or [] if isinstance(layer, dict)],
     )
 
 

@@ -10,6 +10,7 @@
 
 import { BORDER_WIDTH_RATIOS, FONT_SIZE_RATIOS, LOGO_SIZE_RATIOS, SIGNATURE_SIZE_RATIOS } from '../designTokens';
 import { dividerColor, resolveInkScheme, resolveTextColor } from '../colorScheme';
+import { composeLayers, type DrawOp, type LayerConfig } from './compose';
 
 // ── 基础几何 ────────────────────────────────────────────
 
@@ -64,6 +65,8 @@ export interface CanvasEffect {
 
 export interface CanvasConfig {
   margins: MarginsConfig;
+  /** 'short_edge_ratio' margins are fractions of the photo short edge (resolution-independent). */
+  margin_unit?: 'pixel' | 'short_edge_ratio';
   background: string;
   border_radius: number;
   border: BorderConfig;
@@ -160,6 +163,7 @@ export interface ImprintConfig {
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;
+  layers?: LayerConfig[] | null;
 }
 
 // ── 布局结果 ────────────────────────────────────────────
@@ -179,6 +183,8 @@ export interface LayoutResult {
   canvas: Size;
   image_rect: Rect;
   elements: ComputedElement[];
+  /** Geometric draw ops from `config.layers`, in paint order. */
+  ops: DrawOp[];
 }
 
 // ── Layout Diagnostics ───────────────────────────────────────
@@ -227,6 +233,13 @@ export function computeLayout(
   const margins = config.canvas.margins;
   const shortEdge = Math.min(imageW, imageH);
   const longEdge = Math.max(imageW, imageH);
+
+  if (config.canvas.margin_unit === 'short_edge_ratio') {
+    margins.top = pyRound(shortEdge * margins.top);
+    margins.right = pyRound(shortEdge * margins.right);
+    margins.bottom = pyRound(shortEdge * margins.bottom);
+    margins.left = pyRound(shortEdge * margins.left);
+  }
 
   // footer-bar 的 height 为占短边比例，在此解析为实际像素底部边距
   let hasFooter = false;
@@ -289,7 +302,10 @@ export function computeLayout(
     }
   }
 
-  return { canvas, image_rect: imageRect, elements };
+  const composed = composeLayers(config.layers, imageRect, canvas, shortEdge, config.defaults);
+  elements.push(...composed.elements);
+
+  return { canvas, image_rect: imageRect, elements, ops: composed.ops };
 }
 
 export function computeLayoutWithDiagnostics(

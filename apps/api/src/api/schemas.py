@@ -7,7 +7,7 @@ All validators are strict (extra=forbid) to prevent accidental field injection.
 from __future__ import annotations
 
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -251,10 +251,12 @@ class RegionConfigPayload(StrictModel):
 
 
 class MarginsConfigPayload(StrictModel):
-    top: int = Field(default=0, ge=0, le=600)
-    right: int = Field(default=0, ge=0, le=600)
-    bottom: int = Field(default=0, ge=0, le=600)
-    left: int = Field(default=0, ge=0, le=600)
+    # Pixels (integers, 0..600) by default; short-edge ratios (0..1) when
+    # canvas.margin_unit == "short_edge_ratio" (checked on the canvas).
+    top: int | float = Field(default=0, ge=0, le=600)
+    right: int | float = Field(default=0, ge=0, le=600)
+    bottom: int | float = Field(default=0, ge=0, le=600)
+    left: int | float = Field(default=0, ge=0, le=600)
 
 
 class BorderConfigPayload(StrictModel):
@@ -291,19 +293,155 @@ class CanvasConfigPayload(StrictModel):
     border_radius: int = Field(default=0, ge=0, le=300)
     border: BorderConfigPayload | None = None
     effect: CanvasEffectPayload | None = None
+    margin_unit: Literal["pixel", "short_edge_ratio"] = "pixel"
+
+    @model_validator(mode="after")
+    def _margins_match_unit(self) -> CanvasConfigPayload:
+        values = (self.margins.top, self.margins.right, self.margins.bottom, self.margins.left)
+        if self.margin_unit == "pixel":
+            if any(isinstance(v, float) and not v.is_integer() for v in values):
+                raise ValueError("像素边距必须为整数")
+        elif any(v > 1.0 for v in values):
+            raise ValueError("短边比例边距不能大于 1")
+        return self
 
     @model_serializer(mode="wrap")
     def _omit_missing_effect(self, handler: Any) -> Any:
-        # Keep dumps of pre-effect configs byte-identical (no "effect": null).
+        # Keep dumps of pre-effect / pre-ratio configs byte-identical
+        # (no "effect": null, no default "margin_unit").
         data = handler(self)
-        if isinstance(data, dict) and data.get("effect") is None:
-            data.pop("effect", None)
+        if isinstance(data, dict):
+            if data.get("effect") is None:
+                data.pop("effect", None)
+            if data.get("margin_unit") == "pixel":
+                data.pop("margin_unit", None)
         return data
 
     @field_validator("background")
     @classmethod
     def valid_color(cls, value: str) -> str:
         return _validate_color(value)
+
+
+# ── Construction layers (mirror of apps/web/src/layout/compose.ts) ───────
+
+_LAYER_ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+BoxRef = Literal["photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right"]
+FontFamily = Literal["NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf"]
+
+
+def _drop_none(data: Any) -> Any:
+    if isinstance(data, dict):
+        return {key: value for key, value in data.items() if value is not None}
+    return data
+
+
+class _LayerBase(StrictModel):
+    # Every layer length is a ratio of the photo short edge.
+    id: str = Field(min_length=1, max_length=64, pattern=_LAYER_ID)
+    z: Literal["under", "over"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler: Any) -> Any:
+        return _drop_none(handler(self))
+
+
+class FillLayerPayload(_LayerBase):
+    kind: Literal["fill"]
+    box: BoxRef
+    outset: float | None = Field(default=None, ge=-0.5, le=1.0)
+    color: Color
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
+class KeylineLayerPayload(_LayerBase):
+    kind: Literal["keyline"]
+    box: BoxRef
+    offset: float = Field(ge=-0.5, le=0.5)
+    width: float = Field(gt=0.0, le=0.2)
+    color: Color
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
+class RuleLayerPayload(_LayerBase):
+    kind: Literal["rule"]
+    box: BoxRef
+    edge: Literal["top", "bottom", "left", "right"]
+    offset: float = Field(ge=-0.5, le=0.5)
+    width: float = Field(gt=0.0, le=0.2)
+    inset: float | None = Field(default=None, ge=0.0, le=0.5)
+    color: Color
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
+class MatBandPayload(StrictModel):
+    width: float = Field(gt=0.0, le=0.2)
+    color: Color
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
+class MatCorePayload(MatBandPayload):
+    bevel: bool = False
+
+
+class MatLayerPayload(_LayerBase):
+    kind: Literal["mat"]
+    reveal: MatBandPayload | None = None
+    core: MatCorePayload | None = None
+
+
+class LayerTextStylePayload(StrictModel):
+    color: Color | None = None
+    font_family: FontFamily | None = None
+    bold: bool | None = None
+    line_height: float | None = Field(default=None, ge=0.5, le=3.0)
+    text_direction: Literal["horizontal", "rotate-cw", "rotate-ccw", "vertical-glyphs"] | None = None
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str | None) -> str | None:
+        return None if value is None else _validate_color(value)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler: Any) -> Any:
+        return _drop_none(handler(self))
+
+
+class TextLayerPayload(_LayerBase):
+    kind: Literal["text"]
+    box: BoxRef
+    anchor: Anchor = "middle-center"
+    offset_x: float | None = Field(default=None, ge=-1.0, le=1.0)
+    offset_y: float | None = Field(default=None, ge=-1.0, le=1.0)
+    max_width: float | None = Field(default=None, gt=0.0, le=1.0)
+    size: float = Field(ge=0.002, le=0.5)
+    content: TextContentPayload
+    style: LayerTextStylePayload | None = None
+
+
+LayerPayload = Annotated[
+    FillLayerPayload | KeylineLayerPayload | RuleLayerPayload | MatLayerPayload | TextLayerPayload,
+    Field(discriminator="kind"),
+]
 
 
 # ── Root payload ─────────────────────────────────────────────────────────
@@ -316,6 +454,23 @@ class ImprintPayload(StrictModel):
     defaults: StyleConfigPayload = Field(default_factory=StyleConfigPayload)
     custom_text: str = Field(default="", max_length=160)
     logo_position: Literal["left", "center", "right"] = "right"
+    layers: list[LayerPayload] = Field(default_factory=list, max_length=24)
+
+    @field_validator("layers")
+    @classmethod
+    def unique_layer_ids(cls, value: list[Any]) -> list[Any]:
+        ids = [layer.id for layer in value]
+        if len(ids) != len(set(ids)):
+            raise ValueError("layer id 不能重复")
+        return value
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_layers(self, handler: Any) -> Any:
+        # Keep dumps of configs without layers byte-identical (no "layers": []).
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("layers"):
+            data.pop("layers", None)
+        return data
 
     @model_validator(mode="before")
     @classmethod
