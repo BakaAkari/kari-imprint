@@ -81,7 +81,24 @@ export interface TextLayer extends LayerBase {
   style?: Partial<StyleConfig> | null;
 }
 
-export type LayerConfig = FillLayer | KeylineLayer | RuleLayer | MatLayer | TextLayer;
+/**
+ * A sized rectangle placed at an anchor of a box: the anchor names both the
+ * point on the box and the rectangle's own corner/edge pinned to it
+ * (top-left grows right and down, bottom-right grows left and up, …).
+ */
+export interface RectLayer extends LayerBase {
+  kind: 'rect';
+  box: BoxRef;
+  anchor: string;
+  offset_x?: number;
+  offset_y?: number;
+  w: number;
+  h: number;
+  color: string;
+  opacity?: number;
+}
+
+export type LayerConfig = FillLayer | KeylineLayer | RuleLayer | MatLayer | TextLayer | RectLayer;
 
 export interface DrawOp {
   id: string;
@@ -221,6 +238,18 @@ export function composeLayers(
           const shade = core.bevel ? shiftColor(core.color, -BEVEL_SHADE_PERCENT) : core.color;
           ops.push(...ring(`${layer.id}-core`, photo, coreW, [lit, lit, shade, shade], 1, 'under'));
         }
+        break;
+      }
+      case 'rect': {
+        const b = resolveBox(layer.box, photo, canvas);
+        const point = anchorPoint(b, layer.anchor);
+        const w = Math.max(1, px(layer.w, shortEdge));
+        const h = Math.max(1, px(layer.h, shortEdge));
+        const x0 = point.x + px(layer.offset_x, shortEdge);
+        const y0 = point.y + px(layer.offset_y, shortEdge);
+        const x = layer.anchor.includes('right') ? x0 - w : layer.anchor.includes('center') ? x0 - Math.floor(w / 2) : x0;
+        const y = layer.anchor.includes('bottom') ? y0 - h : layer.anchor.includes('middle') ? y0 - Math.floor(h / 2) : y0;
+        ops.push({ id: layer.id, op: 'rect', rect: { x, y, w, h }, color: layer.color, opacity: opacityOf(layer.opacity), z: layer.z ?? 'under' });
         break;
       }
       case 'text': {

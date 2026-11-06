@@ -113,6 +113,7 @@ def _dict_to_imprint_config(data: dict):
                     FieldChip(
                         field_id=c.get("field_id", "empty"),
                         custom_text=c.get("custom_text", ""),
+                        format=c.get("format") or "",
                     )
                     for c in d["chips"]
                 ],

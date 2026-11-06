@@ -536,6 +536,10 @@ The user authorised end-to-end implementation on 2026-11-07, with the recommende
 | M2 | **D6**: the gallery family (`museum-mat`, `double-reveal`, `black-core`, `float-mount`, `signed-proof`) ships in immich-ki first | That is where the print/album workflow lives; the web editor's control model is bar-specific |
 | M2 | Engine-built styles carry `style_id` and declare ≤5 **knobs** that rebuild the style from its parameters. The editor shows knobs instead of the bar controls. | Simple main UI, and album-look exceptions stay small config patches |
 | M2 | `style_catalog.json` (exported from TS) feeds Python validation, render smoke tests and the TS/Python parity run for every catalog style. The contract test fails when it is stale. | One fixture freezes what the apps actually build |
+| M3 | Engine-built styles store `style_params` (validated scalars). Knobs rebuild from them instead of reading parameters back out of layers. | Editorial layouts have too many layers to reverse-engineer reliably |
+| M3 | Added a sized `rect` layer pinned to a box anchor (accent bars, short rules; later stamps and swatches) | One small primitive covers several families |
+| M3 | Date formats (`date`, `year`, `month-year`, `long`, `cn`, `stamp`) on datetime chips, frozen by `field_format_cases.json` in both languages | Editorial folios and, later, date stamps |
+| M3 | Display type uses Noto Serif CJK Bold and Noto Sans CJK Bold with negative tracking; **no Latin-only display fonts**. Multi-line blocks are stacked text layers. | Neither renderer does per-glyph font fallback, so a Latin-only font would draw CJK titles as tofu. A metrics pack and fallback runs are deferred until a family needs wrapping. |
 
 ## Sources and verification notes
 

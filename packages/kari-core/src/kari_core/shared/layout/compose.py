@@ -129,7 +129,7 @@ def _text_content(raw: dict[str, Any]):
 
     return TextContent(
         chips=[
-            FieldChip(field_id=chip.get("field_id", "empty"), custom_text=chip.get("custom_text", ""))
+            FieldChip(field_id=chip.get("field_id", "empty"), custom_text=chip.get("custom_text", ""), format=chip.get("format") or "")
             for chip in raw.get("chips") or []
         ],
         separator=raw.get("separator", " "),
@@ -200,6 +200,19 @@ def compose_layers(
                 lit = shift_color(core["color"], BEVEL_LIGHT_PERCENT) if bevel else core["color"]
                 shade = shift_color(core["color"], -BEVEL_SHADE_PERCENT) if bevel else core["color"]
                 result.ops.extend(_ring(f"{layer_id}-core", photo, core_w, (lit, lit, shade, shade), 1.0, "under"))
+        elif kind == "rect":
+            b = resolve_box(layer["box"], photo, canvas)
+            anchor = layer.get("anchor") or "top-left"
+            ax, ay = _anchor_point(b, anchor)
+            w = max(1, _px(layer.get("w"), short_edge))
+            h = max(1, _px(layer.get("h"), short_edge))
+            x0 = ax + _px(layer.get("offset_x"), short_edge)
+            y0 = ay + _px(layer.get("offset_y"), short_edge)
+            x = x0 - w if "right" in anchor else x0 - w // 2 if "center" in anchor else x0
+            y = y0 - h if "bottom" in anchor else y0 - h // 2 if "middle" in anchor else y0
+            result.ops.append(
+                DrawOp(layer_id, "rect", Rect(x, y, w, h), layer["color"], _opacity(layer.get("opacity")), layer.get("z") or "under")
+            )
         elif kind == "text":
             content = _text_content(layer.get("content") or {})
             if not content.chips:

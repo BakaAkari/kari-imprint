@@ -76,6 +76,7 @@ export interface CanvasConfig {
 export interface FieldChip {
   field_id: string;
   custom_text?: string;
+  format?: string;
 }
 
 export interface TextContent {

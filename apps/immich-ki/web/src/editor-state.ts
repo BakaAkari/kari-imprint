@@ -153,8 +153,10 @@ export function applyStylePreset(config: ImprintConfig, id: FramedStyleId, short
     }
     // Pixel white space carries over between pixel styles; ratio (mat) styles own their margins.
     if (currentStyle !== 'blur' && id !== 'blur' && !ratioMargins(config) && !ratioMargins(next)) next = setMarginValue(next, marginValue(config));
-    // A caption title typed for one mat style survives switching to another.
-    if (styleKnobs(config).length && styleKnobs(next).length && config.custom_text) next = { ...next, custom_text: config.custom_text };
+    // A caption title typed for one engine-built style survives switching to another.
+    const fromTitle = styleKnobs(config).find(k => k.id === 'title' && k.kind === 'text');
+    const toTitle = styleKnobs(next).find(k => k.id === 'title' && k.kind === 'text');
+    if (fromTitle?.kind === 'text' && toTitle?.kind === 'text' && fromTitle.get(config)) next = toTitle.set(next, fromTitle.get(config));
     const signature = signatureRegion(config);
     if (signature) next = { ...next, regions: [...next.regions.filter(r => r.type !== 'free'), structuredClone(signature)] };
     return next;
@@ -372,7 +374,7 @@ function sectionPart(config: ImprintConfig, section: LookSection): unknown {
   switch (section) {
     case 'layout': return {
         margins: config.canvas.margins, margin_unit: config.canvas.margin_unit ?? 'pixel', frame: frameShape(frame),
-        style_id: config.style_id ?? null, layers: config.layers ?? [], custom_text: config.custom_text ?? '',
+        style_id: config.style_id ?? null, style_params: config.style_params ?? null, layers: config.layers ?? [], custom_text: config.custom_text ?? '',
     };
     case 'text': return textSlots(frame);
     case 'brand': return frame?.slots?.asset ?? null;
@@ -396,6 +398,7 @@ function withLookConstruction(config: ImprintConfig, look: ImprintConfig): Impri
     if (!look.style_id && !config.style_id && !look.layers?.length && !config.layers?.length) return config;
     const next: ImprintConfig = { ...config, custom_text: look.custom_text ?? '', layers: structuredClone(look.layers ?? []) };
     if (look.style_id) next.style_id = look.style_id; else delete next.style_id;
+    if (look.style_params) next.style_params = structuredClone(look.style_params); else delete next.style_params;
     if (!next.layers?.length) delete next.layers;
     return next;
 }

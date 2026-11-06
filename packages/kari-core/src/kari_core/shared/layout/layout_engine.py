@@ -100,6 +100,7 @@ class CanvasConfig:
 class FieldChip:
     field_id: str = "empty"
     custom_text: str = ""
+    format: str = ""  # datetime only: render_values.DATE_FORMATS
 
 
 @dataclass(slots=True)

@@ -41,6 +41,7 @@ from kari_core.shared.layout.layout_engine import (
     resolve_ink_scheme,
 )
 from kari_core.shared.layout.text_fit import FittedText, fit_layout_texts, fit_single
+from kari_core.shared.render_values import format_date
 
 _LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -146,6 +147,8 @@ def _build_text(
             value = chip_custom
         else:
             value = _resolve_field_value(chip.field_id, field_values, custom_text)
+        if chip.field_id == "datetime" and getattr(chip, "format", ""):
+            value = format_date(value, chip.format)
         # Phone lenses repeat the model ("iPhone 15 Pro back triple camera…"); drop that prefix.
         if chip.field_id == "lens_model" and "camera_model" in field_ids and model and value.lower().startswith(model.lower() + " "):
             value = value[len(model) + 1:].strip()

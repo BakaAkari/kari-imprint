@@ -33,6 +33,7 @@ import {
 import { resolveAutoLogo, resolveAutoLogoWithScheme } from '../src/autoLogo';
 import { MAX_KNOBS_PER_STYLE } from '../src/styles/knobs';
 import { catalogFixture } from './styleCatalogFixture';
+import { formatDate } from '../src/layout/textContent';
 
 let failures = 0;
 function pass(label: string) {
@@ -452,6 +453,7 @@ section('16. Style catalog — one identity space for every app');
   assertEqual('immich-ki picker order', IMMICH_STYLE_PRESETS.map((p) => p.id), [
     'classic', 'minimal-line', 'dark', 'blur', 'plain',
     'museum-mat', 'double-reveal', 'black-core', 'float-mount', 'signed-proof',
+    'masthead', 'plate', 'swiss-grid', 'colophon',
   ]);
   for (const preset of STYLE_PRESETS) {
     if (preset.name.trim() && preset.caption.trim() && preset.category) pass(`${preset.id} · has name, caption and category`);
@@ -531,8 +533,8 @@ section('19. Engine-built styles — knobs, construction and catalog fixture');
     const built = preset.build();
     assertEqual(`${preset.id} · build declares its style id`, built.style_id, preset.id);
     assertEqual(`${preset.id} · ratio margins`, built.canvas.margin_unit, 'short_edge_ratio');
-    if (built.canvas.margins.bottom > built.canvas.margins.top) pass(`${preset.id} · weighted (drop) bottom margin`);
-    else fail(`${preset.id} · bottom margin not weighted`);
+    if (preset.category !== 'gallery' || built.canvas.margins.bottom > built.canvas.margins.top) pass(`${preset.id} · margin weighting`);
+    else fail(`${preset.id} · gallery bottom margin not weighted`);
     // Every knob round-trips: set(get()) is a no-op, and a changed value reads back.
     for (const knob of knobs) {
       const same = (knob.set as (c: typeof built, v: unknown) => typeof built)(built, knob.get(built));
@@ -555,6 +557,13 @@ section('19. Engine-built styles — knobs, construction and catalog fixture');
   const fixture = JSON.parse(readFileSync(resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/style_catalog.json'), 'utf8'));
   if (deepEqual(fixture, catalogFixture())) pass('style_catalog.json matches every build() (run npm run export:styles after style changes)');
   else fail('style_catalog.json is stale', 'run: npm run export:styles');
+}
+
+// ──────────────────────────────────────────────────────────
+section('20. Date formats — shared fixture with kari-core test_field_formats.py');
+{
+  const cases = JSON.parse(readFileSync(resolve(process.cwd(), '../../packages/kari-core/tests/fixtures/field_format_cases.json'), 'utf8')) as { raw: string; format: string; expected: string }[];
+  for (const c of cases) assertEqual(`${c.format}(${JSON.stringify(c.raw)})`, formatDate(c.raw, c.format), c.expected);
 }
 
 console.log('');

@@ -55,6 +55,15 @@ class FieldChipPayload(StrictModel):
         "iso", "datetime", "make", "artist", "gps", "custom_text", "empty",
     ] = "empty"
     custom_text: str = Field(default="", max_length=160)
+    # datetime only; mirrors kari_core.shared.render_values.DATE_FORMATS.
+    format: Literal["date", "year", "month-year", "long", "cn", "stamp"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_format(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("format") is None:
+            data.pop("format", None)
+        return data
 
 
 class TextContentPayload(StrictModel):
@@ -409,6 +418,23 @@ class RuleLayerPayload(_LayerBase):
         return _validate_color(value)
 
 
+class RectLayerPayload(_LayerBase):
+    kind: Literal["rect"]
+    box: BoxRef
+    anchor: Anchor = "top-left"
+    offset_x: float | None = Field(default=None, ge=-1.0, le=1.0)
+    offset_y: float | None = Field(default=None, ge=-1.0, le=1.0)
+    w: float = Field(gt=0.0, le=2.0)
+    h: float = Field(gt=0.0, le=2.0)
+    color: Color
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
 class MatBandPayload(StrictModel):
     width: float = Field(gt=0.0, le=0.2)
     color: Color
@@ -461,8 +487,10 @@ class TextLayerPayload(_LayerBase):
     style: LayerTextStylePayload | None = None
 
 
+StyleParamValue = bool | int | float | Annotated[str, Field(max_length=160)]
+
 LayerPayload = Annotated[
-    FillLayerPayload | KeylineLayerPayload | RuleLayerPayload | MatLayerPayload | TextLayerPayload,
+    FillLayerPayload | KeylineLayerPayload | RuleLayerPayload | MatLayerPayload | TextLayerPayload | RectLayerPayload,
     Field(discriminator="kind"),
 ]
 
@@ -480,6 +508,8 @@ class ImprintPayload(StrictModel):
     layers: list[LayerPayload] = Field(default_factory=list, max_length=24)
     # Catalog style id (engine-built families); informational, never resolved to a path.
     style_id: str | None = Field(default=None, min_length=1, max_length=40, pattern=r"^[a-z0-9][a-z0-9-]{0,39}$")
+    # Scalar parameters the style's knobs rebuild from; never interpreted by the renderer.
+    style_params: dict[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,23}$")], StyleParamValue] | None = Field(default=None, max_length=16)
 
     @field_validator("layers")
     @classmethod
@@ -498,6 +528,8 @@ class ImprintPayload(StrictModel):
                 data.pop("layers", None)
             if data.get("style_id") is None:
                 data.pop("style_id", None)
+            if data.get("style_params") is None:
+                data.pop("style_params", None)
         return data
 
     @model_validator(mode="before")

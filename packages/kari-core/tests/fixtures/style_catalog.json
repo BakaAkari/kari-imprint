@@ -2123,6 +2123,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "museum-mat",
+   "style_params": {
+    "mat": "#F4F1EA",
+    "width": 0.14,
+    "core": "white",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.14,
@@ -2165,36 +2174,12 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.0473,
-     "max_width": 0.7,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
      "anchor": "top-center",
      "offset_x": 0,
-     "offset_y": 0.0803,
+     "offset_y": 0.0473,
      "max_width": 0.7,
      "size": 0.0092,
      "content": {
@@ -2240,6 +2225,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "museum-mat",
+   "style_params": {
+    "mat": "#F4F1EA",
+    "width": 0.14,
+    "core": "white",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.14,
@@ -2282,36 +2276,12 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.0473,
-     "max_width": 0.7,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
      "anchor": "top-center",
      "offset_x": 0,
-     "offset_y": 0.0803,
+     "offset_y": 0.0473,
      "max_width": 0.7,
      "size": 0.0092,
      "content": {
@@ -2357,6 +2327,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "double-reveal",
+   "style_params": {
+    "mat": "#F4F1EA",
+    "width": 0.15,
+    "core": "white",
+    "reveal": "#6B2E2A",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.15,
@@ -2402,36 +2381,12 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.0507,
-     "max_width": 0.7,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
      "anchor": "top-center",
      "offset_x": 0,
-     "offset_y": 0.0837,
+     "offset_y": 0.0507,
      "max_width": 0.7,
      "size": 0.0092,
      "content": {
@@ -2477,6 +2432,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "double-reveal",
+   "style_params": {
+    "mat": "#F4F1EA",
+    "width": 0.15,
+    "core": "white",
+    "reveal": "#6B2E2A",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.15,
@@ -2522,36 +2486,12 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.0507,
-     "max_width": 0.7,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
      "anchor": "top-center",
      "offset_x": 0,
-     "offset_y": 0.0837,
+     "offset_y": 0.0507,
      "max_width": 0.7,
      "size": 0.0092,
      "content": {
@@ -2597,6 +2537,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "black-core",
+   "style_params": {
+    "mat": "#FAFAF8",
+    "width": 0.16,
+    "core": "black",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.16,
@@ -2639,36 +2588,12 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.052,
-     "max_width": 0.7,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
      "anchor": "top-center",
      "offset_x": 0,
-     "offset_y": 0.085,
+     "offset_y": 0.052,
      "max_width": 0.7,
      "size": 0.0092,
      "content": {
@@ -2714,6 +2639,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "black-core",
+   "style_params": {
+    "mat": "#FAFAF8",
+    "width": 0.16,
+    "core": "black",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.16,
@@ -2756,36 +2690,12 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.052,
-     "max_width": 0.7,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
      "anchor": "top-center",
      "offset_x": 0,
-     "offset_y": 0.085,
+     "offset_y": 0.052,
      "max_width": 0.7,
      "size": 0.0092,
      "content": {
@@ -2831,6 +2741,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "float-mount",
+   "style_params": {
+    "mat": "#E9E6E0",
+    "width": 0.11,
+    "core": "none",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.11,
@@ -2867,30 +2786,6 @@
    "custom_text": "",
    "logo_position": "right",
    "layers": [
-    {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-left",
-     "offset_x": 0.11,
-     "offset_y": 0.0386,
-     "max_width": 0.45,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
     {
      "id": "caption-details",
      "kind": "text",
@@ -2943,6 +2838,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "float-mount",
+   "style_params": {
+    "mat": "#E9E6E0",
+    "width": 0.11,
+    "core": "none",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": ""
+   },
    "canvas": {
     "margins": {
      "top": 0.11,
@@ -2979,30 +2883,6 @@
    "custom_text": "",
    "logo_position": "right",
    "layers": [
-    {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-left",
-     "offset_x": 0.11,
-     "offset_y": 0.0386,
-     "max_width": 0.45,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
     {
      "id": "caption-details",
      "kind": "text",
@@ -3055,6 +2935,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "signed-proof",
+   "style_params": {
+    "mat": "#FFFFFF",
+    "width": 0.09,
+    "core": "none",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": "1/25"
+   },
    "canvas": {
     "margins": {
      "top": 0.09,
@@ -3109,30 +2998,6 @@
       "bold": false,
       "color": "#34312C",
       "tracking": 80
-     }
-    },
-    {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.0398,
-     "max_width": 0.4,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
      }
     },
     {
@@ -3187,6 +3052,15 @@
   "config": {
    "schema_version": 3,
    "style_id": "signed-proof",
+   "style_params": {
+    "mat": "#FFFFFF",
+    "width": 0.09,
+    "core": "none",
+    "reveal": "",
+    "details": true,
+    "title": "",
+    "edition": "1/25"
+   },
    "canvas": {
     "margins": {
      "top": 0.09,
@@ -3244,30 +3118,6 @@
      }
     },
     {
-     "id": "caption-title",
-     "kind": "text",
-     "box": "margin-bottom",
-     "anchor": "top-center",
-     "offset_x": 0,
-     "offset_y": 0.0398,
-     "max_width": 0.4,
-     "size": 0.0165,
-     "content": {
-      "chips": [
-       {
-        "field_id": "custom_text"
-       }
-      ],
-      "separator": " "
-     },
-     "style": {
-      "font_family": "NotoSerifCJKsc-Regular.otf",
-      "bold": false,
-      "color": "#34312C",
-      "tracking": 20
-     }
-    },
-    {
      "id": "caption-details",
      "kind": "text",
      "box": "margin-bottom",
@@ -3304,6 +3154,1588 @@
       "bold": false,
       "color": "#8C877E",
       "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "masthead@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "masthead",
+   "style_params": {
+    "paper": "#F2EFE8",
+    "title": "Untitled",
+    "kicker": "",
+    "title_size": 0.072,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.21,
+     "right": 0.075,
+     "bottom": 0.11,
+     "left": 0.075
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F2EFE8",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "masthead-rule",
+     "kind": "rule",
+     "box": "photo",
+     "edge": "top",
+     "offset": 0.024,
+     "width": 0.0012,
+     "color": "#34312C"
+    },
+    {
+     "id": "masthead-title",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "bottom-left",
+     "offset_x": 0.075,
+     "offset_y": -0.042,
+     "size": 0.072,
+     "max_width": 0.85,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#34312C",
+      "tracking": -15
+     }
+    },
+    {
+     "id": "masthead-kicker",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "bottom-left",
+     "offset_x": 0.075,
+     "offset_y": -0.1358,
+     "size": 0.0115,
+     "max_width": 0.85,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "month-year"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 220,
+      "text_case": "upper"
+     }
+    },
+    {
+     "id": "folio-date",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.075,
+     "offset_y": 0.032,
+     "size": 0.0105,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "long"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "folio-details",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-right",
+     "offset_x": -0.075,
+     "offset_y": 0.033,
+     "size": 0.0095,
+     "max_width": 0.55,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "masthead@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "masthead",
+   "style_params": {
+    "paper": "#F2EFE8",
+    "title": "Untitled",
+    "kicker": "",
+    "title_size": 0.072,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.21,
+     "right": 0.075,
+     "bottom": 0.11,
+     "left": 0.075
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#F2EFE8",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "masthead-rule",
+     "kind": "rule",
+     "box": "photo",
+     "edge": "top",
+     "offset": 0.024,
+     "width": 0.0012,
+     "color": "#34312C"
+    },
+    {
+     "id": "masthead-title",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "bottom-left",
+     "offset_x": 0.075,
+     "offset_y": -0.042,
+     "size": 0.072,
+     "max_width": 0.85,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#34312C",
+      "tracking": -15
+     }
+    },
+    {
+     "id": "masthead-kicker",
+     "kind": "text",
+     "box": "margin-top",
+     "anchor": "bottom-left",
+     "offset_x": 0.075,
+     "offset_y": -0.1358,
+     "size": 0.0115,
+     "max_width": 0.85,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "month-year"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 220,
+      "text_case": "upper"
+     }
+    },
+    {
+     "id": "folio-date",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.075,
+     "offset_y": 0.032,
+     "size": 0.0105,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "long"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "folio-details",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-right",
+     "offset_x": -0.075,
+     "offset_y": 0.033,
+     "size": 0.0095,
+     "max_width": 0.55,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "plate@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "plate",
+   "style_params": {
+    "paper": "#FBFAF7",
+    "plate": "1",
+    "title": "Untitled",
+    "width": 0.11,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.11,
+     "right": 0.11,
+     "bottom": 0.23,
+     "left": 0.11
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FBFAF7",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "plate-number",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.11,
+     "offset_y": 0.042,
+     "size": 0.0098,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "PLATE 1"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 260
+     }
+    },
+    {
+     "id": "plate-title",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.11,
+     "offset_y": 0.064,
+     "size": 0.021,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C",
+      "tracking": 0
+     }
+    },
+    {
+     "id": "plate-details",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.11,
+     "offset_y": 0.101,
+     "size": 0.0094,
+     "max_width": 0.7,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 30
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "plate@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "plate",
+   "style_params": {
+    "paper": "#FBFAF7",
+    "plate": "1",
+    "title": "Untitled",
+    "width": 0.11,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.11,
+     "right": 0.11,
+     "bottom": 0.23,
+     "left": 0.11
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FBFAF7",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "plate-number",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.11,
+     "offset_y": 0.042,
+     "size": 0.0098,
+     "max_width": 0.4,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "PLATE 1"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 260
+     }
+    },
+    {
+     "id": "plate-title",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.11,
+     "offset_y": 0.064,
+     "size": 0.021,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C",
+      "tracking": 0
+     }
+    },
+    {
+     "id": "plate-details",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.11,
+     "offset_y": 0.101,
+     "size": 0.0094,
+     "max_width": 0.7,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 30
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "swiss-grid@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "swiss-grid",
+   "style_params": {
+    "paper": "#FFFFFF",
+    "accent": "#D8392B",
+    "title": "Untitled",
+    "side": "left",
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.05,
+     "right": 0.05,
+     "bottom": 0.05,
+     "left": 0.44
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "swiss-bar",
+     "kind": "rect",
+     "box": "margin-left",
+     "anchor": "top-left",
+     "offset_x": 0.05,
+     "w": 0.06,
+     "h": 0.007,
+     "color": "#D8392B"
+    },
+    {
+     "id": "swiss-title",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "top-left",
+     "offset_x": 0.05,
+     "offset_y": 0.035,
+     "size": 0.074,
+     "max_width": 0.82,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#34312C",
+      "tracking": -30
+     }
+    },
+    {
+     "id": "swiss-camera",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": -0.063,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#34312C",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "swiss-lens",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": -0.042,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "lens_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "swiss-settings",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": -0.021,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "swiss-date",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": 0,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "date"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 10
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "swiss-grid@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "swiss-grid",
+   "style_params": {
+    "paper": "#FFFFFF",
+    "accent": "#D8392B",
+    "title": "Untitled",
+    "side": "left",
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.05,
+     "right": 0.05,
+     "bottom": 0.05,
+     "left": 0.44
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "swiss-bar",
+     "kind": "rect",
+     "box": "margin-left",
+     "anchor": "top-left",
+     "offset_x": 0.05,
+     "w": 0.06,
+     "h": 0.007,
+     "color": "#D8392B"
+    },
+    {
+     "id": "swiss-title",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "top-left",
+     "offset_x": 0.05,
+     "offset_y": 0.035,
+     "size": 0.074,
+     "max_width": 0.82,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#34312C",
+      "tracking": -30
+     }
+    },
+    {
+     "id": "swiss-camera",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": -0.063,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#34312C",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "swiss-lens",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": -0.042,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "lens_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "swiss-settings",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": -0.021,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 10
+     }
+    },
+    {
+     "id": "swiss-date",
+     "kind": "text",
+     "box": "margin-left",
+     "anchor": "bottom-left",
+     "offset_x": 0.05,
+     "offset_y": 0,
+     "size": 0.0118,
+     "max_width": 0.8,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "date"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C877E",
+      "tracking": 10
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "colophon@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "colophon",
+   "style_params": {
+    "paper": "#FBFAF7",
+    "title": "Untitled",
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.08,
+     "right": 0.08,
+     "bottom": 0.23,
+     "left": 0.08
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FBFAF7",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "colophon-rule",
+     "kind": "rule",
+     "box": "photo",
+     "edge": "bottom",
+     "offset": 0.034,
+     "width": 0.001,
+     "color": "#B9B3A8"
+    },
+    {
+     "id": "colophon-title",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.056,
+     "size": 0.022,
+     "max_width": 0.84,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-camera-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1035,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "CAMERA"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-camera",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.102,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-lens-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1275,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "LENS"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-lens",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.126,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "lens_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-exposure-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1515,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "EXPOSURE"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-exposure",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.15,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-date-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1755,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "DATE"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-date",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.174,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "long"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "colophon@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "colophon",
+   "style_params": {
+    "paper": "#FBFAF7",
+    "title": "Untitled",
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0.08,
+     "right": 0.08,
+     "bottom": 0.23,
+     "left": 0.08
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FBFAF7",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "colophon-rule",
+     "kind": "rule",
+     "box": "photo",
+     "edge": "bottom",
+     "offset": 0.034,
+     "width": 0.001,
+     "color": "#B9B3A8"
+    },
+    {
+     "id": "colophon-title",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.056,
+     "size": 0.022,
+     "max_width": 0.84,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "Untitled"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-camera-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1035,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "CAMERA"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-camera",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.102,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-lens-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1275,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "LENS"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-lens",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.126,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "lens_model"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-exposure-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1515,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "EXPOSURE"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-exposure",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.15,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
+     }
+    },
+    {
+     "id": "colophon-date-label",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.08,
+     "offset_y": 0.1755,
+     "size": 0.0082,
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "custom_text",
+        "custom_text": "DATE"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#8C877E",
+      "tracking": 180
+     }
+    },
+    {
+     "id": "colophon-date",
+     "kind": "text",
+     "box": "margin-bottom",
+     "anchor": "top-left",
+     "offset_x": 0.2,
+     "offset_y": 0.174,
+     "size": 0.0112,
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "long"
+       }
+      ],
+      "separator": "   "
+     },
+     "style": {
+      "font_family": "NotoSerifCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#34312C"
      }
     }
    ]

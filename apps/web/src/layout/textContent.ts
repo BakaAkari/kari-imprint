@@ -1,10 +1,32 @@
 import type { ExifFieldValues } from '../api';
 import type { FieldChip, TextContent } from '../types';
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const DATE_FORMATS = ['date', 'year', 'month-year', 'long', 'cn', 'stamp'] as const;
+export type DateFormat = typeof DATE_FORMATS[number];
+
+/** Mirror of render_values.format_date; unknown formats and unparsable values pass through. */
+export function formatDate(raw: string, fmt: string): string {
+  const match = raw ? /^(\d{4})[:\-./](\d{1,2})[:\-./](\d{1,2})/.exec(raw.trim()) : null;
+  if (!match || !(DATE_FORMATS as readonly string[]).includes(fmt)) return raw;
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return raw;
+  const pad = (value: number, width = 2) => String(value).padStart(width, '0');
+  switch (fmt) {
+    case 'date': return `${pad(year, 4)}.${pad(month)}.${pad(day)}`;
+    case 'year': return pad(year, 4);
+    case 'month-year': return `${MONTHS[month - 1].slice(0, 3).toUpperCase()} ${pad(year, 4)}`;
+    case 'long': return `${day} ${MONTHS[month - 1]} ${pad(year, 4)}`;
+    case 'cn': return `${year}年${month}月${day}日`;
+    default: return `'${pad(year % 100)} ${pad(month)} ${pad(day)}`;
+  }
+}
+
 export function resolveText(chip: FieldChip, customText: string, fieldValues: ExifFieldValues): string {
   if (chip.field_id === 'custom_text') return chip.custom_text || customText || '';
   if (chip.field_id === 'empty') return '';
-  return fieldValues[chip.field_id] ?? '';
+  const value = fieldValues[chip.field_id] ?? '';
+  return chip.field_id === 'datetime' && chip.format ? formatDate(value, chip.format) : value;
 }
 
 /**

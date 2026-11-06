@@ -29,6 +29,8 @@ export type FieldId =
 export type FieldChip = {
   field_id: FieldId;
   custom_text?: string;
+  /** datetime only: 'date' | 'year' | 'month-year' | 'long' | 'cn' | 'stamp'. */
+  format?: 'date' | 'year' | 'month-year' | 'long' | 'cn' | 'stamp';
 };
 
 export interface TextContent {
@@ -178,6 +180,8 @@ export interface ImprintConfig {
   schema_version: 3;
   /** Catalog style this config was built from (engine-built families); absent for older styles. */
   style_id?: string;
+  /** The parameters that style was built from; its knobs read and rebuild these. */
+  style_params?: Record<string, string | number | boolean>;
   canvas: CanvasConfig;
   regions: RegionConfig[];
   defaults: StyleConfig;

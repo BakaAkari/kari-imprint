@@ -146,6 +146,36 @@ def _format_datetime(exif: Mapping[str, object]) -> str:
     return ""
 
 
+_MONTHS = ("January", "February", "March", "April", "May", "June",
+           "July", "August", "September", "October", "November", "December")
+_DATE_RE = re.compile(r"^(\d{4})[:\-./](\d{1,2})[:\-./](\d{1,2})")
+DATE_FORMATS = ("date", "year", "month-year", "long", "cn", "stamp")
+
+
+def format_date(raw: str, fmt: str) -> str:
+    """Re-format a resolved ``datetime`` value; mirror of ``formatDate`` in textContent.ts.
+
+    Unknown formats and unparsable values return ``raw`` unchanged.
+    """
+    match = _DATE_RE.match(raw.strip()) if raw else None
+    if not match or fmt not in DATE_FORMATS:
+        return raw
+    year, month, day = int(match[1]), int(match[2]), int(match[3])
+    if not 1 <= month <= 12 or not 1 <= day <= 31:
+        return raw
+    if fmt == "date":
+        return f"{year:04d}.{month:02d}.{day:02d}"
+    if fmt == "year":
+        return f"{year:04d}"
+    if fmt == "month-year":
+        return f"{_MONTHS[month - 1][:3].upper()} {year:04d}"
+    if fmt == "long":
+        return f"{day} {_MONTHS[month - 1]} {year:04d}"
+    if fmt == "cn":
+        return f"{year}年{month}月{day}日"
+    return f"'{year % 100:02d} {month:02d} {day:02d}"
+
+
 def _format_gps(exif: Mapping[str, object]) -> str:
     latitude = _clean_text(exif.get("GPSLatitude"))
     longitude = _clean_text(exif.get("GPSLongitude"))

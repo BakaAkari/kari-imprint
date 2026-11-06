@@ -33,7 +33,8 @@ import {
   type StyleConfig,
 } from './types';
 import type { LayoutTemplate, PresetCategory } from './templateModel';
-import { buildGallery, galleryKnobs, type GalleryStyleId } from './styles/gallery';
+import { EDITORIAL_STYLES, type EditorialStyleId } from './styles/editorial';
+import { GALLERY_STYLES, type GalleryStyleId } from './styles/gallery';
 import type { StyleKnob } from './styles/knobs';
 
 export type { StyleKnob } from './styles/knobs';
@@ -69,7 +70,7 @@ export interface FramedStylePreset extends StylePresetBase {
 
 export type StylePreset = ControlledStylePreset | FramedStylePreset;
 
-export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId;
+export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId;
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -404,7 +405,11 @@ function framed(
 }
 
 function gallery(id: GalleryStyleId, name: string, caption: string): FramedStylePreset {
-  return framed({ id, name, caption, category: 'gallery' }, () => buildGallery(id), galleryKnobs(id));
+  return framed({ id, name, caption, category: 'gallery' }, () => GALLERY_STYLES[id].build(), GALLERY_STYLES[id].knobs);
+}
+
+function editorial(id: EditorialStyleId, name: string, caption: string): FramedStylePreset {
+  return framed({ id, name, caption, category: 'editorial' }, () => EDITORIAL_STYLES[id].build(), EDITORIAL_STYLES[id].knobs);
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────
@@ -427,6 +432,10 @@ export const STYLE_PRESETS: readonly StylePreset[] = deepFreeze([
   gallery('black-core', '黑芯', '亮白卡纸配黑色芯线，干净利落'),
   gallery('float-mount', '浮裱', '照片浮在底板上，柔和投影，标题与参数左右对齐'),
   gallery('signed-proof', '签名样张', '版画式留白：左侧版次、居中标题、右侧参数'),
+  editorial('masthead', '刊头', '杂志刊头：大标题、期号行与细线，页脚日期与参数'),
+  editorial('plate', '图版', '画册图版：字距拉开的编号、衬线标题'),
+  editorial('swiss-grid', '瑞士网格', '不对称宽栏、强调色块、无衬线粗标题与参数列表'),
+  editorial('colophon', '版权页', '照片下方细线与标签—数值参数表'),
 ]);
 
 /** Web editor picker, in display order; the first entry is the initial and reset state. */

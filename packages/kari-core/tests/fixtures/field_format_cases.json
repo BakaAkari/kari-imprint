@@ -1,0 +1,57 @@
+[
+ {
+  "raw": "2026:11:07 16:40",
+  "format": "date",
+  "expected": "2026.11.07"
+ },
+ {
+  "raw": "2026:11:07 16:40",
+  "format": "year",
+  "expected": "2026"
+ },
+ {
+  "raw": "2026:11:07 16:40",
+  "format": "month-year",
+  "expected": "NOV 2026"
+ },
+ {
+  "raw": "2026:01:05",
+  "format": "long",
+  "expected": "5 January 2026"
+ },
+ {
+  "raw": "2026:01:05 08:00",
+  "format": "cn",
+  "expected": "2026年1月5日"
+ },
+ {
+  "raw": "2009:07:31 23:59",
+  "format": "stamp",
+  "expected": "'09 07 31"
+ },
+ {
+  "raw": "2026-11-07T16:40",
+  "format": "date",
+  "expected": "2026.11.07"
+ },
+ {
+  "raw": "2026:13:01 10:00",
+  "format": "date",
+  "expected": "2026:13:01 10:00"
+ },
+ {
+  "raw": "unknown",
+  "format": "date",
+  "expected": "unknown"
+ },
+ {
+  "raw": "",
+  "format": "long",
+  "expected": ""
+ },
+ {
+  "raw": "2026:11:07 16:40",
+  "format": "bogus",
+  "expected": "2026:11:07 16:40"
+ }
+]
