@@ -540,6 +540,10 @@ The user authorised end-to-end implementation on 2026-11-07, with the recommende
 | M3 | Added a sized `rect` layer pinned to a box anchor (accent bars, short rules; later stamps and swatches) | One small primitive covers several families |
 | M3 | Date formats (`date`, `year`, `month-year`, `long`, `cn`, `stamp`) on datetime chips, frozen by `field_format_cases.json` in both languages | Editorial folios and, later, date stamps |
 | M3 | Display type uses Noto Serif CJK Bold and Noto Sans CJK Bold with negative tracking; **no Latin-only display fonts**. Multi-line blocks are stacked text layers. | Neither renderer does per-glyph font fallback, so a Latin-only font would draw CJK titles as tofu. A metrics pack and fallback runs are deferred until a family needs wrapping. |
+| M4 | **Date stamps are drawn as integer seven-segment rects**, with a translucent grown "glow" ring under each segment; no segment font is shipped | Exact pixel parity, no extra font asset or licence, and the date comes from the shared formatter |
+| M4 | `rect` gains radius and backdrop `blur`: a glass panel blurs the canvas under it (PIL on a reduced copy, Canvas through a device-pixel filter), then tints it. Blur sigma is capped at 0.05 se in the API. | Glass panels without a full-canvas blur; parity is geometry-exact, pixels tolerance-only |
+| M4 | `letterbox` layer exposes `letterbox-top` and `letterbox-bottom` as named boxes for later layers; `logo` layer places a brand mark anywhere | Cinema and badge styles reference geometry that depends on the photo's aspect |
+| M4 | Overlay ink is set per style (knob), not sampled from local photo luminance | Sampling would need image analysis inside layout; deferred to the palette service (M5) |
 
 ## Sources and verification notes
 

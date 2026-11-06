@@ -352,7 +352,9 @@ class CanvasConfigPayload(StrictModel):
 # ── Construction layers (mirror of apps/web/src/layout/compose.ts) ───────
 
 _LAYER_ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-BoxRef = Literal["photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right"]
+BoxRef = Literal[
+    "photo", "canvas", "margin-top", "margin-bottom", "margin-left", "margin-right", "letterbox-top", "letterbox-bottom",
+]
 FontFamily = Literal[
     "NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Bold.otf",
     "NotoSerifCJKsc-Regular.otf", "NotoSerifCJKsc-Bold.otf",
@@ -424,10 +426,61 @@ class RectLayerPayload(_LayerBase):
     anchor: Anchor = "top-left"
     offset_x: float | None = Field(default=None, ge=-1.0, le=1.0)
     offset_y: float | None = Field(default=None, ge=-1.0, le=1.0)
-    w: float = Field(gt=0.0, le=2.0)
-    h: float = Field(gt=0.0, le=2.0)
+    # Omitted: the box's own width / height.
+    w: float | None = Field(default=None, gt=0.0, le=2.0)
+    h: float | None = Field(default=None, gt=0.0, le=2.0)
     color: Color
     opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+    radius: float | None = Field(default=None, ge=0.0, le=0.2)
+    # Backdrop blur sigma ("glass"); bounded so a panel cannot become a CPU sink.
+    blur: float | None = Field(default=None, ge=0.0, le=0.05)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
+class LetterboxLayerPayload(_LayerBase):
+    kind: Literal["letterbox"]
+    aspect: float = Field(ge=1.0, le=4.0)
+    color: Color = "#000000"
+    opacity: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("color")
+    @classmethod
+    def valid_color(cls, value: str) -> str:
+        return _validate_color(value)
+
+
+class LogoLayerPayload(_LayerBase):
+    kind: Literal["logo"]
+    box: BoxRef
+    anchor: Anchor = "bottom-left"
+    offset_x: float | None = Field(default=None, ge=-1.0, le=1.0)
+    offset_y: float | None = Field(default=None, ge=-1.0, le=1.0)
+    height: float = Field(gt=0.0, le=0.3)
+    # '' = automatic brand; otherwise an opaque resource id or builtin:<name>, never a path.
+    path: ResourceId = Field(default="", max_length=128)
+
+    @field_validator("path")
+    @classmethod
+    def _validate_logo_path(cls, value: str) -> str:
+        if value == "" or re.match(_RESOURCE_ID_PATTERN, value) or re.match(_BUILTIN_LOGO_PATTERN, value):
+            return value
+        raise ValueError("logo path must be an opaque resource id or builtin:<name>")
+
+
+class SegmentsLayerPayload(_LayerBase):
+    kind: Literal["segments"]
+    box: BoxRef
+    anchor: Anchor = "bottom-right"
+    offset_x: float | None = Field(default=None, ge=-1.0, le=1.0)
+    offset_y: float | None = Field(default=None, ge=-1.0, le=1.0)
+    height: float = Field(gt=0.0, le=0.2)
+    content: TextContentPayload
+    color: Color = "#FF8A1F"
+    glow: bool | None = None
 
     @field_validator("color")
     @classmethod
@@ -490,7 +543,8 @@ class TextLayerPayload(_LayerBase):
 StyleParamValue = bool | int | float | Annotated[str, Field(max_length=160)]
 
 LayerPayload = Annotated[
-    FillLayerPayload | KeylineLayerPayload | RuleLayerPayload | MatLayerPayload | TextLayerPayload | RectLayerPayload,
+    FillLayerPayload | KeylineLayerPayload | RuleLayerPayload | MatLayerPayload | TextLayerPayload | RectLayerPayload
+    | LetterboxLayerPayload | LogoLayerPayload | SegmentsLayerPayload,
     Field(discriminator="kind"),
 ]
 

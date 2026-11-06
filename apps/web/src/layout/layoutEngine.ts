@@ -174,7 +174,7 @@ export interface ImprintConfig {
 
 // ── 布局结果 ────────────────────────────────────────────
 
-export type ElementType = 'text' | 'logo' | 'signature' | 'divider';
+export type ElementType = 'text' | 'logo' | 'signature' | 'divider' | 'segments';
 
 export interface ComputedElement {
   id: string;
@@ -308,7 +308,7 @@ export function computeLayout(
     }
   }
 
-  const composed = composeLayers(config.layers, imageRect, canvas, shortEdge, config.defaults);
+  const composed = composeLayers(config.layers, imageRect, canvas, shortEdge, config.defaults, aspect);
   elements.push(...composed.elements);
 
   return { canvas, image_rect: imageRect, elements, ops: composed.ops };

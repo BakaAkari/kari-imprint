@@ -45,6 +45,11 @@ def test_valid_layers_round_trip_without_unset_fields():
     {"id": "../x", "kind": "fill", "box": "photo", "color": "#000000"},
     {"id": "x", "kind": "text", "box": "photo", "size": 0.02, "content": {"chips": []}, "style": {"font_family": "/etc/passwd"}},
     {"id": "x", "kind": "fill", "box": "photo", "color": "#000000", "extra": 1},
+    {"id": "x", "kind": "logo", "box": "photo", "height": 0.03, "path": "../../etc/passwd"},
+    {"id": "x", "kind": "logo", "box": "photo", "height": 0.03, "path": "/abs/logo.png"},
+    {"id": "x", "kind": "rect", "box": "photo", "color": "#000000", "blur": 0.5},
+    {"id": "x", "kind": "letterbox", "aspect": 0.2, "color": "#000000"},
+    {"id": "x", "kind": "segments", "box": "photo", "height": 0.9, "content": {"chips": []}},
 ])
 def test_invalid_layers_are_rejected(layer):
     with pytest.raises(ValidationError):
@@ -68,3 +73,17 @@ def test_ratio_margins_accept_fractions_and_reject_pixels_beyond_one():
 def test_pixel_margins_must_stay_integers():
     with pytest.raises(ValidationError):
         ImprintPayload.model_validate(_payload(canvas={"margins": {"top": 0.5, "right": 0, "bottom": 0, "left": 0}}))
+
+
+def test_overlay_layers_validate():
+    layers = [
+        {"id": "bars", "kind": "letterbox", "aspect": 2.39, "color": "#000000"},
+        {"id": "glass", "kind": "rect", "box": "photo", "anchor": "bottom-left", "h": 0.15, "color": "#000000", "opacity": 0.3, "blur": 0.018, "radius": 0.01, "z": "over"},
+        {"id": "mark", "kind": "logo", "box": "photo", "anchor": "bottom-left", "height": 0.03, "path": "builtin:fujifilm"},
+        {"id": "stamp", "kind": "segments", "box": "photo", "anchor": "bottom-right", "height": 0.045,
+         "content": {"chips": [{"field_id": "datetime", "format": "stamp"}], "separator": " "}, "color": "#FF8A1F", "glow": True},
+        {"id": "sub", "kind": "text", "box": "letterbox-bottom", "size": 0.02, "content": {"chips": [{"field_id": "custom_text", "custom_text": "x"}]}},
+    ]
+    dumped = ImprintPayload.model_validate(_payload(layers=layers)).model_dump()
+    assert [layer["kind"] for layer in dumped["layers"]] == ["letterbox", "rect", "logo", "segments", "text"]
+    assert dumped["layers"][3]["content"]["chips"][0]["format"] == "stamp"

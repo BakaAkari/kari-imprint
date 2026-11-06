@@ -339,5 +339,112 @@
         }
       ]
     }
+  },
+  {
+    "id": "overlay-primitives",
+    "image": [
+      2400,
+      1600
+    ],
+    "config": {
+      "schema_version": 3,
+      "canvas": {
+        "margins": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "background": "#000000",
+        "border_radius": 0,
+        "border": {
+          "enabled": false,
+          "width_level": "medium",
+          "color": "#FFFFFF"
+        }
+      },
+      "regions": [],
+      "defaults": {
+        "font_size": null,
+        "font_size_level": "medium",
+        "font_size_ratio": null,
+        "size_reference": "region_height",
+        "color": "#222222",
+        "font_family": "NotoSansCJKsc-Bold.otf",
+        "bold": true,
+        "line_height": 1.2,
+        "text_direction": null
+      },
+      "layers": [
+        {
+          "id": "bars",
+          "kind": "letterbox",
+          "aspect": 2.39,
+          "color": "#000000"
+        },
+        {
+          "id": "sub",
+          "kind": "text",
+          "box": "letterbox-bottom",
+          "anchor": "middle-center",
+          "size": 0.026,
+          "content": {
+            "chips": [
+              {
+                "field_id": "custom_text",
+                "custom_text": "Subtitle"
+              }
+            ],
+            "separator": " "
+          },
+          "style": {
+            "color": "#F2F2F2"
+          },
+          "z": "over"
+        },
+        {
+          "id": "glass",
+          "kind": "rect",
+          "box": "photo",
+          "anchor": "top-left",
+          "h": 0.15,
+          "color": "#000000",
+          "opacity": 0.3,
+          "radius": 0.012,
+          "blur": 0.018,
+          "z": "over"
+        },
+        {
+          "id": "mark",
+          "kind": "logo",
+          "box": "photo",
+          "anchor": "bottom-left",
+          "offset_x": 0.06,
+          "offset_y": -0.06,
+          "height": 0.03,
+          "path": ""
+        },
+        {
+          "id": "stamp",
+          "kind": "segments",
+          "box": "photo",
+          "anchor": "bottom-right",
+          "offset_x": -0.055,
+          "offset_y": -0.05,
+          "height": 0.045,
+          "content": {
+            "chips": [
+              {
+                "field_id": "datetime",
+                "format": "stamp"
+              }
+            ],
+            "separator": " "
+          },
+          "color": "#FF8A1F",
+          "glow": true
+        }
+      ]
+    }
   }
 ]

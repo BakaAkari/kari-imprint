@@ -16,7 +16,7 @@ import type { ImprintConfig, FieldChip, TextContent, PreviewAspectRatio } from '
 import { PREVIEW_ASPECT_RATIOS } from './types';
 import { computeLayout } from './layout/layoutEngine';
 import type { LayoutResult, ComputedElement, StyleConfig } from './layout/layoutEngine';
-import type { DrawOp } from './layout/compose';
+import { segmentOps, type DrawOp } from './layout/compose';
 import { fitLayoutTexts, type FittedText } from './layout/textFit';
 import { buildText } from './layout/textContent';
 import { builtinLogoUrl, fetchLogos, resourceUrl } from './api';
@@ -293,10 +293,28 @@ function renderCanvas(
 function drawOps(ctx: CanvasRenderingContext2D, ops: readonly DrawOp[] | undefined, z: DrawOp['z']) {
   for (const op of ops ?? []) {
     if (op.z !== z || op.opacity <= 0) continue;
+    const { x, y, w, h } = op.rect;
     ctx.save();
+    if (op.radius || op.blur) {
+      ctx.beginPath();
+      roundedRectPath(ctx, op.rect, op.radius ?? 0);
+      ctx.clip();
+    }
+    if (op.blur) {
+      // Blur the backdrop: redraw this region of the canvas through a blur filter.
+      // Filters work in device pixels, so map the layout rect through the transform.
+      const t = ctx.getTransform();
+      const dx = Math.round(t.a * x + t.e), dy = Math.round(t.d * y + t.f);
+      const dw = Math.max(1, Math.round(t.a * w)), dh = Math.max(1, Math.round(t.d * h));
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.filter = `blur(${Math.max(0.5, op.blur * t.a)}px)`;
+      ctx.drawImage(ctx.canvas, dx, dy, dw, dh, dx, dy, dw, dh);
+      ctx.restore();
+    }
     ctx.globalAlpha = op.opacity;
     ctx.fillStyle = op.color;
-    ctx.fillRect(op.rect.x, op.rect.y, op.rect.w, op.rect.h);
+    ctx.fillRect(x, y, w, h);
     ctx.restore();
   }
 }
@@ -315,6 +333,12 @@ function drawElement(
   const { type, rect, anchor, content, style } = el;
 
   switch (type) {
+    case 'segments': {
+      if (!('chips' in content)) return;
+      const stamp = buildText(content as TextContent, '', fieldValues);
+      if (stamp) drawOps(ctx, segmentOps(el.id, stamp, el, style.color, (style.opacity ?? 1) > 0), 'over');
+      break;
+    }
     case 'text': {
       if (!('chips' in content) || !fittedText?.text) return;
       const text = fittedText.text;

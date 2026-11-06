@@ -34,6 +34,7 @@ import {
 } from './types';
 import type { LayoutTemplate, PresetCategory } from './templateModel';
 import { EDITORIAL_STYLES, type EditorialStyleId } from './styles/editorial';
+import { OVERLAY_STYLES, type OverlayStyleId } from './styles/overlay';
 import { GALLERY_STYLES, type GalleryStyleId } from './styles/gallery';
 import type { StyleKnob } from './styles/knobs';
 
@@ -70,7 +71,7 @@ export interface FramedStylePreset extends StylePresetBase {
 
 export type StylePreset = ControlledStylePreset | FramedStylePreset;
 
-export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId;
+export type FramedStyleId = 'classic' | 'minimal-line' | 'dark' | 'blur' | 'plain' | GalleryStyleId | EditorialStyleId | OverlayStyleId;
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -412,6 +413,10 @@ function editorial(id: EditorialStyleId, name: string, caption: string): FramedS
   return framed({ id, name, caption, category: 'editorial' }, () => EDITORIAL_STYLES[id].build(), EDITORIAL_STYLES[id].knobs);
 }
 
+function overlay(id: OverlayStyleId, name: string, caption: string): FramedStylePreset {
+  return framed({ id, name, caption, category: 'overlay' }, () => OVERLAY_STYLES[id].build(), OVERLAY_STYLES[id].knobs);
+}
+
 // ── Catalog ──────────────────────────────────────────────────────────────
 
 export const STYLE_PRESETS: readonly StylePreset[] = deepFreeze([
@@ -436,6 +441,11 @@ export const STYLE_PRESETS: readonly StylePreset[] = deepFreeze([
   editorial('plate', '图版', '画册图版：字距拉开的编号、衬线标题'),
   editorial('swiss-grid', '瑞士网格', '不对称宽栏、强调色块、无衬线粗标题与参数列表'),
   editorial('colophon', '版权页', '照片下方细线与标签—数值参数表'),
+  overlay('date-stamp', '日期戳', '胶片相机式橙色七段数码日期，带柔光'),
+  overlay('glass-caption', '毛玻璃字幕', '照片底部（或顶部）一条毛玻璃带，承载标题与参数'),
+  overlay('viewfinder', '取景框', '四角取景标记、可选中心十字与参数行'),
+  overlay('cinema', '电影宽银幕', '上下遮幅黑边，字幕与片头信息'),
+  overlay('corner-badge', '角标', '照片角落的半透明圆角徽章：品牌 Logo、机型与参数'),
 ]);
 
 /** Web editor picker, in display order; the first entry is the initial and reset state. */

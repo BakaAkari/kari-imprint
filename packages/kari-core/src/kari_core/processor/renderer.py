@@ -15,7 +15,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 from kari_core.core.auto_logo import match_brand_stem
 from kari_core.core.config_loader import FONTS_DIR, LOGOS_DIR
@@ -29,6 +29,7 @@ from kari_core.processor.effects import (
     round_photo_corners,
     save_corner_backgrounds,
 )
+from kari_core.shared.layout.compose import segment_ops
 from kari_core.shared.layout.layout_engine import (
     DIVIDER_OPACITY,
     ComputedElement,
@@ -755,14 +756,34 @@ def _draw_ops(canvas: Image.Image, ops: list, z: str) -> None:
             continue
         r, g, b, a = _parse_color(op.color)
         alpha = round(a * op.opacity)
-        if alpha >= 255:
+        radius = getattr(op, "radius", 0)
+        blur = getattr(op, "blur", 0)
+        if alpha >= 255 and not radius and not blur:
             draw = draw or ImageDraw.Draw(canvas)
             draw.rectangle([(x0, y0), (x1 - 1, y1 - 1)], fill=(r, g, b, 255))
             continue
-        # Translucent: composite only the covered region, never the whole canvas.
+        # Panels: composite only the covered region, never the whole canvas.
         region = canvas.crop((x0, y0, x1, y1))
+        if blur:
+            region = _blur_region(region, blur)
         region.alpha_composite(Image.new("RGBA", region.size, (r, g, b, alpha)))
-        canvas.paste(region, (x0, y0))
+        if radius:
+            mask = Image.new("L", region.size, 0)
+            ImageDraw.Draw(mask).rounded_rectangle(
+                (op.rect.x - x0, op.rect.y - y0, op.rect.x - x0 + op.rect.w - 1, op.rect.y - y0 + op.rect.h - 1),
+                radius=radius, fill=255,
+            )
+            canvas.paste(region, (x0, y0), mask)
+        else:
+            canvas.paste(region, (x0, y0))
+
+
+def _blur_region(region: Image.Image, sigma: int) -> Image.Image:
+    """Gaussian blur of a panel's backdrop on a reduced copy (cost stays flat at 400+ MP)."""
+    factor = max(1, sigma // 4)
+    small = region.resize((max(1, region.width // factor), max(1, region.height // factor)), Image.BILINEAR)
+    small = small.filter(ImageFilter.GaussianBlur(radius=max(0.5, sigma / factor)))
+    return small.resize(region.size, Image.BILINEAR)
 
 
 def render_pil(
@@ -861,6 +882,11 @@ def render_pil(
             element_img = _render_signature_element(el)
         elif el.type == "divider":
             _draw_divider_element(canvas, el, scheme)
+            continue
+        elif el.type == "segments":
+            stamp = _build_text(el.content, field_values, custom_text) if isinstance(el.content, TextContent) else ""
+            if stamp:
+                _draw_ops(canvas, segment_ops(el.id, stamp, el.rect, el.anchor, el.style.color, el.style.opacity > 0), "over")
             continue
         else:
             continue

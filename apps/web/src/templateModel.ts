@@ -1,6 +1,6 @@
 import type { ControlSurface, ImprintConfig } from './types';
 
-export type PresetCategory = 'brand' | 'polaroid' | 'archive' | 'social' | 'minimal' | 'gallery' | 'editorial' | 'custom';
+export type PresetCategory = 'brand' | 'polaroid' | 'archive' | 'social' | 'minimal' | 'gallery' | 'editorial' | 'overlay' | 'custom';
 
 export interface LayoutTemplate {
   id: string;

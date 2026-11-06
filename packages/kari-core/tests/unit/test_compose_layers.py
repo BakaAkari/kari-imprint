@@ -73,3 +73,24 @@ def test_render_paints_ops_under_and_over_the_photo():
 def test_configs_without_layers_have_no_ops():
     config = _dict_to_imprint_config({"canvas": {"margins": {"top": 10, "right": 10, "bottom": 10, "left": 10}}, "regions": []})
     assert compute_layout(config, 400, 300).ops == []
+
+
+def test_overlay_primitives_paint_letterbox_glass_and_stamp():
+    config, layout = _layout("overlay-primitives")
+    photo = Image.new("RGB", (2400, 1600), (200, 200, 200))
+    out = render_pil(layout, photo, bg_color=config.canvas.background,
+                     field_values={"datetime": "2026:11:07 16:40"}, config=config)
+    ops = {op.id: op for op in layout.ops}
+    # Letterbox bars crop the visible photo to 2.39:1.
+    bottom = ops["bars-bottom"].rect
+    assert out.getpixel((bottom.x + 10, bottom.y + bottom.h // 2))[:3] == (0, 0, 0)
+    assert 1600 - ops["bars-top"].rect.h - bottom.h == round(2400 / 2.39)
+    # The glass panel (painted over the top bar here) carries its corner radius and backdrop blur.
+    assert ops["glass"].radius > 0 and ops["glass"].blur > 0
+    assert ops["glass"].rect.h == round(0.15 * 1600)
+    # The seven-segment stamp is painted in its colour.
+    stamp = next(el for el in layout.elements if el.id == "stamp")
+    assert stamp.type == "segments"
+    from kari_core.shared.layout.compose import segment_rects
+    first = segment_rects("'26 11 07", stamp.rect.x, stamp.rect.y, stamp.rect.h, stamp.anchor)[1]
+    assert out.getpixel((first.x + first.w // 2, first.y + first.h // 2))[:3] == (0xFF, 0x8A, 0x1F)

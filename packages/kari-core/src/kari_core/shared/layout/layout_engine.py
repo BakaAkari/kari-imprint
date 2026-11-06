@@ -205,7 +205,7 @@ class ImprintConfig:
 @dataclass(slots=True)
 class ComputedElement:
     id: str
-    type: Literal["text", "logo", "signature", "divider"]
+    type: Literal["text", "logo", "signature", "divider", "segments"]
     rect: Rect
     anchor: str  # 九宫格
     content: TextContent | LogoContent | SignatureContent
@@ -406,7 +406,7 @@ def compute_layout(
         elif region.type == "free":
             elements.extend(_compute_free(region, image_rect, config.defaults, short_edge, long_edge))
 
-    composed = compose_layers(config.layers, image_rect, canvas, short_edge, config.defaults)
+    composed = compose_layers(config.layers, image_rect, canvas, short_edge, config.defaults, aspect)
     elements.extend(composed.elements)
 
     return LayoutResult(canvas=canvas, image_rect=image_rect, elements=elements, ops=composed.ops)

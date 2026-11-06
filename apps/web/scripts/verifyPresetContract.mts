@@ -454,6 +454,7 @@ section('16. Style catalog — one identity space for every app');
     'classic', 'minimal-line', 'dark', 'blur', 'plain',
     'museum-mat', 'double-reveal', 'black-core', 'float-mount', 'signed-proof',
     'masthead', 'plate', 'swiss-grid', 'colophon',
+    'date-stamp', 'glass-caption', 'viewfinder', 'cinema', 'corner-badge',
   ]);
   for (const preset of STYLE_PRESETS) {
     if (preset.name.trim() && preset.caption.trim() && preset.category) pass(`${preset.id} · has name, caption and category`);

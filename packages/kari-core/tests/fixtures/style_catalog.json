@@ -4740,5 +4740,1263 @@
     }
    ]
   }
+ },
+ {
+  "id": "date-stamp@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "date-stamp",
+   "style_params": {
+    "color": "#FF8A1F",
+    "size": 0.045,
+    "corner": "bottom-right",
+    "frame": false
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "stamp",
+     "kind": "segments",
+     "box": "photo",
+     "anchor": "bottom-right",
+     "offset_x": -0.055,
+     "offset_y": -0.05,
+     "height": 0.045,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "stamp"
+       }
+      ],
+      "separator": " "
+     },
+     "color": "#FF8A1F",
+     "glow": true
+    }
+   ]
+  }
+ },
+ {
+  "id": "date-stamp@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "date-stamp",
+   "style_params": {
+    "color": "#FF8A1F",
+    "size": 0.045,
+    "corner": "bottom-right",
+    "frame": false
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "stamp",
+     "kind": "segments",
+     "box": "photo",
+     "anchor": "bottom-right",
+     "offset_x": -0.055,
+     "offset_y": -0.05,
+     "height": 0.045,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "stamp"
+       }
+      ],
+      "separator": " "
+     },
+     "color": "#FF8A1F",
+     "glow": true
+    }
+   ]
+  }
+ },
+ {
+  "id": "glass-caption@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "glass-caption",
+   "style_params": {
+    "tint": "dark",
+    "title": "",
+    "details": true,
+    "position": "bottom"
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "glass",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "h": 0.15,
+     "color": "#000000",
+     "opacity": 0.3,
+     "blur": 0.018,
+     "z": "over"
+    },
+    {
+     "id": "glass-details",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.055,
+     "offset_y": -0.045,
+     "size": 0.012,
+     "z": "over",
+     "max_width": 0.85,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#D8D8D8",
+      "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "glass-caption@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "glass-caption",
+   "style_params": {
+    "tint": "dark",
+    "title": "",
+    "details": true,
+    "position": "bottom"
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "glass",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "h": 0.15,
+     "color": "#000000",
+     "opacity": 0.3,
+     "blur": 0.018,
+     "z": "over"
+    },
+    {
+     "id": "glass-details",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.055,
+     "offset_y": -0.045,
+     "size": 0.012,
+     "z": "over",
+     "max_width": 0.85,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       },
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#D8D8D8",
+      "tracking": 40
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "viewfinder@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "viewfinder",
+   "style_params": {
+    "color": "#FFFFFF",
+    "crosshair": false,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "vf-top-left-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-left",
+     "offset_x": 0.045,
+     "offset_y": 0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-top-left-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-left",
+     "offset_x": 0.045,
+     "offset_y": 0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-top-right-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-right",
+     "offset_x": -0.045,
+     "offset_y": 0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-top-right-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-right",
+     "offset_x": -0.045,
+     "offset_y": 0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-left-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.045,
+     "offset_y": -0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-left-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.045,
+     "offset_y": -0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-right-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-right",
+     "offset_x": -0.045,
+     "offset_y": -0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-right-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-right",
+     "offset_x": -0.045,
+     "offset_y": -0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-spec",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-center",
+     "offset_x": 0,
+     "offset_y": -0.049,
+     "size": 0.0135,
+     "z": "over",
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "    "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#FFFFFF",
+      "tracking": 160
+     }
+    },
+    {
+     "id": "vf-model",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "top-center",
+     "offset_x": 0,
+     "offset_y": 0.049,
+     "size": 0.0115,
+     "z": "over",
+     "max_width": 0.5,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#FFFFFF",
+      "tracking": 200,
+      "text_case": "upper"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "viewfinder@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "viewfinder",
+   "style_params": {
+    "color": "#FFFFFF",
+    "crosshair": false,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#FFFFFF",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "vf-top-left-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-left",
+     "offset_x": 0.045,
+     "offset_y": 0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-top-left-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-left",
+     "offset_x": 0.045,
+     "offset_y": 0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-top-right-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-right",
+     "offset_x": -0.045,
+     "offset_y": 0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-top-right-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "top-right",
+     "offset_x": -0.045,
+     "offset_y": 0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-left-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.045,
+     "offset_y": -0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-left-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.045,
+     "offset_y": -0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-right-h",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-right",
+     "offset_x": -0.045,
+     "offset_y": -0.045,
+     "w": 0.075,
+     "h": 0.0032,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-bottom-right-v",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-right",
+     "offset_x": -0.045,
+     "offset_y": -0.045,
+     "w": 0.0032,
+     "h": 0.075,
+     "color": "#FFFFFF",
+     "opacity": 0.92,
+     "z": "over"
+    },
+    {
+     "id": "vf-spec",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-center",
+     "offset_x": 0,
+     "offset_y": -0.049,
+     "size": 0.0135,
+     "z": "over",
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "    "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#FFFFFF",
+      "tracking": 160
+     }
+    },
+    {
+     "id": "vf-model",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "top-center",
+     "offset_x": 0,
+     "offset_y": 0.049,
+     "size": 0.0115,
+     "z": "over",
+     "max_width": 0.5,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#FFFFFF",
+      "tracking": 200,
+      "text_case": "upper"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "cinema@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "cinema",
+   "style_params": {
+    "aspect": "2.39",
+    "title": "",
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#000000",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "bars",
+     "kind": "letterbox",
+     "aspect": 2.39,
+     "color": "#000000"
+    },
+    {
+     "id": "cinema-meta",
+     "kind": "text",
+     "box": "letterbox-top",
+     "anchor": "middle-left",
+     "offset_x": 0.045,
+     "offset_y": 0,
+     "size": 0.0115,
+     "z": "over",
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C8C8C",
+      "tracking": 160,
+      "text_case": "upper"
+     }
+    },
+    {
+     "id": "cinema-date",
+     "kind": "text",
+     "box": "letterbox-top",
+     "anchor": "middle-right",
+     "offset_x": -0.045,
+     "offset_y": 0,
+     "size": 0.0115,
+     "z": "over",
+     "max_width": 0.3,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "date"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C8C8C",
+      "tracking": 160
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "cinema@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "cinema",
+   "style_params": {
+    "aspect": "2.39",
+    "title": "",
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#000000",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "bars",
+     "kind": "letterbox",
+     "aspect": 2.39,
+     "color": "#000000"
+    },
+    {
+     "id": "cinema-meta",
+     "kind": "text",
+     "box": "letterbox-top",
+     "anchor": "middle-left",
+     "offset_x": 0.045,
+     "offset_y": 0,
+     "size": 0.0115,
+     "z": "over",
+     "max_width": 0.6,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       },
+       {
+        "field_id": "lens_model"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C8C8C",
+      "tracking": 160,
+      "text_case": "upper"
+     }
+    },
+    {
+     "id": "cinema-date",
+     "kind": "text",
+     "box": "letterbox-top",
+     "anchor": "middle-right",
+     "offset_x": -0.045,
+     "offset_y": 0,
+     "size": 0.0115,
+     "z": "over",
+     "max_width": 0.3,
+     "content": {
+      "chips": [
+       {
+        "field_id": "datetime",
+        "format": "date"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#8C8C8C",
+      "tracking": 160
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "corner-badge@3000x2000",
+  "app": "immich-ki",
+  "image": [
+   3000,
+   2000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "corner-badge",
+   "style_params": {
+    "tint": "dark",
+    "corner": "bottom-left",
+    "logo": true,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#111111",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "badge",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.04,
+     "offset_y": -0.04,
+     "w": 0.31,
+     "h": 0.074,
+     "radius": 0.014,
+     "blur": 0.012,
+     "color": "#000000",
+     "opacity": 0.42,
+     "z": "over"
+    },
+    {
+     "id": "badge-logo",
+     "kind": "logo",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.062,
+     "offset_y": -0.062,
+     "height": 0.03,
+     "path": "",
+     "z": "over"
+    },
+    {
+     "id": "badge-model",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.168,
+     "offset_y": -0.079,
+     "size": 0.018,
+     "z": "over",
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#FFFFFF",
+      "tracking": 0
+     }
+    },
+    {
+     "id": "badge-settings",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.168,
+     "offset_y": -0.057,
+     "size": 0.0105,
+     "z": "over",
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#D8D8D8",
+      "tracking": 30
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "corner-badge@2000x3000",
+  "app": "immich-ki",
+  "image": [
+   2000,
+   3000
+  ],
+  "config": {
+   "schema_version": 3,
+   "style_id": "corner-badge",
+   "style_params": {
+    "tint": "dark",
+    "corner": "bottom-left",
+    "logo": true,
+    "details": true
+   },
+   "canvas": {
+    "margins": {
+     "top": 0,
+     "right": 0,
+     "bottom": 0,
+     "left": 0
+    },
+    "margin_unit": "short_edge_ratio",
+    "background": "#111111",
+    "border_radius": 0,
+    "border": {
+     "enabled": false,
+     "width_level": "medium",
+     "color": "#FFFFFF"
+    }
+   },
+   "regions": [],
+   "defaults": {
+    "font_size": null,
+    "font_size_level": "medium",
+    "font_size_ratio": null,
+    "size_reference": "region_height",
+    "color": "#222222",
+    "font_family": "NotoSansCJKsc-Bold.otf",
+    "bold": true,
+    "line_height": 1.2,
+    "text_direction": null
+   },
+   "custom_text": "",
+   "logo_position": "right",
+   "layers": [
+    {
+     "id": "badge",
+     "kind": "rect",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.04,
+     "offset_y": -0.04,
+     "w": 0.31,
+     "h": 0.074,
+     "radius": 0.014,
+     "blur": 0.012,
+     "color": "#000000",
+     "opacity": 0.42,
+     "z": "over"
+    },
+    {
+     "id": "badge-logo",
+     "kind": "logo",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.062,
+     "offset_y": -0.062,
+     "height": 0.03,
+     "path": "",
+     "z": "over"
+    },
+    {
+     "id": "badge-model",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.168,
+     "offset_y": -0.079,
+     "size": 0.018,
+     "z": "over",
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "camera_model"
+       }
+      ],
+      "separator": "  ·  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Bold.otf",
+      "bold": true,
+      "color": "#FFFFFF",
+      "tracking": 0
+     }
+    },
+    {
+     "id": "badge-settings",
+     "kind": "text",
+     "box": "photo",
+     "anchor": "bottom-left",
+     "offset_x": 0.168,
+     "offset_y": -0.057,
+     "size": 0.0105,
+     "z": "over",
+     "max_width": 0.2,
+     "content": {
+      "chips": [
+       {
+        "field_id": "focal_length"
+       },
+       {
+        "field_id": "aperture"
+       },
+       {
+        "field_id": "shutter"
+       },
+       {
+        "field_id": "iso"
+       }
+      ],
+      "separator": "  "
+     },
+     "style": {
+      "font_family": "NotoSansCJKsc-Regular.otf",
+      "bold": false,
+      "color": "#D8D8D8",
+      "tracking": 30
+     }
+    }
+   ]
+  }
  }
 ]
