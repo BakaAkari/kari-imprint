@@ -1,5 +1,5 @@
 /**
- * Preset session transition — the ONE authoritative path from a ProductPreset
+ * Preset session transition — the ONE authoritative path from a web style preset
  * to the editor's live state bundle.
  *
  * Every entry point that changes which preset is active — initial mount, reset,
@@ -20,8 +20,7 @@ import {
   type SlotOverrides,
   type ImprintConfig,
 } from './types';
-import { productPresets } from './presetDefinitions';
-import type { ProductPreset } from './templateModel';
+import { WEB_STYLE_PRESETS, type ControlledStylePreset } from './stylePresets';
 
 export interface PresetSession {
   template: ImprintConfig;
@@ -32,8 +31,8 @@ export interface PresetSession {
   rootOverrides: RootOverrides;
 }
 
-export function getProductPreset(id: string): ProductPreset {
-  const preset = productPresets.find((p) => p.id === id);
+export function getProductPreset(id: string): ControlledStylePreset {
+  const preset = WEB_STYLE_PRESETS.find((p) => p.id === id);
   if (!preset) {
     throw new Error(`getProductPreset: unknown preset id "${id}"`);
   }
@@ -41,8 +40,8 @@ export function getProductPreset(id: string): ProductPreset {
 }
 
 /** 首屏与重置直接使用预设列表第一项，不维护独立默认方案。 */
-export function getFirstProductPreset(): ProductPreset {
-  const preset = productPresets[0];
+export function getFirstProductPreset(): ControlledStylePreset {
+  const preset = WEB_STYLE_PRESETS[0];
   if (!preset) throw new Error('getFirstProductPreset: product preset list is empty');
   return preset;
 }
@@ -53,7 +52,7 @@ export function getFirstProductPreset(): ProductPreset {
  * The session's overrides are always empty — presets carry no overrides;
  * overrides are per-user tweaks accumulated *after* selection.
  */
-export function createPresetSession(preset: ProductPreset): PresetSession {
+export function createPresetSession(preset: ControlledStylePreset): PresetSession {
   return {
     template: structuredClone(preset.template.config),
     controls: structuredClone(preset.mainControls),

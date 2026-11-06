@@ -6,9 +6,9 @@ const root = path.resolve(__dirname, '..');
 const ts = require(path.join(root, 'apps/immich-ki/web/node_modules/typescript'));
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, filename);
 const state = require('../apps/immich-ki/web/src/editor-state.ts');
-const defaults = require('../apps/immich-ki/web/src/defaults.ts');
+const catalog = require('../apps/web/src/stylePresets.ts');
 const history = require('../apps/immich-ki/web/src/history.ts');
-const { buildDefaultConfig } = defaults;
+const buildDefaultConfig = () => catalog.buildFramedStyle('classic');
 const frames = c => c.regions.filter(r => r.type !== 'free');
 
 // Lossless load/save of arbitrary stored configs, including unknown-to-UI shapes.
@@ -24,8 +24,8 @@ for (const config of [value, buildDefaultConfig(), { ...buildDefaultConfig(), re
 }
 
 // Every style has at most one frame and is detected back as itself.
-for (const { id } of defaults.STYLE_PRESETS) {
-  const config = defaults.buildStyleConfig(id, 4000);
+for (const { id } of catalog.IMMICH_STYLE_PRESETS) {
+  const config = catalog.buildFramedStyle(id, 4000);
   assert.ok(frames(config).length <= 1, id);
   assert.equal(state.detectStyle(config), id, `style ${id} must round-trip through detection`);
 }
@@ -41,7 +41,7 @@ assert.deepEqual(left.canvas.margins, { top: 120, right: 120, bottom: 120, left:
 assert.equal(state.frameThickness(left), 0.2);
 assert.equal(state.marginValue(state.setFramePosition(left, 'footer')), 120);
 // Without a frame (plain), position is a no-op rather than silently switching style.
-const plain = defaults.buildPlainConfig();
+const plain = catalog.buildFramedStyle('plain');
 assert.equal(state.setFramePosition(plain, 'left'), plain);
 
 // Switching style keeps orthogonal choices: position, brand, signature, margin.
@@ -56,7 +56,7 @@ assert.equal(state.brandMode(dark), 'canon');
 assert.equal(state.logoSize(dark), 'large');
 assert.deepEqual(state.signatureState(dark), { enabled: true, path: 'sig-resource', size: 'medium' });
 assert.equal(state.marginValue(dark), 90);
-const minimal = state.applyStylePreset(custom, 'minimal');
+const minimal = state.applyStylePreset(custom, 'minimal-line');
 assert.equal(state.brandMode(minimal), 'off', 'minimal has no logo');
 assert.equal(state.framePosition(minimal), 'right');
 assert.ok(state.signatureState(state.applyStylePreset(custom, 'plain')).enabled, 'signature survives plain style');
@@ -101,7 +101,7 @@ assert.equal(state.marginValue(doc.config), 80);
 assert.equal(history.reduce(doc, { type: 'commit', config: doc.config, at: 9999 }), doc, 'no-op edits do not create history');
 
 // Album look: per-section differences and restore touch only that section.
-const albumLook = defaults.buildDarkConfig();
+const albumLook = catalog.buildFramedStyle('dark');
 let photo = state.setFramePosition(albumLook, 'left');
 photo = state.toggleLineField(photo, 'primary-start', 'datetime');
 photo = state.setSignature(photo, { path: 'sig', enabled: true });
@@ -115,7 +115,7 @@ let all = photo;
 for (const section of state.differingSections(photo, albumLook)) all = state.restoreSection(all, albumLook, section);
 assert.deepEqual(state.differingSections(all, albumLook), [], 'restoring every differing section matches the look');
 assert.ok(state.sameConfig(all, albumLook) || state.differingSections(all, albumLook).length === 0);
-const plainLook = defaults.buildPlainConfig();
+const plainLook = catalog.buildFramedStyle('plain');
 assert.equal(state.frameRegion(state.restoreSection(photo, plainLook, 'layout')), null, 'restoring layout to a plain look removes the frame');
 
 console.log('PASS: album-look section diff/restore, lossless roundtrip, style detection, orthogonal style switch, position keeps margin/thickness, plain no-op, single-line fields, end-slot rule, weight font, signature rules, effect default, undo coalescing');

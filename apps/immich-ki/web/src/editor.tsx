@@ -3,7 +3,8 @@ import { KariImprintCanvas } from '../../../web/src/KariImprintCanvas';
 import { resolveAutoLogoWithScheme, type LogoRegistryEntry } from '../../../web/src/autoLogo';
 import { fetchLogos, uploadResource, type ExifFieldValues, type RuntimeCapabilities } from '../../../web/src/api';
 import { fieldOptions, type FieldId, type ImprintConfig, type SizeLevel } from '../../../web/src/types';
-import { BACKGROUND_SWATCHES, QUICK_FIELD_OPTIONS, STYLE_PRESETS, type StylePresetId } from './defaults';
+import { BACKGROUND_SWATCHES, QUICK_FIELD_OPTIONS } from './defaults';
+import { IMMICH_STYLE_PRESETS, type FramedStyleId } from '../../../web/src/stylePresets';
 import {
   applyStylePreset, availableLines, brandMode, canvasEffect, detectStyle, framePosition, frameRegion, frameLayout, frameThickness,
   isDark, lineFields, lineLabel, lineStyle, logoSize, marginValue, moveLineField, patchFrameLayout, patchLineStyle, setBackground,
@@ -61,15 +62,15 @@ function Slider({ label, value, min, max, step, format, onChange }: { label: str
   </label>;
 }
 
-function StyleCards({ config, current, onPick, image, size, caps, fields, strip = false }: { config: ImprintConfig; current: StylePresetId; onPick: (id: StylePresetId) => void; image: ImageBitmap | null; size: { width: number; height: number } | null; caps: RuntimeCapabilities | null; fields: ExifFieldValues; strip?: boolean }) {
+function StyleCards({ config, current, onPick, image, size, caps, fields, strip = false }: { config: ImprintConfig; current: FramedStyleId; onPick: (id: FramedStyleId) => void; image: ImageBitmap | null; size: { width: number; height: number } | null; caps: RuntimeCapabilities | null; fields: ExifFieldValues; strip?: boolean }) {
   const shortEdge = size ? Math.min(size.width, size.height) : undefined;
   // Each card renders the current photo in that style, keeping the user's orthogonal choices.
-  const previews = useMemo(() => STYLE_PRESETS.map(p => ({ ...p, config: applyStylePreset(config, p.id, shortEdge) })), [config, shortEdge]);
+  const previews = useMemo(() => IMMICH_STYLE_PRESETS.map(p => ({ id: p.id, name: p.name, caption: p.caption, config: applyStylePreset(config, p.id, shortEdge) })), [config, shortEdge]);
   const thumbCaps = useMemo(() => caps ? { ...caps, preview: { ...caps.preview, max_edge: 420 } } : null, [caps]);
   return <div className={`style-cards ${strip ? 'strip' : ''}`} role="radiogroup" aria-label="样式">
     {previews.map((p, index) => <button key={p.id} type="button" role="radio" aria-checked={current === p.id} className={`style-card ${current === p.id ? 'active' : ''}`} onClick={() => onPick(p.id)} title={`${p.caption}（快捷键 ${index + 1}）`}>
       <span className="style-thumb">{image && size && thumbCaps ? <KariImprintCanvas config={p.config} image={image} originalImageSize={size} runtimeCaps={thumbCaps} fieldValues={fields} scheme="dark" /> : null}</span>
-      <span className="style-name">{p.label}</span>
+      <span className="style-name">{p.name}</span>
     </button>)}
   </div>;
 }

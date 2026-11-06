@@ -9,7 +9,7 @@ import {
 import { AlbumHeader, Tray, failureText } from './album';
 import { Editor, editableConfig, serializeEditorConfig, type Commit } from './editor';
 import { applyStylePreset, differingSections, frameRegion, selectionElementId, selectionFromElementId, setFramePosition, type Selection } from './editor-state';
-import { buildDefaultConfig, STYLE_PRESETS } from './defaults';
+import { buildFramedStyle, IMMICH_STYLE_PRESETS } from '../../../web/src/stylePresets';
 import { Gallery, photoStatus, STATUS_LABEL, useGallery, type GalleryFilter } from './gallery';
 import { useEditorDoc } from './history';
 import { Filmstrip, PreviewStage } from './preview';
@@ -17,7 +17,7 @@ import { isTyping, Login, Maintenance } from './shell';
 import { localPrefs, useActivity } from './store';
 import './style.css';
 
-const initial: ImprintConfig = buildDefaultConfig();
+const initial: ImprintConfig = buildFramedStyle('classic');
 
 const JOB_TEXT: Record<string, string> = {
   queued: '排队中…', running: '正在生成…', publishing: '正在写入成品…',
@@ -432,7 +432,7 @@ function App() {
     if (e.shiftKey && key === 'v') { pasteSettings(); return; }
     if (key === 'z') { setZoom(z => !z); return; }
     const index = Number(e.key) - 1;
-    if (Number.isInteger(index) && index >= 0 && index < STYLE_PRESETS.length) { commit(c => applyStylePreset(c, STYLE_PRESETS[index].id, Math.min(photo!.size.width, photo!.size.height))); return; }
+    if (Number.isInteger(index) && index >= 0 && index < IMMICH_STYLE_PRESETS.length) { commit(c => applyStylePreset(c, IMMICH_STYLE_PRESETS[index].id, Math.min(photo!.size.width, photo!.size.height))); return; }
     const position = key === 'b' ? 'footer' : key === 'l' ? 'left' : key === 'r' ? 'right' : null;
     if (position && frameRegion(configRef.current)) commit(c => setFramePosition(c, position));
   };

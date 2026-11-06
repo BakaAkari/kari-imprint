@@ -48,7 +48,7 @@ def test_frontend_backend_size_tokens_stay_in_sync():
 
 
 def test_presets_have_product_categories():
-    source = (REPO_ROOT / "apps/web/src/presetDefinitions.ts").read_text()
+    source = (REPO_ROOT / "apps/web/src/stylePresets.ts").read_text(encoding="utf-8")
     for category in ["brand", "minimal", "polaroid"]:
         assert f"category: '{category}'" in source
     assert "品牌底栏" in source

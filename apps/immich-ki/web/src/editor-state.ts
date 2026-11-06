@@ -1,6 +1,6 @@
 import { defaultFlowLayout, normalizeStylePatch, type FieldId, type FlowLayoutConfig, type ImprintConfig, type RegionConfig, type SizeLevel, type SlotConfig, type StyleConfig } from '../../../web/src/types';
 import { isDarkBackground } from '../../../web/src/colorScheme';
-import { buildStyleConfig, canvasEffect, DEFAULT_FRAME_MARGIN, marginsForFrame, withCanvasEffect, type FrameSide, type StylePresetId } from './defaults';
+import { buildFramedStyle, canvasEffect, DEFAULT_FRAME_MARGIN, marginsForFrame, withCanvasEffect, type FramedStyleId, type FrameSide } from '../../../web/src/stylePresets';
 
 // The draft is the persisted model. Rendering controls never materialize defaults.
 export const editableConfig = (value: ImprintConfig): ImprintConfig => structuredClone(value);
@@ -115,11 +115,11 @@ export function patchFrameLayout(config: ImprintConfig, patch: Partial<FlowLayou
 // ── 样式 ─────────────────────────────────────────────────────────────
 
 /** Infer the product style from the configuration structure. */
-export function detectStyle(config: ImprintConfig): StylePresetId {
+export function detectStyle(config: ImprintConfig): FramedStyleId {
     const region = frameRegion(config);
     if (canvasEffect(config).background === 'blur') return 'blur';
     if (!region) return 'plain';
-    if ((region.layout?.mode ?? 'dual-track') === 'single-track') return 'minimal';
+    if ((region.layout?.mode ?? 'dual-track') === 'single-track') return 'minimal-line';
     return isDark(config.canvas.background) ? 'dark' : 'classic';
 }
 
@@ -132,13 +132,13 @@ export const isDark = isDarkBackground;
  * value (except when entering/leaving the blur style, whose space is part
  * of the look).
  */
-export function applyStylePreset(config: ImprintConfig, id: StylePresetId, shortEdge?: number): ImprintConfig {
-    let next = buildStyleConfig(id, shortEdge);
+export function applyStylePreset(config: ImprintConfig, id: FramedStyleId, shortEdge?: number): ImprintConfig {
+    let next = buildFramedStyle(id, shortEdge);
     const currentStyle = detectStyle(config);
     const hadFrame = frameRegion(config);
     if (hadFrame && frameRegion(next)) {
         next = setFramePosition(next, framePosition(config));
-        if (currentStyle !== 'minimal' && id !== 'minimal') next = setFrameThickness(next, frameThickness(config));
+        if (currentStyle !== 'minimal-line' && id !== 'minimal-line') next = setFrameThickness(next, frameThickness(config));
         const brand = brandMode(config);
         if (brandMode(next) !== 'off' && brand !== 'off') next = setBrandMode(next, brand, logoSize(config));
     }

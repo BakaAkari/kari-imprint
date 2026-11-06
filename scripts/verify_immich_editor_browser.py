@@ -28,7 +28,7 @@ def main():
         [
             "node",
             "-e",
-            "require('./scripts/verify_immich_editor_state.cjs'); console.log(JSON.stringify(require('./apps/immich-ki/web/src/defaults.ts').buildDefaultConfig()))",
+            "require('./scripts/verify_immich_editor_state.cjs'); console.log(JSON.stringify(require('./apps/web/src/stylePresets.ts').buildFramedStyle('classic')))",
         ],
         cwd=ROOT,
         text=True,

@@ -340,90 +340,6 @@ export const defaultStyle: StyleConfig = {
 };
 
 /**
- * Preset templates carry only structural chrome that MainControlConfig does not own:
- *   - canvas margins/background/border_radius/border (border further split by controlSurface.border)
- *   - defaults style (baseline typography for slots the controls don't cover)
- *   - region skeleton: id / type / enabled / layout / text_orientation
- *
- * Controlled slots (footer text slots and Logo asset slot) are deliberately absent.
- * MainControlConfig is the single authoritative source for their content, style,
- * enabled flag, and Logo position — resolveConfig() reconstructs them purely from
- * controls, so there is nowhere for a duplicate chip list, font weight, or color
- * to hide inside a preset template.
- */
-export const presetDefaultBase: ImprintConfig = {
-  schema_version: 3,
-  canvas: {
-    margins: { top: 0, right: 0, bottom: 0, left: 0 },
-    background: '#FFFFFF',
-    border_radius: 0,
-    border: { enabled: true, width_level: 'small', color: '#FFFFFF' },
-  },
-  defaults: defaultStyle,
-  regions: [
-    {
-      id: 'footer',
-      type: 'footer-bar',
-      enabled: true,
-      layout: defaultFlowLayout(),
-      text_orientation: 'auto',
-      // height 由 applyMainControls 统一计算，不在预设中硬编码
-      // slots 由 MainControlConfig 权威构造，模板不携带任何 controlled slot。
-    },
-  ],
-};
-
-export const presetDefault: ImprintConfig = presetDefaultBase;
-
-export const presetMinimalBase: ImprintConfig = {
-  schema_version: 3,
-  canvas: {
-    margins: { top: 0, right: 0, bottom: 0, left: 0 },
-    background: '#FFFFFF',
-    border_radius: 0,
-    border: { enabled: false, width_level: 'small', color: '#FFFFFF' },
-  },
-  defaults: defaultStyle,
-  regions: [
-    {
-      id: 'footer',
-      type: 'footer-bar',
-      enabled: true,
-      layout: defaultFlowLayout(),
-      text_orientation: 'auto',
-    },
-  ],
-};
-
-export const presetMinimal: ImprintConfig = presetMinimalBase;
-
-export const presetSoftCardBase: ImprintConfig = {
-  schema_version: 3,
-  canvas: {
-    margins: { top: 0, right: 0, bottom: 0, left: 0 },
-    background: '#FFFFFF',
-    // 圆润 = 照片本身圆角（canvas.effect.photo_radius）。画布外角圆角需要透明，
-    // JPEG 成品无法表达，因此 border_radius 已停用，预览与成品都不再应用。
-    border_radius: 0,
-    effect: { background: 'solid', photo_radius: 0.02, shadow: false },
-    // 拍立得的白纸边由 border 实现；controlSurface.border.enabled 打开时由 controls.border_enabled 权威覆盖。
-    border: { enabled: true, width_level: 'medium', color: '#FFFFFF' },
-  },
-  defaults: defaultStyle,
-  regions: [
-    {
-      id: 'footer',
-      type: 'footer-bar',
-      enabled: true,
-      layout: defaultFlowLayout(),
-      text_orientation: 'auto',
-    },
-  ],
-};
-
-export const presetSoftCard: ImprintConfig = presetSoftCardBase;
-
-/**
  * SlotOverride — 记录用户在高级编辑中对某个 slot 的手动修改。
  * key 格式为 "regionId:slotId"（如 "footer:primary-start"）。
  * 这些 overrides 在 controls 变更后仍被保留。
@@ -439,7 +355,7 @@ export type SlotOverrides = Record<string, SlotOverride>;
 /**
  * 从模板 + 主控制参数 + 三层 overrides 合成完整 ImprintConfig。
  *
- * 核心原则（与 presetSession + preset 定义共同构成单一真相源）：
+ * 核心原则（与 presetSession + stylePresets.ts 共同构成单一真相源）：
  * - Controlled slot（footer 文本 + Logo asset）的 content/style 完全由
  *   `controls` 权威决定；template 中不允许携带任何 controlled slot。
  * - `controls.logo_enabled=false` 时 asset slot 保持 disabled，
@@ -588,7 +504,7 @@ export function resolveConfig(
       const slotId = footerSurface.slots[logicalId];
       if (!slotId) continue;
       // Controlled slot 的 content/style 完全由 controls 决定；
-      // preset template 中不允许携带任何 controlled slot（见 types.ts 的 preset*Base 定义）。
+      // preset template 中不允许携带任何 controlled slot（见 stylePresets.ts 的 footerOnlyTemplate）。
       footer.slots[slotId] = {
         enabled: chips.length > 0,
         content: chips.length > 0 ? { chips, separator: ' ' } : null,

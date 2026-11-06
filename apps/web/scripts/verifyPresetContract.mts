@@ -14,12 +14,16 @@ import {
   defaultControlSurface,
   resolveConfig,
   colorSchemes,
-  presetDefaultBase,
   type MainControlConfig,
   type SizeLevel,
   type SlotOverrides,
 } from '../src/types';
-import { productPresets } from '../src/presetDefinitions';
+import {
+  IMMICH_STYLE_PRESETS,
+  STYLE_PRESETS,
+  WEB_STYLE_PRESETS,
+  getStylePreset,
+} from '../src/stylePresets';
 import {
   createInitialPresetSession,
   createPresetSession,
@@ -76,7 +80,7 @@ function resolvedFromPreset(id: string) {
 
 // ──────────────────────────────────────────────────────────
 section('1. Every preset declares all MainControlConfig keys explicitly');
-for (const preset of productPresets) {
+for (const preset of WEB_STYLE_PRESETS) {
   const missing: string[] = [];
   for (const key of CONTROL_KEYS) {
     if (!(key in preset.mainControls)) missing.push(key);
@@ -90,7 +94,7 @@ for (const preset of productPresets) {
 
 // ──────────────────────────────────────────────────────────
 section('2. Preset templates carry NO controlled slot content or style');
-for (const preset of productPresets) {
+for (const preset of WEB_STYLE_PRESETS) {
   const surface = preset.template.controlSurface ?? defaultControlSurface;
   const controlledSlotIds = new Set<string>([
     ...Object.values(surface.footer.slots).filter((v): v is string => Boolean(v)),
@@ -111,11 +115,11 @@ for (const preset of productPresets) {
 
 // ──────────────────────────────────────────────────────────
 section('3. No independent default controls — initial state is the first preset');
-assertEqual('first preset is the initial product state', getFirstProductPreset(), productPresets[0]);
+assertEqual('first preset is the initial product state', getFirstProductPreset(), WEB_STYLE_PRESETS[0]);
 
 // ──────────────────────────────────────────────────────────
 section('4. Round-trip stability — repeated selection yields deep-equal config');
-for (const preset of productPresets) {
+for (const preset of WEB_STYLE_PRESETS) {
   const a = resolvedFromPreset(preset.id).config;
   const b = resolvedFromPreset(preset.id).config;
   if (deepEqual(a, b)) pass(`${preset.id} idempotent`);
@@ -127,7 +131,7 @@ section('5. Initial state and reset both use the first preset directly');
 {
   const initial = createInitialPresetSession();
   const initialCfg = resolveConfig(initial.template, initial.controls, initial.slotOverrides, initial.regionOverrides, initial.rootOverrides, initial.controlSurface);
-  const firstPreset = productPresets[0];
+  const firstPreset = WEB_STYLE_PRESETS[0];
   const explicit = resolvedFromPreset(firstPreset.id).config;
   assertEqual('initial mount = createPresetSession(first preset)', initialCfg, explicit);
   assertEqual('first preset defaults border to enabled', initial.controls.border_enabled, true);
@@ -141,18 +145,18 @@ section('5. Initial state and reset both use the first preset directly');
 section('6. Override reset — applying preset B after tweaks matches fresh selection');
 {
   // Session 1: fresh apply of B
-  const s1 = createPresetSession(productPresets[1]);
+  const s1 = createPresetSession(WEB_STYLE_PRESETS[1]);
   const cfgFresh = resolveConfig(s1.template, s1.controls, s1.slotOverrides, s1.regionOverrides, s1.rootOverrides, s1.controlSurface);
 
   // Session 2: apply A, tweak overrides, then apply B via the same transition.
-  let s2 = createPresetSession(productPresets[0]);
+  let s2 = createPresetSession(WEB_STYLE_PRESETS[0]);
   const dirtySlots: SlotOverrides = { 'footer:primary-start': { enabled: false } };
   s2 = { ...s2, slotOverrides: dirtySlots, regionOverrides: { footer: { padding: { top: 999 } } }, rootOverrides: { canvas: { border_radius: 42 } } };
   const cfgDirty = resolveConfig(s2.template, s2.controls, s2.slotOverrides, s2.regionOverrides, s2.rootOverrides, s2.controlSurface);
   if (!deepEqual(cfgDirty, cfgFresh)) pass('overrides on preset A change resolved config (sanity)');
   else fail('override sanity', 'overrides had no observable effect — fixture broken');
 
-  s2 = createPresetSession(productPresets[1]);
+  s2 = createPresetSession(WEB_STYLE_PRESETS[1]);
   const cfgAfterSwitch = resolveConfig(s2.template, s2.controls, s2.slotOverrides, s2.regionOverrides, s2.rootOverrides, s2.controlSurface);
   assertEqual('preset switch clears overrides', cfgAfterSwitch, cfgFresh);
 }
@@ -164,7 +168,7 @@ function xRange(el: { rect: { x: number; w: number }; anchor: string }): [number
   if (el.anchor.includes('center')) return [el.rect.x - el.rect.w / 2, el.rect.x + el.rect.w / 2];
   return [el.rect.x, el.rect.x + el.rect.w];
 }
-for (const preset of productPresets) {
+for (const preset of WEB_STYLE_PRESETS) {
   const cfg = resolvedFromPreset(preset.id).config;
   const layout = computeLayout(cfg as unknown as Parameters<typeof computeLayout>[0], 1200, 800);
   const asset = layout.elements.find((el) => el.type === 'logo');
@@ -193,7 +197,7 @@ for (const preset of productPresets) {
 
 // ──────────────────────────────────────────────────────────
 section('8. Every MainControlConfig field maps 1:1 into resolved config');
-for (const preset of productPresets) {
+for (const preset of WEB_STYLE_PRESETS) {
   const { config, session } = resolvedFromPreset(preset.id);
   const controls = session.controls;
   const surface = session.controlSurface;
@@ -284,17 +288,18 @@ for (const preset of productPresets) {
 section('9. Mutation immunity — clone mutations do not affect source preset');
 {
   const src = getFirstProductPreset();
-  const snapshot = structuredClone(src);
+  // JSON snapshot: catalog entries carry a build() function, which structuredClone rejects.
+  const snapshot = JSON.parse(JSON.stringify(src));
   const session = createPresetSession(src);
   session.controls.primary_start.push({ field_id: 'artist' });
   session.controls.text_sizes.primary_start = 'large';
   session.template.canvas.margins.top = 99;
   if (deepEqual(src, snapshot)) pass('mutating a session does not affect the source preset');
-  else fail('mutation leaked', 'source ProductPreset was modified by mutating its clone');
+  else fail('mutation leaked', 'source style preset was modified by mutating its clone');
 }
 
 // ──────────────────────────────────────────────────────────
-section('10. Deep-freeze — direct mutation of the source preset is a hard error in dev');
+section('10. Deep-freeze — direct mutation of the source preset is rejected');
 {
   const src = getFirstProductPreset();
   let frozen = true;
@@ -304,7 +309,7 @@ section('10. Deep-freeze — direct mutation of the source preset is a hard erro
   } catch { /* expected in strict mode */ }
   // In non-strict contexts assignment silently fails; verify object state instead.
   if (frozen && src.mainControls.primary_start.length > 0) pass('mainControls is frozen (mutation rejected)');
-  else fail('deep-freeze missing', 'ProductPreset.mainControls is writable at runtime');
+  else fail('deep-freeze missing', 'style preset mainControls is writable at runtime');
 }
 
 // ──────────────────────────────────────────────────────────
@@ -337,7 +342,7 @@ for (const kase of fixture.cases) {
 // ──────────────────────────────────────────────────────────
 section('12. logo_position controls asset placement for every position');
 for (const pos of ['left', 'center', 'right'] as const) {
-  const base = createPresetSession(productPresets[0]);
+  const base = createPresetSession(WEB_STYLE_PRESETS[0]);
   base.controls.logo_position = pos;
   const cfg = resolveConfig(base.template, base.controls, base.slotOverrides, base.regionOverrides, base.rootOverrides, base.controlSurface);
   const asset = cfg.regions.find((r) => r.id === 'footer')?.slots?.asset;
@@ -350,7 +355,7 @@ for (const pos of ['left', 'center', 'right'] as const) {
 // ──────────────────────────────────────────────────────────
 section('13. sizes propagate for every combination of text_sizes');
 {
-  const preset = productPresets[0];
+  const preset = WEB_STYLE_PRESETS[0];
   const combos: SizeLevel[] = ['small', 'medium', 'large'];
   for (const s of combos) {
     const session = createPresetSession(preset);
@@ -375,7 +380,7 @@ section('13. sizes propagate for every combination of text_sizes');
 // ──────────────────────────────────────────────────────────
 section('14. Base template exports carry NO controlled slots');
 {
-  const cfg = resolveConfig(presetDefaultBase, getFirstProductPreset().mainControls);
+  const cfg = resolveConfig(getProductPreset('default').template.config, getFirstProductPreset().mainControls);
   const footer = cfg.regions.find((r) => r.id === 'footer');
   const asset = footer?.slots?.asset;
   if (asset?.enabled) pass('resolveConfig hydrates asset slot from controls, no template chips');
@@ -390,7 +395,7 @@ const EXPECTED_LOGO_ENABLED: Record<string, boolean> = {
   'minimal': false,
   'soft-card': true,
 };
-for (const preset of productPresets) {
+for (const preset of WEB_STYLE_PRESETS) {
   const expected = EXPECTED_LOGO_ENABLED[preset.id];
   if (expected === undefined) {
     fail(`${preset.id} — no product intent recorded`, 'update EXPECTED_LOGO_ENABLED map');
@@ -432,6 +437,82 @@ for (const preset of productPresets) {
   const logoEl = layout.elements.find((el) => el.type === 'logo');
   if (!logoEl) pass('default · layout emits no logo element when logo_enabled=false');
   else fail('default · layout still emits logo element');
+}
+
+// ──────────────────────────────────────────────────────────
+section('16. Style catalog — one identity space for every app');
+{
+  const ids = STYLE_PRESETS.map((p) => p.id);
+  assertEqual('style ids are unique across apps', [...new Set(ids)].length, ids.length);
+  assertEqual('every style belongs to exactly one app picker',
+    [...WEB_STYLE_PRESETS, ...IMMICH_STYLE_PRESETS].map((p) => p.id).sort(), [...ids].sort());
+  assertEqual('web picker order', WEB_STYLE_PRESETS.map((p) => p.id), ['default', 'minimal', 'soft-card']);
+  assertEqual('immich-ki picker order', IMMICH_STYLE_PRESETS.map((p) => p.id), ['classic', 'minimal-line', 'dark', 'blur', 'plain']);
+  for (const preset of STYLE_PRESETS) {
+    if (preset.name.trim() && preset.caption.trim() && preset.category) pass(`${preset.id} · has name, caption and category`);
+    else fail(`${preset.id} · identity incomplete`, JSON.stringify({ name: preset.name, caption: preset.caption, category: preset.category }));
+    if (getStylePreset(preset.id) === preset) pass(`${preset.id} · lookup by id`);
+    else fail(`${preset.id} · lookup by id returned a different entry`);
+    if (Object.isFrozen(preset)) pass(`${preset.id} · catalog entry is frozen`);
+    else fail(`${preset.id} · catalog entry is writable`);
+  }
+  let unknownThrows = false;
+  try { getStylePreset('no-such-style'); } catch { unknownThrows = true; }
+  if (unknownThrows) pass('unknown style id throws');
+  else fail('unknown style id returned a value');
+}
+
+// ──────────────────────────────────────────────────────────
+section('17. build() — complete, fresh, deterministic config for every style');
+for (const preset of STYLE_PRESETS) {
+  const a = preset.build({ shortEdge: 4000 });
+  const b = preset.build({ shortEdge: 4000 });
+  assertEqual(`${preset.id} · schema_version`, a.schema_version, 3);
+  if (deepEqual(a, b)) pass(`${preset.id} · deterministic`);
+  else fail(`${preset.id} · two builds diverged`);
+  if (a !== b && !Object.isFrozen(a) && !Object.isFrozen(a.canvas) && !Object.isFrozen(a.defaults)) pass(`${preset.id} · returns a fresh writable copy`);
+  else fail(`${preset.id} · build() returned shared or frozen data`);
+  a.canvas.background = '#123456';
+  a.regions.forEach((region) => Object.values(region.slots ?? {}).forEach((slot) => {
+    if (slot.content && 'chips' in slot.content) slot.content.chips.push({ field_id: 'artist' });
+  }));
+  if (deepEqual(preset.build({ shortEdge: 4000 }), b)) pass(`${preset.id} · mutating a build does not leak into the next`);
+  else fail(`${preset.id} · build mutation leaked into the catalog`);
+  const frames = b.regions.filter((r) => r.type !== 'free');
+  if (frames.length <= 1) pass(`${preset.id} · at most one information frame`);
+  else fail(`${preset.id} · ${frames.length} frames`);
+  const layout = computeLayout(b as unknown as Parameters<typeof computeLayout>[0], 6000, 4000);
+  if (layout.canvas.w >= 6000 && layout.canvas.h >= 4000) pass(`${preset.id} · lays out a 6000×4000 photo`);
+  else fail(`${preset.id} · layout canvas smaller than the photo`, JSON.stringify(layout.canvas));
+}
+
+// web: build() is exactly what a fresh editor session resolves to.
+for (const preset of WEB_STYLE_PRESETS) {
+  assertEqual(`${preset.id} · build() equals the fresh session config`, preset.build(), resolvedFromPreset(preset.id).config);
+}
+
+// ──────────────────────────────────────────────────────────
+section('18. immich-ki styles — product intent per style');
+{
+  const footer = (id: string) => getStylePreset(id).build().regions.find((r) => r.id === 'footer');
+  assertEqual('classic · dual-track footer, 0.15 short edge', [footer('classic')?.layout?.mode, footer('classic')?.height], ['dual-track', 0.15]);
+  assertEqual('classic · logo slot enabled', footer('classic')?.slots?.asset?.enabled, true);
+  assertEqual('classic · 60px white space on three sides', getStylePreset('classic').build().canvas.margins, { top: 60, right: 60, bottom: 0, left: 60 });
+  assertEqual('minimal-line · single-track footer, 0.10 short edge', [footer('minimal-line')?.layout?.mode, footer('minimal-line')?.height], ['single-track', 0.1]);
+  assertEqual('minimal-line · no logo', footer('minimal-line')?.slots?.asset?.enabled, false);
+  assertEqual('dark · dark background', getStylePreset('dark').build().canvas.background, '#141414');
+  assertEqual('blur · blurred background with radius and shadow', getStylePreset('blur').build().canvas.effect, { background: 'blur', photo_radius: 0.015, shadow: true });
+  assertEqual('blur · white space scales with the photo (6% of 4000)', getStylePreset('blur').build({ shortEdge: 4000 }).canvas.margins.top, 240);
+  assertEqual('blur · white space never below 60px', getStylePreset('blur').build({ shortEdge: 500 }).canvas.margins.top, 60);
+  assertEqual('blur · white space without a photo size', getStylePreset('blur').build().canvas.margins.top, 180);
+  assertEqual('plain · no frame, 60px on all sides', [getStylePreset('plain').build().regions.length, getStylePreset('plain').build().canvas.margins], [0, { top: 60, right: 60, bottom: 60, left: 60 }]);
+  for (const preset of IMMICH_STYLE_PRESETS) {
+    const layout = computeLayout(preset.build({ shortEdge: 4000 }) as unknown as Parameters<typeof computeLayout>[0], 6000, 4000);
+    const logo = layout.elements.find((el) => el.type === 'logo');
+    const expectsLogo = preset.id === 'classic' || preset.id === 'dark' || preset.id === 'blur';
+    if (Boolean(logo) === expectsLogo) pass(`${preset.id} · logo element ${expectsLogo ? 'present' : 'absent'}`);
+    else fail(`${preset.id} · logo element ${logo ? 'present' : 'absent'}, expected ${expectsLogo ? 'present' : 'absent'}`);
+  }
 }
 
 console.log('');
