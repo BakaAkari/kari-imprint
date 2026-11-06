@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--prefix", "apps/web", "vite", "apps/web", "--host", "127.0.0.1", "--port", "21831", "--strictPort"],
+      "port": 21831
+    }
+  ]
+}
