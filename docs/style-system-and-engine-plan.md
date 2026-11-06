@@ -556,9 +556,10 @@ The user authorised end-to-end implementation on 2026-11-07, with the recommende
 
 ### Implementation status (2026-11-07)
 
+**Preview parity, measured** (2026-11-07): `scripts/render_preview_references.py` plus the dev page `apps/web/scripts/preview-harness/` render all 66 catalog cases through `KariImprintCanvas` in Chromium and diff them against PIL. Every new family differs on 0.00–0.31% of pixels (any channel more than 32 apart: text anti-aliasing). The only case above 1% is the original `blur` style (1.6–2.1%), whose blurred backdrop blooms slightly brighter in the canvas; that effect predates this work. Brand logos were excluded from the comparison (no API in the harness).
+
 M1–M6 are implemented: 33 catalog styles (8 original, plus 25 engine-built families) in `apps/web/src/stylePresets.ts`. Every style's TS/Python layout parity is checked by `scripts/verify_flow_layout_parity.py` (86 fixtures). Not done or not verified:
 - the web editor still lists only its three controlled presets, and the new families ship in immich-ki;
-- the browser preview of the new families was not exercised in a real browser;
 - immich-ki worker tests need Linux (`fcntl`);
 - the headless-browser pixel diff (D9) is not built;
 - vertical-CJK punctuation and rotated Latin runs are deferred.

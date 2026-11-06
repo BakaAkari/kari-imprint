@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Preview parity harness</title>
+  <style>
+    body { margin: 0; padding: 16px; font: 13px/1.4 system-ui, sans-serif; background: #1d1d1d; color: #e8e8e8; }
+    h1 { font-size: 16px; margin: 0 0 12px; }
+    .summary { margin-bottom: 16px; }
+    .case { display: grid; grid-template-columns: 240px 1fr 1fr 1fr; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #333; }
+    .case.bad .meta { color: #ff8a7a; }
+    .frame { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: #2a2a2a; }
+    .frame > div { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .frame img, .frame canvas { max-width: 100%; max-height: 100%; }
+  </style>
+</head>
+<body>
+  <h1>Preview parity: KariImprintCanvas vs PIL</h1>
+  <div id="root"></div>
+  <script type="module" src="./main.tsx"></script>
+</body>
+</html>
